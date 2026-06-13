@@ -517,6 +517,21 @@ code {
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes modal-rise { from { opacity: 0; transform: translateY(16px) scale(0.99); } to { opacity: 1; transform: none; } }
 
+/* ---- confirm dialog ---- */
+.modal-dialog-sm { width: min(460px, 100%); }
+.confirm-dialog .modal-head { background: color-mix(in srgb, var(--warn) 12%, var(--surface)); border-bottom-color: color-mix(in srgb, var(--warn) 30%, var(--border)); }
+.confirm-dialog .modal-title { font-family: var(--font-display); }
+.confirm-icon { color: var(--warn); margin-right: 0.2rem; }
+.confirm-body { padding: 1.1rem 1.2rem; }
+.confirm-message { margin: 0 0 0.7rem; font-size: 0.95rem; }
+.confirm-list { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.32rem; }
+.confirm-list li { color: var(--text-muted); font-size: 0.9rem; }
+.confirm-list li::marker { color: var(--warn); }
+.modal-foot {
+  display: flex; justify-content: flex-end; gap: 0.6rem;
+  padding: 0.9rem 1.2rem; border-top: 1px solid var(--border); background: var(--surface-2);
+}
+
 /* ---- save bar ---- */
 .save-bar {
   border-top: 1px solid var(--border);

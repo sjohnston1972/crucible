@@ -266,6 +266,24 @@
     </div>
   </div>
 
+  <div id="confirm-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-confirm-cancel></div>
+    <div class="modal-dialog modal-dialog-sm confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+      <div class="modal-head">
+        <h3 id="confirm-title" class="modal-title"><span class="confirm-icon">⚠</span> <span id="confirm-title-text"></span></h3>
+        <button class="btn btn-small btn-ghost" type="button" data-confirm-cancel aria-label="Close">✕</button>
+      </div>
+      <div class="confirm-body">
+        <p id="confirm-message" class="confirm-message"></p>
+        <ul id="confirm-list" class="confirm-list"></ul>
+      </div>
+      <div class="modal-foot">
+        <button id="confirm-cancel" class="btn" type="button" data-confirm-cancel>Cancel</button>
+        <button id="confirm-ok" class="btn btn-primary" type="button">Confirm</button>
+      </div>
+    </div>
+  </div>
+
   <footer class="app-footer muted">Crucible · local files never leave your browser · AI hardening review is advisory</footer>
 
   <script type="module" src="/app.js"></script>

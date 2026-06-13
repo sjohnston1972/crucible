@@ -684,9 +684,13 @@ async function onSave() {
   const sanity = saveSanityWarnings(config, electedRoot);
   const blocking = sanity.filter((m) => !m.includes("secure-access")); // creds are genuinely optional
   if (blocking.length >= 2) {
-    const ok = window.confirm(
-      `Heads up — your template will be sparse:\n\n• ${sanity.join("\n• ")}\n\nGenerate the template anyway?`
-    );
+    const ok = await styledConfirm({
+      title: "Your template will be sparse",
+      message: "Crucible didn’t detect much to put in the output:",
+      items: sanity,
+      confirmLabel: "Generate anyway",
+      cancelLabel: "Go back",
+    });
     if (!ok) {
       $("run-status").textContent = "Cancelled — nothing generated.";
       return;
@@ -912,6 +916,44 @@ function closeConfigModal() {
   const modal = $("cfg-modal");
   modal.classList.add("hidden");
   modal.setAttribute("aria-hidden", "true");
+}
+
+/** Promise-based styled confirm dialog (replaces window.confirm). Resolves true/false. */
+function styledConfirm({ title, message, items = [], confirmLabel = "Confirm", cancelLabel = "Cancel" }) {
+  return new Promise((resolve) => {
+    const modal = $("confirm-modal");
+    $("confirm-title-text").textContent = title;
+    $("confirm-message").textContent = message;
+    const list = $("confirm-list");
+    list.innerHTML = items.map((i) => `<li>${escapeHtml(i)}</li>`).join("");
+    list.classList.toggle("hidden", !items.length);
+    const okBtn = $("confirm-ok");
+    okBtn.textContent = confirmLabel;
+    $("confirm-cancel").textContent = cancelLabel;
+    modal.classList.remove("hidden");
+    modal.setAttribute("aria-hidden", "false");
+
+    const cleanup = (result) => {
+      modal.classList.add("hidden");
+      modal.setAttribute("aria-hidden", "true");
+      okBtn.removeEventListener("click", onOk);
+      modal.removeEventListener("click", onCancel);
+      document.removeEventListener("keydown", onKey);
+      resolve(result);
+    };
+    const onOk = () => cleanup(true);
+    const onCancel = (e) => {
+      if (e.target.hasAttribute("data-confirm-cancel")) cleanup(false);
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") cleanup(false);
+      else if (e.key === "Enter") cleanup(true);
+    };
+    okBtn.addEventListener("click", onOk);
+    modal.addEventListener("click", onCancel);
+    document.addEventListener("keydown", onKey);
+    okBtn.focus();
+  });
 }
 
 async function copyModalConfig() {
