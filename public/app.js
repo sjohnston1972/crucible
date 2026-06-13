@@ -299,10 +299,15 @@ function renderDiscoveredInterfaces() {
       tile.className = "disc-if" + (f.shutdown ? " shutdown" : "");
       tile.dataset.unit = u.id;
       tile.dataset.name = f.normName;
+      const badges =
+        (f.shutdown ? '<span class="disc-if-shut">SHUT</span>' : "") +
+        (f.channelGroup != null
+          ? `<span class="disc-if-po" title="Bundled into Port-channel${f.channelGroup}">bundled PO${f.channelGroup}</span>`
+          : "");
       tile.innerHTML =
         `<label class="disc-if-main"><input type="checkbox" class="disc-if-cb"${p.checked ? " checked" : ""} />` +
         `<span class="disc-if-name">${escapeHtml(f.normName)}</span></label>` +
-        `<div class="disc-if-row2">${f.shutdown ? '<span class="disc-if-shut">SHUT</span>' : "<span></span>"}` +
+        `<div class="disc-if-row2"><span class="disc-if-badges">${badges}</span>` +
         `<select class="disc-if-mode"><option value="full"${p.mode !== "ip" ? " selected" : ""}>All data</option>` +
         `<option value="ip"${p.mode === "ip" ? " selected" : ""}>IP only</option></select></div>`;
       tile.querySelectorAll("input,select").forEach((el) => el.addEventListener("input", refreshTagMap));

@@ -272,6 +272,7 @@ function parseInterface(name, block, result) {
     switchportLines: [],
     stpLines: [], // per-port spanning-tree lines (kept with the interface)
     helperAddresses: [],
+    channelGroup: null, // port-channel number this interface is bundled into
   };
 
   for (const c of children) {
@@ -279,6 +280,7 @@ function parseInterface(name, block, result) {
     if ((m = c.match(/^description\s+(.*)$/))) iface.description = m[1];
     else if (/^shutdown$/.test(c)) iface.shutdown = true;
     else if ((m = c.match(/^(?:ip )?vrf forwarding\s+(\S+)/))) iface.vrf = m[1];
+    else if ((m = c.match(/^channel-group\s+(\d+)/))) iface.channelGroup = Number(m[1]);
     else if (/^ip address\s+/.test(c)) {
       iface.ipAddresses.push(c);
       iface.hasIp = true;

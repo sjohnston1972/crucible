@@ -90,6 +90,16 @@ test("interface: IP-only extraction includes secondary", () => {
   ]);
 });
 
+test("interface: channel-group (port-channel membership) captured", () => {
+  const p = parse(
+    "interface Te1/1/1\n description Uplink\n switchport mode trunk\n channel-group 2 mode on\n!\ninterface Gi1/0/1\n switchport mode access\n!\n"
+  );
+  const te = p.interfaces.find((f) => f.normName === "TenGigabitEthernet1/1/1");
+  assert.equal(te.channelGroup, 2);
+  const gi = p.interfaces.find((f) => f.normName === "GigabitEthernet1/0/1");
+  assert.equal(gi.channelGroup, null);
+});
+
 test("interface: vrf forwarding + shutdown captured", () => {
   const p = parse(IFACE_SAMPLE);
   const mg = p.interfaces.find((f) => f.normName === "GigabitEthernet0/0");

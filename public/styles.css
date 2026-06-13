@@ -375,9 +375,16 @@ code {
 .disc-if-mode { padding: 0.25rem 0.4rem; font-size: 0.76rem; }
 .disc-if.shutdown { border-color: color-mix(in srgb, var(--bad) 55%, transparent); background: color-mix(in srgb, var(--bad) 8%, transparent); }
 .disc-if.shutdown .disc-if-name { color: var(--bad); }
+.disc-if-badges { display: inline-flex; gap: 0.3rem; flex-wrap: wrap; align-items: center; }
 .disc-if-shut {
   font-size: 0.6rem; font-weight: 700; letter-spacing: 0.06em; color: var(--bad);
   border: 1px solid color-mix(in srgb, var(--bad) 50%, transparent); border-radius: 4px; padding: 0.02rem 0.28rem;
+}
+.disc-if-po {
+  font-size: 0.6rem; font-weight: 700; letter-spacing: 0.03em; color: var(--steel);
+  background: var(--steel-soft);
+  border: 1px solid color-mix(in srgb, var(--steel) 45%, transparent); border-radius: 4px; padding: 0.02rem 0.32rem;
+  white-space: nowrap;
 }
 .inert { opacity: 0.4; pointer-events: none; }
 
