@@ -216,29 +216,36 @@
       <div id="tagmap" class="tagmap"></div>
     </section>
 
-    <!-- Step 8: Run -->
+    <!-- Step 8: Root election -->
     <section class="card" id="step-run">
       <div class="card-head">
-        <h2><span class="step-num">8</span> Root election &amp; save</h2>
+        <h2><span class="step-num">8</span> Root election</h2>
         <p class="step-desc">
-          Pick which switch is the spanning-tree root for this scan, then save. Outputs are written back
-          beside each source (or downloaded as a <code>.zip</code> in read-only browsers).
+          Set which switch is the spanning-tree root for this scan. The chosen switch is configured as
+          the <strong>sole root</strong>; the others stand down (root secondary). Electing a root
+          automatically includes each switch’s spanning-tree config in its template.
         </p>
       </div>
-      <div class="actions">
-        <button id="btn-save" class="btn btn-primary" type="button" disabled>Save outputs</button>
-        <button id="btn-analyze" class="btn" type="button" disabled>Re-analyze</button>
-        <span id="run-status" class="muted small"></span>
-      </div>
       <div id="stp-root-wrap" class="stp-root hidden">
+        <p id="stp-root-current" class="muted small"></p>
         <label class="field"><span>Spanning-tree root for this scan</span>
           <select id="stp-root"></select>
         </label>
-        <p class="muted small">The chosen switch is configured as the <strong>sole root</strong>; the others stand down (root secondary). Electing a root automatically includes each switch’s spanning-tree config in its template.</p>
       </div>
-      <div id="warnings" class="warnings"></div>
+      <p id="stp-root-none" class="muted small hidden">No spanning-tree was found in the scanned devices — nothing to elect.</p>
     </section>
   </main>
+
+  <section class="save-bar">
+    <div class="save-bar-inner">
+      <div class="save-bar-main">
+        <button id="btn-save" class="btn-save" type="button" disabled>⚒ Generate &amp; save outputs</button>
+        <span id="run-status" class="muted small"></span>
+      </div>
+      <p class="save-bar-hint muted small">Builds each device template and writes it back beside the source — or downloads a <code>.zip</code> in read-only browsers.</p>
+      <div id="warnings" class="warnings"></div>
+    </div>
+  </section>
 
   <pre id="iface-tip" class="iface-tip hidden"></pre>
 

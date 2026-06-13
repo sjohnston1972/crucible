@@ -510,6 +510,31 @@ code {
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes modal-rise { from { opacity: 0; transform: translateY(16px) scale(0.99); } to { opacity: 1; transform: none; } }
 
+/* ---- save bar ---- */
+.save-bar {
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  padding: 1.6rem 1.5rem;
+}
+.save-bar-inner { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 0.65rem; }
+.save-bar-main { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.btn-save {
+  font: 700 1.05rem/1 var(--font-display);
+  padding: 0.95rem 1.9rem;
+  border-radius: 12px;
+  border: none;
+  background: var(--accent-grad);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  letter-spacing: 0.01em;
+  transition: transform 0.15s, box-shadow 0.15s, filter 0.15s;
+}
+.btn-save:hover:not(:disabled) { transform: translateY(-2px); box-shadow: var(--shadow-lg); filter: brightness(1.05); }
+.btn-save:active:not(:disabled) { transform: translateY(0); }
+.btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
+.save-bar-hint { margin: 0; }
+
 /* ---- footer ---- */
 .app-footer { text-align: center; font-size: 0.78rem; padding: 1.5rem; border-top: 1px solid var(--border); }
 

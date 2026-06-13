@@ -127,7 +127,6 @@ function renderSites() {
   list.innerHTML = "";
   if (!state.sites.length) {
     $("sites-summary").textContent = "No sites found — no folder directly contains a .txt/.cfg file.";
-    $("btn-analyze").disabled = true;
     return;
   }
   const fileTotal = state.sites.reduce((n, s) => n + s.files.length, 0);
@@ -143,7 +142,6 @@ function renderSites() {
       `<ul class="site-files">${names}</ul>`;
     list.appendChild(wrap);
   }
-  $("btn-analyze").disabled = false;
   // Run analysis automatically as soon as a folder is scanned (results render here in Step 2).
   onAnalyze().catch(reportError);
 }
@@ -420,7 +418,8 @@ function clearAll() {
   $("warnings").innerHTML = "";
   $("run-status").textContent = "";
   $("if-all").checked = false;
-  $("btn-analyze").disabled = true;
+  $("stp-root-none").classList.add("hidden");
+  state.currentRootId = null;
   $("btn-save").disabled = true;
   applyIfAllDisabled();
   refreshTagMap();
@@ -566,21 +565,67 @@ function makeUnit(site, parsed, sourceNames) {
   };
 }
 
+/** Best guess at which scanned switch is currently the spanning-tree root. */
+function detectCurrentRoot(stpUnits) {
+  let best = null;
+  let bestScore = Infinity;
+  let signal = false;
+  for (const u of stpUnits) {
+    const stp = u.parsed.spanningTree;
+    const hasPrimary = (stp.vlanConfig || []).some((v) => v.root === "primary");
+    const mstPrimary = (stp.mstConfig?.priorities || []).some((p) => /primary|^0$|^4096$/.test(String(p.value)));
+    const prios = (stp.vlanConfig || []).map((v) => v.priority).filter((p) => typeof p === "number");
+    let score;
+    if (hasPrimary || mstPrimary) {
+      score = -1;
+      signal = true;
+    } else if (prios.length) {
+      score = Math.min(...prios);
+      if (score < 32768) signal = true;
+    } else {
+      score = 32768;
+    }
+    if (score < bestScore) {
+      bestScore = score;
+      best = u;
+    }
+  }
+  return signal ? best : null;
+}
+
 function populateStpRoot(config) {
   const wrap = $("stp-root-wrap");
+  const none = $("stp-root-none");
   const sel = $("stp-root");
   // Show the root picker whenever a scanned device runs spanning-tree, regardless of
   // whether the STP collection checkbox is ticked — electing a root implies emitting it.
   const stpUnits = state.units.filter((u) => u.parsed.spanningTree.mode);
   if (stpUnits.length < 1) {
     wrap.classList.add("hidden");
+    none.classList.remove("hidden");
+    state.currentRootId = null;
     return;
   }
   wrap.classList.remove("hidden");
-  sel.innerHTML = `<option value="">— none / leave as-is —</option>`;
+  none.classList.add("hidden");
+
+  const current = detectCurrentRoot(stpUnits);
+  state.currentRootId = current ? current.id : null;
+  const msg = $("stp-root-current");
+  if (current) {
+    msg.innerHTML =
+      `The current spanning-tree root is <strong>${escapeHtml(current.parsed.hostname || current.sourceNames[0])}</strong>. ` +
+      `Leave the selection on it to keep that, or choose a different switch to make it the new sole root.`;
+  } else {
+    msg.textContent =
+      "No explicit spanning-tree root was detected among the scanned switches — choose one to elect, or leave unchanged.";
+  }
+
+  sel.innerHTML = `<option value="">— leave spanning-tree unchanged —</option>`;
   for (const u of stpUnits) {
     const label = `${u.parsed.hostname || u.sourceNames[0]} (${u.site.path})`;
-    sel.innerHTML += `<option value="${escapeHtml(u.id)}">${escapeHtml(label)}</option>`;
+    const selected = current && u.id === current.id ? " selected" : "";
+    sel.innerHTML += `<option value="${escapeHtml(u.id)}"${selected}>${escapeHtml(label)}</option>`;
   }
 }
 
@@ -605,25 +650,59 @@ function defaultTemplate(config, hostname) {
   return lines.join("\n");
 }
 
+function saveSanityWarnings(config, electedRoot) {
+  const w = [];
+  const anyIface =
+    config.interfacesAll.enabled ||
+    config.manualInterfaces.length > 0 ||
+    state.units.some((u) => unitInterfaces(u.id).length > 0);
+  if (!anyIface) w.push("no interfaces selected");
+  const r = config.routing;
+  if (!r.defaultGateway && !r.allStatic && !r.protocols) w.push("no routing selected");
+  const otherData =
+    config.vrf.enabled || config.stp.enabled || config.dhcp.enabled ||
+    config.snmp.enabled || config.tacacs.enabled || config.logging.enabled ||
+    config.ntp.enabled || !!electedRoot;
+  if (!otherData) w.push("no VRF / STP / DHCP / SNMP / TACACS+ / logging / NTP selected");
+  if (!state.units.some((u) => u.findings.some((f) => f.apply))) w.push("no hardening items ticked");
+  if (!config.secureAccess.enabled) w.push("no secure-access credentials");
+  return w;
+}
+
 async function onSave() {
   const config = readConfig();
-  if (!state.units.length) return reportError(new Error("Run Analyze first."));
+  if (!state.units.length) return reportError(new Error("Scan a folder first (Step 1)."));
+
+  const electedRoot = $("stp-root").value || null;
+
+  // Pre-generation sanity check: if the template would be sparse, confirm intent.
+  const sanity = saveSanityWarnings(config, electedRoot);
+  const blocking = sanity.filter((m) => !m.includes("secure-access")); // creds are genuinely optional
+  if (blocking.length >= 2) {
+    const ok = window.confirm(
+      `Heads up — your template will be sparse:\n\n• ${sanity.join("\n• ")}\n\nGenerate the template anyway?`
+    );
+    if (!ok) {
+      $("run-status").textContent = "Cancelled — nothing generated.";
+      return;
+    }
+  }
 
   $("run-status").textContent = "Building & saving…";
-  const electedRoot = $("stp-root").value || null;
-  // Electing a root implies the STP block must be emitted (with root/secondary rewrites),
-  // even if the user didn't separately tick "Spanning-tree" collection.
+  // Electing a root implies the STP block must be emitted; only a *different* switch than the
+  // current root triggers a rewrite — leaving it on the current root carries STP verbatim.
   if (electedRoot) config.stp.enabled = true;
+  const changingRoot = !!electedRoot && electedRoot !== state.currentRootId;
   const zipFiles = [];
   const allWarnings = [];
 
   for (const unit of state.units) {
     const stpRole = !config.stp.enabled
       ? "asis"
-      : unit.id === electedRoot
-      ? "root"
-      : electedRoot
-      ? "nonroot"
+      : changingRoot
+      ? unit.id === electedRoot
+        ? "root"
+        : "nonroot"
       : "asis";
 
     const applied = unit.findings.filter((f) => f.apply);
@@ -953,7 +1032,6 @@ function init() {
   $("btn-template").addEventListener("click", onChooseTemplateFSA);
   $("template-input").addEventListener("change", onTemplatePicked);
   $("btn-clear-template").addEventListener("click", onClearTemplate);
-  $("btn-analyze").addEventListener("click", onAnalyze);
   $("btn-save").addEventListener("click", onSave);
 
   // live tag map + conditional UI
@@ -979,11 +1057,14 @@ function init() {
     refreshTagMap();
   });
   $("if-all-mode").addEventListener("input", refreshTagMap);
+  // Merge / source-count change device grouping → re-analyze automatically (replaces the old button).
   $("merge").addEventListener("change", () => {
     $("role-rows").classList.toggle("hidden", !$("merge").checked || Number($("source-count").value) < 2);
+    if (state.sites.length) onAnalyze().catch(reportError);
   });
-  $("source-count").addEventListener("input", () => {
+  $("source-count").addEventListener("change", () => {
     $("role-rows").classList.toggle("hidden", !$("merge").checked || Number($("source-count").value) < 2);
+    if (state.sites.length) onAnalyze().catch(reportError);
   });
   $("rename").addEventListener("change", () => $("rename-rows").classList.toggle("hidden", !$("rename").checked));
 

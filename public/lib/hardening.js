@@ -342,6 +342,7 @@ export function remediationLines(findings) {
   const out = [];
   for (const f of findings) {
     if (f.apply && f.status === "missing" && f.remediation.length) {
+      if (out.length) out.push("!"); // blank separator between items for readability
       out.push(`! [${f.severity}] ${f.title}`);
       out.push(...f.remediation);
     }
