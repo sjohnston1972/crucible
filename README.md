@@ -52,7 +52,7 @@ npm run deploy
 - `BourdonSW1.txt` — a real C9300 stack config (root-level site).
 - `samples/SiteA/RT1.txt`, `samples/SiteA/SW1.txt` — a router + MST/VRF switch pair for testing
   the merge-into-L3 and STP-root-election flows.
-- `samples/template-example.txt` — a tag-based template skeleton.
+- `public/sample-data/Paisley *.txt` — served to the in-app **Load sample data** button.
 
 ## Workflow
 
@@ -63,3 +63,29 @@ npm run deploy
    review button. Pick the **spanning-tree root** for the scan if STP is collected.
 4. **Save outputs** → builds each template (applying ticked hardening + the elected STP root) and
    writes it back beside the source (or into a downloaded `.zip` in fallback mode).
+
+## Source control — read before committing
+
+> ⚠️ **This repository contains real Cisco device configs with live secrets** (SNMP community
+> strings, password hashes, TACACS keys) — `BourdonSW1.txt`, `paisley/`, `public/sample-data/`,
+> `ReidCore.txt`, `CMB-TUK-SWT02#sh run.txt`, `Aspatria Router.txt`, `Haverford Router.txt`,
+> `6509-vss-outputs.txt`. **The repo is therefore PRIVATE — keep it that way.** Do not flip it to
+> public without first removing or redacting these files from the full git history (not just the
+> working tree).
+
+- **`.env` is git-ignored** (`.gitignore`) and holds `ANTHROPIC_API_KEY` + `CLOUDFLARE_API_TOKEN`.
+  Never commit it. The deploy/secret commands read it via `set -a && . ./.env && set +a`.
+- Anything you drop into the working directory **gets committed** — new device configs are tracked
+  by default. Add throwaway/scratch configs to `.gitignore` if you don't want them in history.
+- `node_modules/`, `.dev.vars`, and `.wrangler/` are also ignored.
+- The deployed Worker secret (`ANTHROPIC_API_KEY`) lives in Cloudflare, **not** in the repo — set it
+  with `npx wrangler secret put ANTHROPIC_API_KEY`, never in a tracked file.
+
+Typical flow:
+
+```bash
+git add -A
+git status            # confirm no .env / unintended secrets are staged
+git commit -m "…"
+git push
+```
