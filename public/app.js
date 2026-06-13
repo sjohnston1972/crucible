@@ -27,6 +27,13 @@ const isConfigFile = (name) => CONFIG_EXT.test(name);
 // Distinct accent colours assigned per port-channel number (cycled if exceeded).
 const PO_PALETTE = ["#2f8d99", "#7c4dff", "#2f9e57", "#cf4f86", "#3f7fd6", "#c98a3a", "#1f9aa8", "#8e9b34"];
 
+/** Port-channel number an interface relates to: a member's channel-group, or the aggregate's own number. */
+function interfacePo(f) {
+  if (f.channelGroup != null) return f.channelGroup;
+  const m = f.normName.match(/^Port-channel(\d+)/i);
+  return m ? Number(m[1]) : null;
+}
+
 const state = {
   mode: null, // 'primary' | 'fallback'
   rootHandle: null,
@@ -279,7 +286,7 @@ function renderDiscoveredInterfaces() {
   // Assign a distinct colour to each port-channel number across the scan.
   const poNums = [
     ...new Set(
-      state.units.flatMap((u) => (u.parsed.interfaces || []).map((f) => f.channelGroup).filter((n) => n != null))
+      state.units.flatMap((u) => (u.parsed.interfaces || []).map(interfacePo).filter((n) => n != null))
     ),
   ].sort((a, b) => a - b);
   const poColor = new Map(poNums.map((n, i) => [n, PO_PALETTE[i % PO_PALETTE.length]]));
@@ -307,15 +314,19 @@ function renderDiscoveredInterfaces() {
         shutdown: !!f.shutdown,
       });
       const p = prev.get(key) || {};
+      const po = interfacePo(f);
+      const isAggregate = f.channelGroup == null && po != null;
       const tile = document.createElement("div");
-      tile.className = "disc-if" + (f.channelGroup != null ? " bundled" : "") + (f.shutdown ? " shutdown" : "");
-      if (f.channelGroup != null) tile.style.setProperty("--po-color", poColor.get(f.channelGroup));
+      tile.className = "disc-if" + (po != null ? " bundled" : "") + (f.shutdown ? " shutdown" : "");
+      if (po != null) tile.style.setProperty("--po-color", poColor.get(po));
       tile.dataset.unit = u.id;
       tile.dataset.name = f.normName;
       const badges =
         (f.shutdown ? '<span class="disc-if-shut">SHUT</span>' : "") +
-        (f.channelGroup != null
-          ? `<span class="disc-if-po" title="Bundled into Port-channel${f.channelGroup}">bundled PO${f.channelGroup}</span>`
+        (po != null
+          ? isAggregate
+            ? `<span class="disc-if-po" title="Port-channel ${po} aggregate interface">PO${po} aggregate</span>`
+            : `<span class="disc-if-po" title="Bundled into Port-channel${po}">bundled PO${po}</span>`
           : "");
       tile.innerHTML =
         `<label class="disc-if-main"><input type="checkbox" class="disc-if-cb"${p.checked ? " checked" : ""} />` +
