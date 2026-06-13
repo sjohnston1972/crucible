@@ -1,0 +1,79 @@
+!
+version 15.7
+service timestamps debug datetime msec
+service timestamps log datetime msec
+service password-encryption
+no service pad
+!
+hostname RT1
+!
+boot-start-marker
+boot-end-marker
+!
+enable secret 5 $1$abcd$EXAMPLEHASHvalue00
+!
+aaa new-model
+!
+ip routing
+ip domain name example.lan
+ip name-server 10.10.20.10
+!
+vrf definition CUSTOMER_A
+ rd 65001:10
+ address-family ipv4
+  route-target export 65001:10
+  route-target import 65001:10
+ exit-address-family
+!
+ip dhcp excluded-address 10.10.30.1 10.10.30.20
+ip dhcp pool DATA_VLAN30
+ network 10.10.30.0 255.255.255.0
+ default-router 10.10.30.1
+ dns-server 10.10.20.10
+ domain-name example.lan
+ lease 7
+!
+username netadmin privilege 15 secret 5 $1$wxyz$EXAMPLEHASHvalue11
+!
+interface GigabitEthernet0/0
+ description Uplink to Core
+ ip address 10.10.0.2 255.255.255.252
+ no shutdown
+!
+interface GigabitEthernet0/1
+ description CUSTOMER_A handoff
+ vrf forwarding CUSTOMER_A
+ ip address 10.20.0.1 255.255.255.0
+ ip helper-address 10.10.20.50
+ no shutdown
+!
+interface Vlan30
+ description Data
+ ip address 10.10.30.1 255.255.255.0
+!
+router ospf 10
+ router-id 10.10.0.2
+ passive-interface Vlan30
+ network 10.10.0.0 0.0.255.255 area 0
+!
+ip route 0.0.0.0 0.0.0.0 10.10.0.1
+ip route 10.99.0.0 255.255.0.0 10.10.0.5
+ip route vrf CUSTOMER_A 0.0.0.0 0.0.0.0 10.20.0.254
+!
+ip http server
+no ip http secure-server
+!
+snmp-server community Sample_RO RO
+!
+line con 0
+ exec-timeout 5 0
+line vty 0 4
+ exec-timeout 5 0
+ transport input ssh
+line vty 5 15
+ transport input ssh
+!
+ip ssh version 2
+ntp server 10.10.20.16
+!
+end

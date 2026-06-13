@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Crucible — LAN Refresh Config Template Tool</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="bg-grid" aria-hidden="true"></div>
+  <div class="bg-glow" aria-hidden="true"></div>
+
+  <header class="app-header">
+    <div class="brand">
+      <div>
+        <h1>Crucible</h1>
+        <p class="tagline">Melt down your old configs and cast them anew</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <div id="mode-badge" class="mode-badge" data-mode="detecting">Detecting browser…</div>
+      <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle light / dark theme" title="Toggle theme">☾</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Step 1: Master folder -->
+    <section class="card" id="step-folder">
+      <div class="card-head">
+        <h2><span class="step-num">1</span> Master folder</h2>
+        <p class="step-desc">
+          Point Crucible at the top-level folder that holds your site sub-folders. Every folder
+          directly containing a <code>.txt</code> or <code>.cfg</code> file becomes one
+          <strong>site</strong>. Files are read entirely in your browser — nothing is uploaded.
+        </p>
+      </div>
+      <div class="actions">
+        <button id="btn-browse" class="btn btn-primary" type="button">Browse folder…</button>
+        <button id="btn-sample" class="btn" type="button">Load sample data</button>
+        <button id="btn-clear" class="btn btn-ghost" type="button">Clear all</button>
+        <input id="fallback-input" type="file" webkitdirectory directory multiple hidden />
+        <span id="folder-name" class="folder-name muted"></span>
+      </div>
+      <p id="fallback-note" class="fallback-note hidden">
+        Read-only mode: this browser can’t write files in place, so outputs are delivered as a
+        downloadable <code>.zip</code> instead.
+      </p>
+    </section>
+
+    <!-- Step 2: Discovered sites + analysis -->
+    <section class="card" id="step-sites">
+      <div class="card-head">
+        <h2><span class="step-num">2</span> Discovered sites &amp; analysis</h2>
+        <p class="step-desc">
+          The sites and devices Crucible found. Each config is parsed and audited automatically the
+          moment you scan — review what was extracted and the hardening findings per device below.
+        </p>
+        <p class="muted small" id="sites-summary">No folder selected yet.</p>
+      </div>
+      <div id="sites-list" class="sites-list"></div>
+      <div id="results" class="results"></div>
+    </section>
+
+    <!-- Step 3: Sources & merge -->
+    <section class="card" id="step-sources">
+      <div class="card-head">
+        <h2><span class="step-num">3</span> Source files &amp; merge</h2>
+        <p class="step-desc">
+          Tell Crucible how many config files each site should contain, and whether to collapse a
+          site’s devices (e.g. a router + a switch) into a single Layer-3 switch template.
+        </p>
+      </div>
+      <div class="grid2">
+        <label class="field">
+          <span>Source files per site</span>
+          <input id="source-count" type="number" min="1" value="1" />
+        </label>
+        <label class="field checkbox">
+          <input id="merge" type="checkbox" />
+          <span>Merge a site’s sources into one template (router + switch → L3 switch)</span>
+        </label>
+      </div>
+      <div id="role-rows" class="role-rows hidden">
+        <p class="muted small">Optional: map each source slot to a filename pattern so collection rules can target it.</p>
+      </div>
+    </section>
+
+    <!-- Step 4: Collection -->
+    <section class="card" id="step-collection">
+      <div class="card-head">
+        <h2><span class="step-num">4</span> What to collect</h2>
+        <p class="step-desc">
+          Choose exactly what to pull from each source device into its new template.
+        </p>
+      </div>
+
+      <h3 class="sub">Interfaces</h3>
+      <p class="sub-desc">
+        Interfaces found in your scan, <strong>grouped by device</strong>. Tick the ones to carry across and
+        pick <em>All data</em> or <em>IP only</em> for each. Shutdown ports are flagged in red — hover any
+        interface to preview its current config.
+      </p>
+      <div class="if-all-row">
+        <label class="checkbox"><input id="if-all" type="checkbox" /><span><strong>All interfaces</strong> from every device</span></label>
+        <select id="if-all-mode" class="if-all-mode"><option value="full">All data</option><option value="ip">IP only</option></select>
+      </div>
+      <div id="disc-ifaces" class="disc-ifaces">
+        <p class="muted small">Scan a folder in Step 1 and the interfaces found in each device appear here.</p>
+      </div>
+      <div id="iface-rows" class="iface-rows"></div>
+      <button id="btn-add-iface" class="btn btn-small" type="button">+ Add interface (manual)</button>
+
+      <h3 class="sub">IP routing</h3>
+      <p class="sub-desc">Select which routing information to migrate. A legacy <code>ip default-gateway</code> is rewritten as a modern default route automatically.</p>
+      <div class="checks">
+        <label class="checkbox"><input id="r-default" type="checkbox" /><span>Default gateway → modern default route</span></label>
+        <label class="checkbox"><input id="r-static" type="checkbox" /><span>All static routes</span></label>
+        <label class="checkbox"><input id="r-protocols" type="checkbox" /><span>Routing protocols (OSPF / EIGRP / BGP / RIP)</span></label>
+      </div>
+
+      <h3 class="sub">Other data</h3>
+      <p class="sub-desc">Carry across these blocks wherever they exist in the source.</p>
+      <div class="checks">
+        <label class="checkbox"><input id="c-vrf" type="checkbox" /><span>VRFs in use</span></label>
+        <label class="checkbox"><input id="c-stp" type="checkbox" /><span>Spanning-tree (global / per-VLAN / MST)</span></label>
+        <label class="checkbox"><input id="c-dhcp" type="checkbox" /><span>DHCP scopes</span></label>
+      </div>
+
+      <h3 class="sub">Management services</h3>
+      <p class="sub-desc">Crucible scans each source for these services and can carry the existing config across. Counts are shown per device in the analysis above.</p>
+      <div class="checks">
+        <label class="checkbox"><input id="c-snmp" type="checkbox" /><span>SNMP (<code>snmp-server</code>)</span></label>
+        <label class="checkbox"><input id="c-tacacs" type="checkbox" /><span>TACACS+ (<code>tacacs server</code> / <code>aaa group server tacacs+</code>)</span></label>
+        <label class="checkbox"><input id="c-logging" type="checkbox" /><span>Logging (<code>logging</code>)</span></label>
+        <label class="checkbox"><input id="c-ntp" type="checkbox" /><span>NTP (<code>ntp</code>)</span></label>
+      </div>
+
+      <h3 class="sub">Secure access</h3>
+      <p class="sub-desc">Inject a hardened local admin and SSH login into every output. Generates SHA-256 user &amp; enable secrets, AAA local login, optional type-6 password encryption, and the SSH/VTY commands that make the login work.</p>
+      <label class="checkbox"><input id="sec-enable" type="checkbox" /><span>Set a secure username &amp; password</span></label>
+      <div id="sec-rows" class="grid2 hidden" style="margin-top:0.75rem; grid-template-columns: 1fr 1fr;">
+        <label class="field"><span>Username</span><input id="sec-user" type="text" placeholder="netadmin" autocomplete="off" /></label>
+        <label class="field"><span>Password / secret</span><input id="sec-pass" type="text" placeholder="strong secret" autocomplete="off" /></label>
+        <label class="field"><span>Enable secret <span class="muted small">(optional — defaults to password)</span></span><input id="sec-enable-secret" type="text" placeholder="(reuse password)" autocomplete="off" /></label>
+        <label class="field"><span>Config-key for type-6 <span class="muted small">(optional)</span></span><input id="sec-configkey" type="text" placeholder="password-encrypt key" autocomplete="off" /></label>
+      </div>
+    </section>
+
+    <!-- Step 5: Template & insertion -->
+    <section class="card" id="step-template">
+      <div class="card-head">
+        <h2><span class="step-num">5</span> Template &amp; insertion</h2>
+        <p class="step-desc">
+          By default Crucible writes its own template that matches your selections — you don’t need to
+          supply one. Provide a file only if you want a specific base config.
+        </p>
+      </div>
+      <div class="actions">
+        <button id="btn-template" class="btn" type="button">Choose template file… (optional)</button>
+        <input id="template-input" type="file" accept=".txt,.cfg,text/plain" hidden />
+        <span id="template-name" class="folder-name muted">Using auto-generated template</span>
+        <button id="btn-clear-template" class="btn btn-small btn-ghost hidden" type="button">✕ clear</button>
+      </div>
+      <div class="checks" style="margin-top:1rem">
+        <label class="checkbox"><input type="radio" name="insertion" value="tag" checked /><span><strong>Tag-based</strong> — fill <code>{a}</code>, <code>{b}</code>, … <code>{harden}</code> markers</span></label>
+        <label class="checkbox"><input type="radio" name="insertion" value="direct" /><span><strong>Direct</strong> — append each block under generated section headers</span></label>
+      </div>
+    </section>
+
+    <!-- Step 6: Output naming -->
+    <section class="card" id="step-naming">
+      <div class="card-head">
+        <h2><span class="step-num">6</span> Output naming</h2>
+        <p class="step-desc">
+          Each output is named from the device’s <code>hostname</code> with a fixed <code>.txt</code>
+          extension. Optionally rename — this updates both the filename and the in-config hostname.
+        </p>
+      </div>
+      <label class="checkbox"><input id="rename" type="checkbox" /><span>Rename hostname</span></label>
+      <div id="rename-rows" class="grid3 hidden" style="margin-top:0.75rem">
+        <label class="field"><span>Method</span>
+          <select id="rename-method"><option value="find">Find / replace</option><option value="suffix">Suffix swap</option></select>
+        </label>
+        <label class="field"><span>Find</span><input id="rename-find" type="text" placeholder="RT" /></label>
+        <label class="field"><span>Replace</span><input id="rename-replace" type="text" placeholder="SW" /></label>
+      </div>
+    </section>
+
+    <!-- Step 7: Tag map -->
+    <section class="card" id="step-tagmap">
+      <div class="card-head">
+        <h2><span class="step-num">7</span> Computed tag map</h2>
+        <p class="step-desc">
+          A live preview of which marker maps to which block. If you bring your own tag-based template,
+          lay the markers out to match this.
+        </p>
+      </div>
+      <div id="tagmap" class="tagmap"></div>
+    </section>
+
+    <!-- Step 8: Run -->
+    <section class="card" id="step-run">
+      <div class="card-head">
+        <h2><span class="step-num">8</span> Root election &amp; save</h2>
+        <p class="step-desc">
+          Pick which switch is the spanning-tree root for this scan, then save. Outputs are written back
+          beside each source (or downloaded as a <code>.zip</code> in read-only browsers).
+        </p>
+      </div>
+      <div class="actions">
+        <button id="btn-save" class="btn btn-primary" type="button" disabled>Save outputs</button>
+        <button id="btn-analyze" class="btn" type="button" disabled>Re-analyze</button>
+        <span id="run-status" class="muted small"></span>
+      </div>
+      <div id="stp-root-wrap" class="stp-root hidden">
+        <label class="field"><span>Spanning-tree root for this scan</span>
+          <select id="stp-root"></select>
+        </label>
+        <p class="muted small">The chosen switch is configured as the <strong>sole root</strong>; the others stand down (root secondary).</p>
+      </div>
+      <div id="warnings" class="warnings"></div>
+    </section>
+  </main>
+
+  <pre id="iface-tip" class="iface-tip hidden"></pre>
+
+  <div id="cfg-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="cfg-modal-title">
+      <div class="modal-head">
+        <div>
+          <h3 id="cfg-modal-title" class="modal-title"></h3>
+          <p id="cfg-modal-sub" class="muted small"></p>
+        </div>
+        <div class="modal-actions">
+          <button id="cfg-copy" class="btn btn-small" type="button">Copy code</button>
+          <button id="cfg-close" class="btn btn-small btn-ghost" type="button" data-close aria-label="Close">✕</button>
+        </div>
+      </div>
+      <pre class="modal-code"><code id="cfg-code"></code></pre>
+    </div>
+  </div>
+
+  <footer class="app-footer muted">Crucible · local files never leave your browser · AI hardening review is advisory</footer>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,61 @@
+!
+version 16.9
+service password-encryption
+no service pad
+!
+hostname SW1
+!
+aaa new-model
+!
+spanning-tree mode mst
+spanning-tree extend system-id
+spanning-tree portfast bpduguard default
+!
+spanning-tree mst configuration
+ name REGION1
+ revision 3
+ instance 1 vlan 10,20
+ instance 2 vlan 30,40
+!
+spanning-tree mst 1 priority 4096
+!
+vlan 10
+ name VOICE
+vlan 20
+ name DATA
+!
+username netadmin privilege 15 secret 5 $1$qqqq$EXAMPLEHASHvalue22
+!
+interface GigabitEthernet1/0/1
+ description Access - Data
+ switchport access vlan 20
+ switchport mode access
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+!
+interface GigabitEthernet1/0/2
+ description Access - no guard (finding)
+ switchport access vlan 20
+ switchport mode access
+ spanning-tree portfast
+!
+interface GigabitEthernet1/0/24
+ description Uplink trunk to RT1
+ switchport trunk allowed vlan 10,20,30,40
+ switchport mode trunk
+!
+interface Vlan20
+ description Data SVI
+ ip address 10.10.20.2 255.255.255.0
+!
+ip default-gateway 10.10.20.1
+!
+no ip http server
+!
+snmp-server community public RO
+!
+line con 0
+line vty 0 15
+ transport input ssh telnet
+!
+end

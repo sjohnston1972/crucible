@@ -1,0 +1,421 @@
+haverford router
+
+Haverfordwest-RTR#sh run
+Building configuration...
+
+
+Current configuration : 10005 bytes
+!
+! Last configuration change at 14:17:45 BST Mon Sep 24 2018 by pingnms
+!
+version 15.1
+service timestamps debug datetime msec localtime show-timezone
+service timestamps log datetime msec localtime show-timezone
+service password-encryption
+service sequence-numbers
+!
+hostname Haverfordwest-RTR
+!
+boot-start-marker
+boot system flash
+boot-end-marker
+!
+!
+card type e1 0 0
+logging buffered 4096
+enable secret 5 $1$USvm$SVM84xlXGoM02kNm9iISY0
+!
+no aaa new-model
+clock timezone GMT 0 0
+clock summer-time BST recurring last Sun Mar 2:00 last Sun Oct 2:00
+network-clock-participate wic 0
+network-clock-select 1 E1 0/0/0
+!
+dot11 syslog
+ip source-route
+!
+!
+ip cef
+no ip dhcp use vrf connected
+ip dhcp excluded-address 192.168.12.0 192.168.12.20
+ip dhcp excluded-address 172.21.102.1 172.21.102.26
+ip dhcp excluded-address 172.21.102.70 172.21.102.254
+!
+ip dhcp pool VOICE
+   network 192.168.12.0 255.255.255.0
+   default-router 192.168.12.1
+   option 150 ip 192.168.2.202 192.168.2.203
+   domain-name first-milk.co.uk
+!
+!
+!
+no ip domain lookup
+no ipv6 cef
+multilink bundle-name authenticated
+!
+!
+!
+!
+isdn switch-type primary-net5
+!
+!
+voice call send-alert
+voice call carrier capacity active
+voice rtp send-recv
+!
+voice service voip
+ fax protocol pass-through g711alaw
+ modem passthrough nse codec g711alaw
+!
+voice class codec 1
+ codec preference 1 g711alaw
+ codec preference 2 g711ulaw
+ codec preference 3 g729r8
+!
+voice class h323 1
+  h225 timeout tcp establish 3
+!
+!
+!
+!
+voice translation-rule 1
+ rule 1 /^.*/ /90&/
+!
+voice translation-rule 2
+ rule 1 /762852/ /1701/
+ rule 2 /760624/ /1567/
+ rule 3 /763012/ /1568/
+ rule 4 /^.*\(....\)/ /\1/
+!
+!
+voice translation-profile PSTN-IN
+ translate calling 1
+ translate called 2
+!
+!
+voice-card 0
+!
+crypto pki token default removal timeout 0
+!
+crypto pki trustpoint TP-self-signed-1709962413
+ enrollment selfsigned
+ subject-name cn=IOS-Self-Signed-Certificate-1709962413
+ revocation-check none
+ rsakeypair TP-self-signed-1709962413
+!
+!
+crypto pki certificate chain TP-self-signed-1709962413
+ certificate self-signed 01
+  3082024A 308201B3 A0030201 02020101 300D0609 2A864886 F70D0101 04050030
+  31312F30 2D060355 04031326 494F532D 53656C66 2D536967 6E65642D 43657274
+  69666963 6174652D 31373039 39363234 3133301E 170D3037 30313138 31373038
+  34305A17 0D323030 31303130 30303030 305A3031 312F302D 06035504 03132649
+  4F532D53 656C662D 5369676E 65642D43 65727469 66696361 74652D31 37303939
+  36323431 3330819F 300D0609 2A864886 F70D0101 01050003 818D0030 81890281
+  8100BC57 B3785514 D1FFEB31 EA6EF614 910F7B4F 6C22DEF8 3FFE4696 DF96ED9A
+  518826FD B0EACC3B 53BFBC84 CF1F1276 C882EB23 C44BB639 CA2674FA CDCB8EB7
+  919E13AE 85CE49D0 E2BCE74B E2564426 26462A7F C76EF614 27D777F3 BD6490E3
+  26F7F00F 76E93896 63BA9FA1 BF379A21 CB1372D0 450DD67D 50AD5EF6 54D3B665
+  11A70203 010001A3 72307030 0F060355 1D130101 FF040530 030101FF 301D0603
+  551D1104 16301482 12486176 6572666F 72647765 73742D52 54522E30 1F060355
+  1D230418 30168014 E54AC7BA 38E81993 D1ACB720 B9ECE894 A7B513DB 301D0603
+  551D0E04 160414E5 4AC7BA38 E81993D1 ACB720B9 ECE894A7 B513DB30 0D06092A
+  864886F7 0D010104 05000381 810072B2 76AB5AE1 66B2C30E C8E45EEC 36CAD004
+  88583CA7 FCD53A9B BFE5EC80 D75437BB 8D48A4DD 8785B863 C038E350 2FB12EAD
+  5C9A697F 2D0912F3 27A0EA87 13EE5D51 373FD96E 8687CBED FED26BF7 A45E07B1
+  9752FFB4 9E093D49 5C964B97 864A52F9 C6F333E5 5D29732D B387272D 78F48CB6
+  5CC1DFBB CC3CD18F BA1AB6ED 9BF0
+        quit
+!
+!
+license udi pid CISCO2811 sn FCZ103372RU
+username admin privilege 15 password 7 13153701181B54382F
+username administrator privilege 15 password 7 03147B181518715E4A
+username pingnms privilege 15 password 7 044B5A08087019175E4C56
+!
+!
+controller E1 0/0/0
+ pri-group timeslots 1-8,16
+ description E1 PSTN Link (Circ. No. XXXXXXXXXX)
+!
+!
+class-map match-any AutoQoS-VoIP-Remark
+ match ip dscp ef
+ match ip dscp cs3
+ match ip dscp af31
+class-map match-any AutoQoS-VoIP-Control-UnTrust
+ match access-group name AutoQoS-VoIP-Control
+class-map match-any AutoQoS-VoIP-RTP-UnTrust
+ match protocol rtp audio
+ match access-group name AutoQoS-VoIP-RTCP
+!
+!
+policy-map AutoQoS-Policy-UnTrust
+ class AutoQoS-VoIP-RTP-UnTrust
+  priority percent 70
+  set dscp ef
+ class AutoQoS-VoIP-Control-UnTrust
+  bandwidth percent 5
+  set dscp af31
+ class AutoQoS-VoIP-Remark
+  set dscp default
+ class class-default
+  fair-queue
+!
+!
+!
+!
+!
+!
+interface FastEthernet0/0
+ description Haverfordwest LAN
+ no ip address
+ duplex auto
+ speed auto
+!
+interface FastEthernet0/0.1
+ encapsulation dot1Q 1 native
+ ip address 172.21.102.1 255.255.255.0
+!
+interface FastEthernet0/0.2
+ encapsulation dot1Q 2
+ ip address 192.168.12.1 255.255.255.0
+ h323-gateway voip interface
+ h323-gateway voip bind srcaddr 192.168.12.1
+!
+interface FastEthernet0/0.7
+ description ***PLC1 VLAN***
+ encapsulation dot1Q 7
+ ip address 172.16.7.254 255.255.255.0
+!
+interface FastEthernet0/0.8
+ description ***PLC2 VLAN***
+ encapsulation dot1Q 8
+ ip address 172.16.8.254 255.255.255.0
+!
+interface FastEthernet0/0.9
+ description ***PLC3 VLAN***
+ encapsulation dot1Q 9
+ ip address 172.16.9.254 255.255.255.0
+!
+interface FastEthernet0/0.17
+ description ***HMI Network***
+ encapsulation dot1Q 17
+ ip address 172.17.9.254 255.255.255.0
+!
+interface FastEthernet0/0.50
+!
+interface FastEthernet0/0.70
+ description ***PLC_NETWORK***
+ encapsulation dot1Q 70
+ ip address 172.21.104.1 255.255.255.0
+!
+interface FastEthernet0/1
+ description NEW Leased Line Connection to Stars MPLS Network
+ ip address 10.0.0.62 255.255.255.252
+ duplex auto
+ speed auto
+ auto qos voip
+ service-policy output AutoQoS-Policy-UnTrust
+!
+interface Serial0/0/0:15
+ no ip address
+ encapsulation hdlc
+ isdn switch-type primary-net5
+ isdn incoming-voice voice
+ isdn send-alerting
+ isdn bchan-number-order ascending
+ isdn sending-complete
+ no cdp enable
+!
+interface Serial0/1/0
+ description Leased Line Connection to Stars MPLS Network
+ bandwidth 2048
+ ip address 10.0.0.34 255.255.255.252
+ shutdown
+ auto qos voip
+ down-when-looped
+ serial restart-delay 0
+ service-policy output AutoQoS-Policy-UnTrust
+!
+router bgp 65489
+ bgp log-neighbor-changes
+ neighbor 10.0.0.61 remote-as 8426
+ neighbor 10.0.0.61 version 4
+ !
+ address-family ipv4
+  redistribute connected
+  redistribute static
+  neighbor 10.0.0.61 activate
+  neighbor 10.0.0.61 send-community
+  neighbor 10.0.0.61 soft-reconfiguration inbound
+  neighbor 10.0.0.61 prefix-list fromClaranet in
+  neighbor 10.0.0.61 route-map toClaranet out
+  no auto-summary
+ exit-address-family
+!
+ip forward-protocol nd
+ip http server
+ip http authentication local
+ip http secure-server
+ip http timeout-policy idle 5 life 86400 requests 10000
+!
+ip bgp-community new-format
+!
+ip route 0.0.0.0 0.0.0.0 Serial0/1/0
+!
+ip access-list standard SNMP_ACCESS
+ permit 9.254.254.254
+!
+ip access-list extended AutoQoS-VoIP-Control
+ permit tcp any any eq 1720
+ permit tcp any any range 11000 11999
+ permit udp any any eq 2427
+ permit tcp any any eq 2428
+ permit tcp any any range 2000 2002
+ permit udp any any eq 1719
+ permit udp any any eq 5060
+ip access-list extended AutoQoS-VoIP-RTCP
+ permit udp any any range 16384 32767
+!
+!
+ip prefix-list fromClaranet seq 5 permit 0.0.0.0/0
+ip prefix-list fromClaranet seq 10 deny 0.0.0.0/0 le 32
+!
+ip prefix-list toClaranet seq 5 permit 172.16.7.0/24
+ip prefix-list toClaranet seq 10 permit 172.16.8.0/24
+ip prefix-list toClaranet seq 15 permit 172.16.9.0/24
+ip prefix-list toClaranet seq 20 permit 172.17.9.0/24
+ip prefix-list toClaranet seq 25 permit 172.21.102.0/24
+ip prefix-list toClaranet seq 30 permit 172.21.104.0/24
+ip prefix-list toClaranet seq 35 permit 192.168.12.0/24
+ip prefix-list toClaranet seq 100 deny 0.0.0.0/0 le 32
+logging esm config
+logging trap errors
+logging 192.168.1.59
+logging 9.254.254.254
+!
+route-map toClaranet permit 10
+ match ip address prefix-list toClaranet
+ set community 6656:70
+!
+snmp-server community FML-public RO SNMP_ACCESS
+snmp-server community FML-private RW
+snmp-server trap-source FastEthernet0/0.1
+snmp-server enable traps snmp coldstart warmstart
+snmp-server enable traps flash insertion removal
+snmp-server enable traps envmon
+snmp-server enable traps entity
+snmp-server enable traps hsrp
+snmp-server enable traps ipsla
+snmp-server enable traps vtp
+snmp-server host 192.168.1.59 FML-public
+snmp-server host 9.254.254.254 FML-public
+!
+!
+control-plane
+!
+rmon event 33333 log trap AutoQoS description "AutoQoS SNMP traps for Voice Drops" owner AutoQoS
+rmon alarm 33333 cbQosCMDropBitRate.34.14175073 30 absolute rising-threshold 1 33333 falling-threshold 0 owner AutoQoS
+!
+voice-port 0/0/0:15
+ translation-profile incoming PSTN-IN
+ cptone GB
+ bearer-cap Speech
+!
+!
+!
+mgcp profile default
+!
+!
+dial-peer voice 9 pots
+ destination-pattern 9T
+ progress_ind setup enable 3
+ progress_ind alert enable 8
+ progress_ind progress enable 8
+ progress_ind connect enable 8
+ incoming called-number .
+ direct-inward-dial
+ port 0/0/0:15
+!
+dial-peer voice 999 pots
+ destination-pattern 999
+ progress_ind setup enable 3
+ progress_ind alert enable 8
+ progress_ind progress enable 8
+ progress_ind connect enable 8
+ port 0/0/0:15
+ forward-digits all
+!
+dial-peer voice 15001 voip
+ preference 1
+ destination-pattern 1...
+ session target ipv4:192.168.2.202
+ incoming called-number .
+ voice-class codec 1
+ voice-class h323 1
+ dtmf-relay h245-alphanumeric
+ no vad
+!
+dial-peer voice 15000 voip
+ destination-pattern 1...
+ session target ipv4:192.168.2.203
+ incoming called-number .
+ voice-class codec 1
+ voice-class h323 1
+ dtmf-relay h245-alphanumeric
+ no vad
+!
+!
+!
+call-manager-fallback
+ max-conferences 8 gain -6
+ transfer-system full-consult
+ ip source-address 192.168.12.1 port 2000
+ max-ephones 42
+ max-dn 144
+ no huntstop
+ pickup 1701
+ alias 1 1701 to 1504
+ alias 2 1701 to 1507
+ alias 3 1701 to 1506
+ alias 4 1701 to 1519
+!
+!
+!
+line con 0
+line aux 0
+line vty 0 4
+ password 7 071F015F5D1E491713
+ login local
+ transport input telnet ssh
+line vty 5 15
+ password 7 01032617481C561D25
+ login local
+ transport input telnet ssh
+!
+scheduler allocate 20000 1000
+end
+
+Haverfordwest-RTR#              sh ip int brief
+Interface                  IP-Address      OK? Method Status                Protocol
+FastEthernet0/0            unassigned      YES NVRAM  up                    up  
+FastEthernet0/0.1          172.21.102.1    YES NVRAM  up                    up  
+FastEthernet0/0.2          192.168.12.1    YES NVRAM  up                    up  
+FastEthernet0/0.7          172.16.7.254    YES NVRAM  up                    up  
+FastEthernet0/0.8          172.16.8.254    YES NVRAM  up                    up  
+FastEthernet0/0.9          172.16.9.254    YES NVRAM  up                    up  
+FastEthernet0/0.17         172.17.9.254    YES NVRAM  up                    up  
+FastEthernet0/0.50         unassigned      YES unset  up                    up  
+FastEthernet0/0.70         172.21.104.1    YES NVRAM  up                    up  
+FastEthernet0/1            10.0.0.62       YES NVRAM  up                    up  
+Serial0/0/0:0              unassigned      YES unset  down                  down
+Serial0/0/0:1              unassigned      YES unset  down                  down
+Serial0/0/0:2              unassigned      YES unset  down                  down
+Serial0/0/0:3              unassigned      YES unset  down                  down
+Serial0/0/0:4              unassigned      YES unset  down                  down
+Serial0/0/0:5              unassigned      YES unset  down                  down
+Serial0/0/0:6              unassigned      YES unset  down                  down
+Serial0/0/0:7              unassigned      YES unset  down                  down
+Serial0/0/0:15             unassigned      YES NVRAM  up                    up  
+Serial0/1/0                10.0.0.34       YES NVRAM  administratively down down

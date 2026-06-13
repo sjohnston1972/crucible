@@ -1,0 +1,23 @@
+name = "crucible"
+main = "src/index.js"
+compatibility_date = "2025-05-01"
+# Required so the Anthropic SDK's Node-style imports resolve inside the Worker.
+compatibility_flags = ["nodejs_compat"]
+
+# Serve only via the custom domain; disable the *.workers.dev URL.
+workers_dev = false
+
+# Custom domain — Cloudflare provisions DNS + TLS automatically (zone must be on
+# this account). The *.workers.dev URL keeps working alongside it.
+routes = [
+  { pattern = "crucible.clydeford.net", custom_domain = true }
+]
+
+# Static GUI (HTML/JS/CSS) is served from ./public via the assets binding.
+# The Worker only handles /api/* routes; everything else is a static asset.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+# The Anthropic API key is NOT stored here. Set it as a secret:
+#   npx wrangler secret put ANTHROPIC_API_KEY

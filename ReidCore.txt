@@ -1,0 +1,2206 @@
+ReidCore1#sh run
+Building configuration...
+
+Current configuration : 83873 bytes
+!
+! Last configuration change at 10:27:48 GMT Wed Mar 13 2019 by GSA\A.R.Wilson
+! NVRAM config last updated at 10:41:41 GMT Wed Mar 13 2019 by GSA\A.R.Wilson
+!
+version 15.1
+no service pad
+service timestamps debug datetime localtime
+service timestamps log datetime localtime
+no service password-encryption
+service compress-config
+!
+hostname ReidCore1
+!
+boot-start-marker
+boot system flash bootflash:cat4500e-universalk9.SPA.03.04.06.SG.151-2.SG6.bin
+boot-end-marker
+!
+!
+vrf definition mgmtVrf
+ !
+ address-family ipv4
+ exit-address-family
+ !
+ address-family ipv6
+ exit-address-family
+!
+logging buffered 16386
+logging rate-limit 100 except warnings
+no logging console
+no logging monitor
+enable secret 4 01bb/w4xNfvXHETVpGcdM2qnfTv67iG.ppOYNvgsdlI
+!
+username J.Sanderson privilege 15 password 0 Esox!Lucius44
+username pingnms privilege 15 password 0 B4Ten!897525
+aaa new-model
+!
+!
+aaa group server tacacs+ ISE-Group
+ server name GSA-ISE
+!
+aaa authentication login default group ISE-Group local
+aaa authentication login failsafe none
+aaa authentication enable default group ISE-Group enable
+aaa authorization config-commands
+aaa authorization exec default group ISE-Group local
+aaa authorization commands 0 default group ISE-Group if-authenticated
+aaa authorization commands 1 default group ISE-Group if-authenticated
+aaa authorization commands 7 default group ISE-Group if-authenticated
+aaa authorization commands 15 default group ISE-Group if-authenticated
+aaa accounting exec default start-stop group ISE-Group
+aaa accounting commands 0 default stop-only group ISE-Group
+aaa accounting commands 1 default stop-only group ISE-Group
+aaa accounting commands 7 default stop-only group ISE-Group
+aaa accounting commands 15 default stop-only group ISE-Group
+aaa accounting connection default start-stop group ISE-Group
+aaa accounting system default start-stop group ISE-Group
+!
+!
+!
+!
+!
+aaa session-id common
+clock timezone GMT 0 0
+clock summer-time BST recurring last Sun Mar 23:00 last Sun Oct 23:00
+!
+switch virtual domain 100
+ switch mode virtual
+ mac-address use-virtual
+!
+ dual-active detection pagp trust channel-group 10
+!
+flow record ipv4
+ match ipv4 tos
+ match ipv4 protocol
+ match ipv4 source address
+ match ipv4 destination address
+ match transport source-port
+ match transport destination-port
+ match interface input
+ collect interface output
+ collect counter bytes long
+ collect counter packets long
+!
+!
+flow exporter NetFlow-to-PingNMS
+ destination 9.254.254.254
+ source Vlan1
+ transport udp 2055
+!
+!
+flow monitor NetFlow-Monitor
+ description Original Netflow captures
+ record ipv4
+ exporter NetFlow-to-PingNMS
+ cache timeout inactive 10
+ cache timeout active 5
+!
+!
+ip vrf Liin-vrf
+!
+ip domain-name gsa.ac.uk
+!
+!
+ipv6 multicast rpf use-bgp
+!
+!
+!
+power redundancy-mode redundant
+!
+mac access-list extended VSL-BPDU
+ permit any 0180.c200.0000 0000.0000.0003
+mac access-list extended VSL-CDP
+ permit any host 0100.0ccc.cccc
+mac access-list extended VSL-DOT1x
+ permit any any 0x888E
+mac access-list extended VSL-GARP
+ permit any host 0180.c200.0020
+mac access-list extended VSL-LLDP
+ permit any host 0180.c200.000e
+mac access-list extended VSL-MGMT
+ permit any 0022.bdcd.d200 0000.0000.00ff
+ permit 0022.bdcd.d200 0000.0000.00ff any
+mac access-list extended VSL-SSTP
+ permit any host 0100.0ccc.cccd
+!
+!
+!
+!
+!
+spanning-tree mode pvst
+spanning-tree extend system-id
+!
+redundancy
+ mode sso
+!
+!
+vlan configuration 2-999
+ip flow monitor NetFlow-Monitor input
+vlan internal allocation policy ascending
+!
+!
+class-map match-all AutoQos-4.0-Scavenger-Classify
+  match access-group name AutoQos-4.0-ACL-Scavenger
+class-map match-any VSL-MGMT-PACKETS
+  match access-group name VSL-MGMT
+class-map match-any VSL-DATA-PACKETS
+  match any
+class-map match-all AutoQos-4.0-Signaling-Classify
+  match access-group name AutoQos-4.0-ACL-Signaling
+class-map match-any AutoQos-4.0-Priority-Queue
+  match cos  5
+  match  dscp ef
+  match  dscp cs5
+  match  dscp cs4
+class-map match-any VSL-L2-CONTROL-PACKETS
+  match access-group name VSL-DOT1x
+  match access-group name VSL-BPDU
+  match access-group name VSL-CDP
+  match access-group name VSL-LLDP
+  match access-group name VSL-SSTP
+  match access-group name VSL-GARP
+class-map match-all AutoQos-4.0-VoIP-Data-Cos
+  match cos  5
+class-map match-any VSL-L3-CONTROL-PACKETS
+  match access-group name VSL-IPV4-ROUTING
+  match access-group name VSL-BFD
+  match access-group name VSL-DHCP-CLIENT-TO-SERVER
+  match access-group name VSL-DHCP-SERVER-TO-CLIENT
+  match access-group name VSL-DHCP-SERVER-TO-SERVER
+  match access-group name VSL-IPV6-ROUTING
+class-map match-any AutoQos-4.0-Multimedia-Stream-Queue
+  match  dscp af31
+  match  dscp af32
+  match  dscp af33
+class-map match-all AutoQos-4.0-Network-Mgmt
+  match  dscp cs2
+class-map match-all AutoQos-4.0-VoIP-Signal-Cos
+  match cos  3
+class-map match-any VSL-MULTIMEDIA-TRAFFIC
+  match  dscp af41
+  match  dscp af42
+  match  dscp af43
+  match  dscp af31
+  match  dscp af32
+  match  dscp af33
+  match  dscp af21
+  match  dscp af22
+  match  dscp af23
+class-map match-any AutoQos-4.0-Multimedia-Conf-Queue
+  match cos  4
+  match  dscp af41
+  match  dscp af42
+  match  dscp af43
+  match access-group name AutoQos-4.0-ACL-Multimedia-Conf
+class-map match-any AutoQos-4.0-Transaction-Data
+  match  dscp af21
+  match  dscp af22
+  match  dscp af23
+class-map match-all AutoQos-4.0-Network-Ctrl
+  match  dscp cs7
+class-map match-all AutoQos-4.0-Scavenger
+  match  dscp cs1
+class-map match-all AutoQos-4.0-Default-Classify
+  match access-group name AutoQos-4.0-ACL-Default
+class-map match-any AutoQos-4.0-Signaling
+  match  dscp cs3
+  match cos  3
+class-map match-any AutoQos-4.0-Bulk-Data-Queue
+  match cos  1
+  match  dscp af11
+  match  dscp af12
+  match  dscp af13
+  match access-group name AutoQos-4.0-ACL-Bulk-Data
+class-map match-all AutoQos-4.0-Transaction-Classify
+  match access-group name AutoQos-4.0-ACL-Transactional-Data
+class-map match-any VSL-VOICE-VIDEO-TRAFFIC
+  match  dscp ef
+  match  dscp cs4
+  match  dscp cs5
+class-map match-all AutoQos-4.0-Broadcast-Vid
+  match  dscp cs5
+class-map match-any AutoQos-4.0-Bulk-Data
+  match  dscp af11
+  match  dscp af12
+  match  dscp af13
+class-map match-any AutoQos-4.0-Scavenger-Queue
+  match  dscp cs1
+  match cos  1
+  match access-group name AutoQos-4.0-ACL-Scavenger
+class-map match-any AutoQos-4.0-VoIP
+  match  dscp ef
+  match cos  5
+class-map match-any AutoQos-4.0-Multimedia-Conf
+  match  dscp af41
+  match  dscp af42
+  match  dscp af43
+class-map match-any AutoQos-4.0-Control-Mgmt-Queue
+  match cos  3
+  match  dscp cs7
+  match  dscp cs6
+  match  dscp cs3
+  match  dscp cs2
+  match access-group name AutoQos-4.0-ACL-Signaling
+class-map match-all AutoQos-4.0-Bulk-Data-Classify
+  match access-group name AutoQos-4.0-ACL-Bulk-Data
+class-map match-any AutoQos-4.0-Trans-Data-Queue
+  match cos  2
+  match  dscp af21
+  match  dscp af22
+  match  dscp af23
+  match access-group name AutoQos-4.0-ACL-Transactional-Data
+class-map match-any AutoQos-4.0-Multimedia-Stream
+  match  dscp af31
+  match  dscp af32
+  match  dscp af33
+class-map match-any AutoQos-4.0-VoIP-Data
+  match  dscp ef
+  match cos  5
+class-map match-all AutoQos-4.0-Internetwork-Ctrl
+  match  dscp cs6
+class-map match-any VSL-SIGNALING-NETWORK-MGMT
+  match  dscp cs2
+  match  dscp cs3
+  match  dscp cs6
+  match  dscp cs7
+class-map match-all AutoQos-4.0-Realtime-Interact
+  match  dscp cs4
+class-map match-all AutoQos-4.0-Multimedia-Conf-Classify
+  match access-group name AutoQos-4.0-ACL-Multimedia-Conf
+class-map match-any AutoQos-4.0-VoIP-Signal
+  match  dscp cs3
+  match cos  3
+!
+policy-map AutoQos-4.0-Input-Policy
+ class AutoQos-4.0-VoIP
+ class AutoQos-4.0-Broadcast-Vid
+ class AutoQos-4.0-Realtime-Interact
+ class AutoQos-4.0-Network-Ctrl
+ class AutoQos-4.0-Internetwork-Ctrl
+ class AutoQos-4.0-Signaling
+ class AutoQos-4.0-Network-Mgmt
+ class AutoQos-4.0-Multimedia-Conf
+ class AutoQos-4.0-Multimedia-Stream
+ class AutoQos-4.0-Transaction-Data
+ class AutoQos-4.0-Bulk-Data
+ class AutoQos-4.0-Scavenger
+policy-map AutoQos-4.0-Output-Policy
+ class AutoQos-4.0-Scavenger-Queue
+    bandwidth remaining percent 1
+ class AutoQos-4.0-Priority-Queue
+    priority
+    police cir percent 30 bc 33 ms
+ class AutoQos-4.0-Control-Mgmt-Queue
+    bandwidth remaining percent 10
+ class AutoQos-4.0-Multimedia-Conf-Queue
+    bandwidth remaining percent 10
+ class AutoQos-4.0-Multimedia-Stream-Queue
+    bandwidth remaining percent 10
+ class AutoQos-4.0-Trans-Data-Queue
+    bandwidth remaining percent 10
+    dbl
+ class AutoQos-4.0-Bulk-Data-Queue
+    bandwidth remaining percent 4
+    dbl
+ class class-default
+    bandwidth remaining percent 25
+    dbl
+policy-map VSL-Queuing-Policy
+ class VSL-MGMT-PACKETS
+    bandwidth percent 5
+ class VSL-L2-CONTROL-PACKETS
+    bandwidth percent 5
+ class VSL-L3-CONTROL-PACKETS
+    bandwidth percent 5
+ class VSL-VOICE-VIDEO-TRAFFIC
+    bandwidth percent 30
+ class VSL-SIGNALING-NETWORK-MGMT
+    bandwidth percent 10
+ class VSL-MULTIMEDIA-TRAFFIC
+    bandwidth percent 20
+ class VSL-DATA-PACKETS
+    bandwidth percent 20
+ class class-default
+    bandwidth percent 5
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+interface Port-channel1
+ switchport
+ switchport mode trunk
+ switchport nonegotiate
+ switch virtual link 1
+!
+interface Port-channel2
+ switchport
+ switchport mode trunk
+ switchport nonegotiate
+ switch virtual link 2
+!
+interface Port-channel3
+ description Port-Channel to BourdonSW1 (C9300)
+ switchport
+ switchport mode trunk
+ switchport nonegotiate
+!
+interface Port-channel10
+ description link to Bourdon Core Switch
+ switchport
+ switchport mode trunk
+ switchport nonegotiate
+ service-policy input AutoQos-4.0-Input-Policy
+!
+interface Port-channel11
+ description link to L4A Switch TG 1/0/1-1/0/6
+ switchport
+ switchport mode trunk
+ switchport nonegotiate
+!
+interface Port-channel100
+ description *** WLC 5520 HA PRIMARY ***
+ switchport
+ switchport mode trunk
+ switchport nonegotiate
+ spanning-tree portfast trunk
+!
+interface Port-channel101
+ description *** WLC 5520 HA SECONDARY ***
+ switchport
+ switchport mode trunk
+ switchport nonegotiate
+ spanning-tree portfast trunk
+!
+interface FastEthernet1
+ vrf forwarding mgmtVrf
+ no ip address
+ shutdown
+ speed auto
+ duplex auto
+!
+interface TenGigabitEthernet1/1/1
+ switchport mode trunk
+ switchport nonegotiate
+ auto qos trust
+ service-policy input AutoQos-4.0-Input-Policy
+ service-policy output AutoQos-4.0-Output-Policy
+!
+interface TenGigabitEthernet1/1/2
+ switchport mode trunk
+ switchport nonegotiate
+ auto qos trust
+ service-policy input AutoQos-4.0-Input-Policy
+ service-policy output AutoQos-4.0-Output-Policy
+!
+interface TenGigabitEthernet1/1/3
+ description link to Reid-L1B-SW1 on TG 1/0/1
+ switchport mode trunk
+ switchport nonegotiate
+ auto qos trust
+ service-policy input AutoQos-4.0-Input-Policy
+ service-policy output AutoQos-4.0-Output-Policy
+!
+interface TenGigabitEthernet1/1/4
+ description link to Reid-L2A-SW1 on TG 1/0/1
+ switchport mode trunk
+ switchport nonegotiate
+ auto qos trust
+ service-policy input AutoQos-4.0-Input-Policy
+ service-policy output AutoQos-4.0-Output-Policy
+!
+interface TenGigabitEthernet1/1/5
+ description link to Reid-L3A-SW1 on TG 1/0/1
+ switchport mode trunk
+ switchport nonegotiate
+ auto qos trust
+ service-policy input AutoQos-4.0-Input-Policy
+ service-policy output AutoQos-4.0-Output-Policy
+!
+interface TenGigabitEthernet1/1/6
+ description link to Reid-L4A on TG 1/0/1 - 1/0/6
+ switchport mode trunk
+ switchport nonegotiate
+ auto qos trust
+ service-policy input AutoQos-4.0-Input-Policy
+ service-policy output AutoQos-4.0-Output-Policy
+!
+interface TenGigabitEthernet1/1/7
+ switchport mode trunk
+ switchport nonegotiate
+ auto qos trust
+ service-policy input AutoQos-4.0-Input-Policy
+ service-policy output AutoQos-4.0-Output-Policy
+!
+interface TenGigabitEthernet1/1/8
+ switchport mode trunk
+ switchport nonegotiate
+ auto qos trust
+ service-policy input AutoQos-4.0-Input-Policy
+ service-policy output AutoQos-4.0-Output-Policy
+!
+interface TenGigabitEthernet1/1/9
+ description link to AssemblySW1 on Fibre 1
+ switchport mode trunk
+ switchport nonegotiate
+ auto qos trust
+ service-policy input AutoQos-4.0-Input-Policy
+ service-policy output AutoQos-4.0-Output-Policy
+!
+interface TenGigabitEthernet1/1/10
+ switchport mode trunk
+ switchport nonegotiate
+!
+interface TenGigabitEthernet1/1/11
+ description link to L4A Switch TG 1/0/1-1/0/6
+ switchport mode trunk
+ switchport nonegotiate
+!
+interface TenGigabitEthernet1/1/12
+ switchport mode trunk
+ switchport nonegotiate
+!
+interface TenGigabitEthernet1/1/13
+ switchport mode trunk
+ switchport nonegotiate
+!
+interface TenGigabitEthernet1/1/14
+ description test STOW link-06-02-18-Do not enable
+ switchport mode trunk
+ switchport nonegotiate
+ shutdown
+!
+interface TenGigabitEthernet1/1/15
+ description link to VMESRV2 - Reid - Sid - 01/09/15
+ switchport mode trunk
+ switchport nonegotiate
+!
+interface TenGigabitEthernet1/1/16
+ description link to Filesrv1 10.1.20.18-Sid-25-08-15
+ switchport access vlan 20
+ switchport mode access
+ switchport nonegotiate
+!
+interface TenGigabitEthernet1/1/17
+ description VMESRV15 Trunk port-Sid-08-11-17
+ switchport mode trunk
+ switchport nonegotiate
+!
+interface TenGigabitEthernet1/1/18
+ description VMESRV11 0n 10.1.20.71 - 26-07-15-Sid
+ switchport mode trunk
+ switchport nonegotiate
+!
+interface TenGigabitEthernet1/1/19
+ description link to VMESRV12 on 10.1.20.196-26-07-15-Sid
+ switchport mode trunk
+ switchport nonegotiate
+!
+interface TenGigabitEthernet1/1/20
+ description link to VMESRV13 on 10.1.20.133
+ switchport mode trunk
+ switchport nonegotiate
+!
+interface TenGigabitEthernet1/1/21
+ description *** WLC 5520 HA PRIMARY ***
+ switchport mode trunk
+ switchport nonegotiate
+ channel-group 100 mode on
+!
+interface TenGigabitEthernet1/1/22
+ description *** WLC 5520 HA PRIMARY ***
+ switchport mode trunk
+ switchport nonegotiate
+ channel-group 100 mode on
+!
+interface TenGigabitEthernet1/1/23
+ description *** WLC 5520 HA SECONDARY ***
+ switchport mode trunk
+ switchport nonegotiate
+ channel-group 101 mode on
+ spanning-tree portfast trunk
+!
+interface TenGigabitEthernet1/1/24
+ description *** WLC 5520 HA SECONDARY ***
+ switchport mode trunk
+ switchport nonegotiate
+ channel-group 101 mode on
+ spanning-tree portfast trunk
+!
+interface TenGigabitEthernet1/1/25
+ no switchport
+ ip address 192.168.250.33 255.255.255.248
+!
+interface TenGigabitEthernet1/1/26
+ description new BT link to Blythswood
+ switchport mode trunk
+ switchport nonegotiate
+!
+interface TenGigabitEthernet1/1/27
+ switchport mode trunk
+ switchport nonegotiate
+!
+interface TenGigabitEthernet1/1/28
+ switchport mode trunk
+ switchport nonegotiate
+!
+interface TenGigabitEthernet1/1/29
+ description link to Bourdon Core Switch on TG 4/1
+ switchport mode trunk
+ switchport nonegotiate
+ channel-group 10 mode on
+!
+interface TenGigabitEthernet1/1/30
+!
+interface TenGigabitEthernet1/1/31
+ switchport mode trunk
+ switchport nonegotiate
+ no lldp transmit
+ no lldp receive
+ no cdp enable
+ channel-group 1 mode on
+ service-policy output VSL-Queuing-Policy
+!
+interface TenGigabitEthernet1/1/32
+ switchport mode trunk
+ switchport nonegotiate
+ no lldp transmit
+ no lldp receive
+ no cdp enable
+ channel-group 1 mode on
+ service-policy output VSL-Queuing-Policy
+!
+interface TenGigabitEthernet2/1/1
+ description link to VMESRV1-10.1.20.72 - 28-07-15 - Sid
+ switchport mode trunk
+ switchport nonegotiate
+!
+interface TenGigabitEthernet2/1/2
+ description VMESRV2-10.1.20.73-26-07-15-Sid
+ switchport mode trunk
+ switchport nonegotiate
+!
+interface TenGigabitEthernet2/1/3
+ description VMESRV3_10.1.20.74
+ switchport mode trunk
+ switchport nonegotiate
+!
+interface TenGigabitEthernet2/1/4
+ description VMESRV4-10.1.20.75-26-07-15-Sid
+ switchport mode trunk
+ switchport nonegotiate
+!
+interface TenGigabitEthernet2/1/5
+ description VMESRV5-10.1.20.76-26-07-15-Sid
+ switchport mode trunk
+ switchport nonegotiate
+!
+interface TenGigabitEthernet2/1/6
+ description link to DDSBackupSrv1
+ switchport access vlan 20
+ switchport mode access
+!
+interface TenGigabitEthernet2/1/7
+ description link to VMESRV7
+ switchport mode trunk
+ switchport nonegotiate
+!
+interface TenGigabitEthernet2/1/8
+ description VMESRV8-10.1.20.79-26-07-15-Sid
+ switchport mode trunk
+ switchport nonegotiate
+!
+interface TenGigabitEthernet2/1/9
+ description link to BackupSrv1 10.1.20.51 - direct 10G
+ switchport access vlan 20
+ switchport mode access
+!
+interface TenGigabitEthernet2/1/10
+!
+interface TenGigabitEthernet2/1/11
+!
+interface TenGigabitEthernet2/1/12
+!
+interface TenGigabitEthernet2/1/13
+ switchport access vlan 90
+ switchport mode access
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+!
+interface TenGigabitEthernet2/1/14
+!
+interface TenGigabitEthernet2/1/15
+ description Link to BourdonSW1 (C9300)
+ switchport mode trunk
+ switchport nonegotiate
+ channel-group 3 mode on
+!
+interface TenGigabitEthernet2/1/16
+ description Link to BourdonSW1 (C9300)
+ switchport mode trunk
+ switchport nonegotiate
+ channel-group 3 mode on
+!
+interface TenGigabitEthernet2/1/17
+ description uplink to ASA on vlan 201
+ switchport access vlan 201
+ switchport mode access
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+!
+interface TenGigabitEthernet2/1/18
+ description uplink to Standby ASA on vlan 201
+ switchport access vlan 201
+ switchport mode access
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+!
+interface TenGigabitEthernet2/1/19
+!
+interface TenGigabitEthernet2/1/20
+ shutdown
+!
+interface TenGigabitEthernet2/1/21
+!
+interface TenGigabitEthernet2/1/22
+!
+interface TenGigabitEthernet2/1/23
+ switchport mode trunk
+!
+interface TenGigabitEthernet2/1/24
+ description link to HaldaneSW1-24-09-15
+ switchport mode trunk
+ switchport nonegotiate
+!
+interface TenGigabitEthernet2/1/25
+ description link to ARCHSWA-Stack on L1
+ switchport mode trunk
+ switchport nonegotiate
+!
+interface TenGigabitEthernet2/1/26
+ description link to BasnesSWA1 on 192.168.1.40
+ switchport mode trunk
+ switchport nonegotiate
+!
+interface TenGigabitEthernet2/1/27
+ description link to Library LibSWa1
+ switchport mode trunk
+ switchport nonegotiate
+!
+interface TenGigabitEthernet2/1/28
+ description Link to DDS-PQ DDSSW1
+ no switchport
+ ip address 192.168.250.10 255.255.255.252
+ auto qos trust
+ spanning-tree portfast
+ service-policy input AutoQos-4.0-Input-Policy
+ service-policy output AutoQos-4.0-Output-Policy
+!
+interface TenGigabitEthernet2/1/29
+ description link to Bourdon Core Switch on TG 4/1
+ switchport mode trunk
+ switchport nonegotiate
+ channel-group 10 mode on
+!
+interface TenGigabitEthernet2/1/30
+!
+interface TenGigabitEthernet2/1/31
+ switchport mode trunk
+ switchport nonegotiate
+ no lldp transmit
+ no lldp receive
+ no cdp enable
+ channel-group 2 mode on
+ service-policy output VSL-Queuing-Policy
+!
+interface TenGigabitEthernet2/1/32
+ switchport mode trunk
+ switchport nonegotiate
+ no lldp transmit
+ no lldp receive
+ no cdp enable
+ channel-group 2 mode on
+ service-policy output VSL-Queuing-Policy
+!
+interface Vlan1
+ description ***Mgt Address***
+ ip address 192.168.1.1 255.255.255.0
+!
+interface Vlan2
+ ip address 192.168.2.1 255.255.255.0
+ ip helper-address 10.1.20.10
+ ip helper-address 10.1.26.10
+!
+interface Vlan5
+ description BOIMAS Plant control VLAN
+ ip address 192.168.5.1 255.255.255.0
+!
+interface Vlan6
+ description Staff-McLellan
+ ip address 192.168.6.1 255.255.255.0
+ ip helper-address 10.1.20.10
+ ip helper-address 10.1.26.10
+!
+interface Vlan7
+ description CCTV NEW Build VLAN
+ ip address 192.168.7.1 255.255.255.0
+!
+interface Vlan8
+ description Staff IT
+ ip address 192.168.8.1 255.255.255.0
+ ip helper-address 10.1.26.10
+ ip helper-address 10.1.20.10
+!
+interface Vlan9
+ ip address 192.168.9.1 255.255.255.0
+ ip helper-address 10.1.20.10
+ ip helper-address 10.1.26.9
+!
+interface Vlan15
+ description Proxy Web server External vlan
+ ip address 192.168.15.1 255.255.255.0
+ shutdown
+!
+interface Vlan16
+ no ip address
+ shutdown
+!
+interface Vlan19
+ description PowerManagementVlan
+ ip address 10.1.19.1 255.255.255.0
+ ip helper-address 10.1.26.10
+ ip helper-address 10.1.20.10
+!
+interface Vlan20
+ description Core GSA Server VLAN
+ ip address 10.1.20.1 255.255.255.0
+ ip helper-address 10.1.20.10
+ ip helper-address 10.1.26.10
+!
+interface Vlan21
+ description GSA External Server Dummy DMZ vlan
+ ip address 10.1.21.1 255.255.255.0
+ ip helper-address 10.1.20.10
+ ip helper-address 10.1.26.10
+!
+interface Vlan22
+ description Internal VLAN for ADFS HLB
+ ip address 10.1.22.1 255.255.255.0
+ shutdown
+!
+interface Vlan24
+ description NEW MFD Printer Network
+ ip address 10.1.24.1 255.255.255.0
+ ip helper-address 10.1.20.10
+!
+interface Vlan26
+ description staff vlan Reid Building
+ ip address 10.1.26.1 255.255.255.0
+ ip helper-address 10.1.20.10
+ ip helper-address 10.1.26.10
+!
+interface Vlan28
+ description student vlan Reid building
+ ip address 10.1.28.1 255.255.255.0
+ ip helper-address 10.1.26.10
+ ip helper-address 10.1.20.10
+!
+interface Vlan30
+ ip address 10.1.30.1 255.255.255.0
+ ip helper-address 10.1.26.10
+ ip helper-address 10.1.20.10
+!
+interface Vlan36
+ ip address 10.1.36.1 255.255.255.0
+ ip helper-address 10.1.26.10
+ ip helper-address 10.1.20.10
+!
+interface Vlan40
+ ip address 10.1.40.1 255.255.255.0
+ ip helper-address 10.1.20.10
+ ip helper-address 10.1.26.10
+!
+interface Vlan45
+ description healthy
+ ip address 10.1.45.1 255.255.255.0
+ ip helper-address 10.1.20.10
+ ip helper-address 10.1.26.10
+!
+interface Vlan60
+ description Staff Tontine
+ ip address 10.1.60.1 255.255.255.0
+ ip helper-address 10.1.20.10
+ ip helper-address 10.1.26.10
+!
+interface Vlan90
+ ip address 10.1.90.1 255.255.255.0
+ ip helper-address 10.1.20.10
+ ip helper-address 10.1.26.10
+!
+interface Vlan91
+ ip address 10.1.91.1 255.255.255.0
+ ip helper-address 10.1.20.10
+ ip helper-address 10.1.26.10
+!
+interface Vlan92
+ ip address 10.1.92.1 255.255.255.0
+ ip helper-address 10.1.20.10
+ ip helper-address 10.1.26.10
+!
+interface Vlan93
+ ip address 10.1.93.1 255.255.255.0
+ ip helper-address 10.1.20.10
+ ip helper-address 10.1.26.10
+!
+interface Vlan94
+ ip address 10.1.94.1 255.255.255.0
+ ip helper-address 10.1.20.10
+ ip helper-address 10.1.26.10
+!
+interface Vlan96
+ description Barnes Student Secure 1-vlan 96
+ ip address 10.1.96.1 255.255.255.0
+ ip access-group BarnesStudent1 in
+ ip helper-address 10.1.20.10
+ ip helper-address 10.1.26.10
+!
+interface Vlan100
+ description WLC Vlan
+ ip address 10.1.100.1 255.255.255.0
+ ip helper-address 10.1.20.10
+ ip helper-address 10.1.26.10
+!
+interface Vlan108
+ description Wireless - Guest Users
+ ip address 10.1.108.1 255.255.254.0
+ ip access-group GUEST in
+ ip helper-address 10.1.20.10
+ ip helper-address 10.1.26.10
+!
+interface Vlan128
+ description Wireless - GSA Personal
+ ip address 10.1.128.1 255.255.248.0
+ ip access-group GSA-PERSONAL in
+ ip helper-address 10.1.20.10
+ ip helper-address 10.1.26.10
+!
+interface Vlan136
+ description Wireless - GSA Corporate
+ ip address 10.1.136.1 255.255.252.0
+ ip helper-address 10.1.20.10
+ ip helper-address 10.1.26.10
+!
+interface Vlan192
+ description Wireless - Eduroam
+ ip address 10.1.192.1 255.255.248.0
+ ip access-group EDUROAM in
+ ip helper-address 10.1.20.10
+ ip helper-address 10.1.26.10
+!
+interface Vlan201
+ description ***Link to ASA Inside Interface***
+ ip address 10.1.0.1 255.255.255.248
+ ip access-group outbound out
+!
+interface Vlan210
+ description Interaction Design
+ ip address 10.1.210.1 255.255.255.0
+ ip helper-address 10.1.20.10
+ ip helper-address 10.1.26.10
+!
+interface Vlan240
+ description Main VC VLAN
+ ip address 10.1.240.1 255.255.255.0
+ ip helper-address 10.1.20.10
+ ip helper-address 10.1.26.10
+!
+interface Vlan250
+ description Call Manager VLAN (Primary)
+ ip address 10.1.250.1 255.255.255.0
+ ip helper-address 10.1.20.10
+ ip helper-address 10.1.26.10
+!
+interface Vlan251
+ description Bourdon Voice VLAN
+ ip address 10.1.251.1 255.255.255.0
+ ip helper-address 10.1.20.10
+ ip helper-address 10.1.26.10
+!
+interface Vlan252
+ description Mackintosh Voice VLAN
+ ip address 10.1.252.1 255.255.255.0
+ ip helper-address 10.1.20.10
+ ip helper-address 10.1.26.10
+!
+interface Vlan254
+ description Foulis Voice VLAN
+ ip address 10.1.254.1 255.255.255.0
+ ip helper-address 10.1.20.10
+ ip helper-address 10.1.26.10
+!
+interface Vlan430
+ description Student Union TILL VLAN Assemby Building
+ ip address 10.1.230.1 255.255.255.224
+ ip helper-address 10.1.26.10
+ ip helper-address 10.1.20.10
+!
+interface Vlan431
+ description VLAN 431 CD Digital printing network
+ ip address 10.1.230.33 255.255.255.224
+ ip helper-address 10.1.26.10
+ ip helper-address 10.1.20.10
+!
+interface Vlan433
+ description student union client vlan
+ ip address 10.1.230.97 255.255.255.224
+ ip helper-address 10.1.26.10
+ ip helper-address 10.1.20.10
+!
+interface Vlan434
+ description Video stream temp vlan
+ ip address 10.1.230.129 255.255.255.224
+ ip helper-address 10.1.26.10
+ ip helper-address 10.1.20.10
+!
+interface Vlan998
+ description Wireless Bridge Reid to TWB
+ ip address 192.168.250.17 255.255.255.248
+!
+ip default-gateway 192.168.1.1
+no ip http server
+no ip http secure-server
+ip route 0.0.0.0 0.0.0.0 10.1.0.3
+ip route 9.254.254.0 255.255.255.0 192.168.1.170
+ip route 10.1.245.0 255.255.255.0 192.168.250.26
+ip route 10.4.0.0 255.255.0.0 192.168.250.34
+ip route 10.5.1.0 255.255.255.0 192.168.250.20
+ip route 10.5.25.0 255.255.255.0 192.168.250.20
+ip route 10.5.25.74 255.255.255.255 192.168.250.20
+ip route 10.5.25.78 255.255.255.255 192.168.250.20
+ip route 172.31.0.0 255.255.0.0 192.168.250.9
+ip tacacs source-interface Vlan1
+!
+ip access-list extended AR_Student_NAC_VLan162
+ permit udp any any eq bootps
+ permit udp any any eq bootpc
+ permit udp any eq bootps any
+ permit udp any eq bootpc any
+ permit udp 10.1.162.0 0.0.1.255 any eq domain
+ permit udp any 10.1.162.0 0.0.1.255 eq domain
+ permit tcp 10.1.162.0 0.0.1.255 any eq www
+ permit tcp 10.1.162.0 0.0.1.255 any eq 443
+ deny   tcp 10.1.162.0 0.0.1.255 any eq telnet
+ deny   udp 10.1.162.0 0.0.1.255 any eq snmp
+ deny   tcp 10.1.162.0 0.0.1.255 host 10.1.160.1 eq 22
+ permit ip 10.1.162.0 0.0.1.255 host 10.1.160.1
+ permit tcp 10.1.162.0 0.0.1.255 host 10.1.100.6 eq 8443
+ permit tcp 10.1.162.0 0.0.1.255 host 10.1.100.6 eq 8905
+ permit tcp host 10.1.100.6 eq 8905 10.1.162.0 0.0.1.255
+ permit udp host 10.1.100.6 eq 8905 10.1.162.0 0.0.1.255
+ permit icmp 10.1.162.0 0.0.1.255 host 10.1.100.6
+ permit icmp 10.1.162.0 0.0.1.255 host 10.1.100.7
+ permit icmp 10.1.162.0 0.0.1.255 host 10.1.100.17
+ permit icmp 10.1.162.0 0.0.1.255 host 10.1.162.1
+ permit tcp 10.1.162.0 0.0.1.255 host 10.1.100.6 eq 8909
+ permit udp 10.1.162.0 0.0.1.255 host 10.1.100.6 eq 8905
+ permit udp 10.1.162.0 0.0.1.255 host 10.1.100.6 eq 8909
+ permit tcp 10.1.162.0 0.0.1.255 host 10.1.100.7 eq 8443
+ permit tcp 10.1.162.0 0.0.1.255 host 10.1.100.7 eq 8905
+ permit tcp 10.1.162.0 0.0.1.255 host 10.1.100.7 eq 8909
+ permit udp 10.1.162.0 0.0.1.255 host 10.1.100.7 eq 8905
+ permit udp 10.1.162.0 0.0.1.255 host 10.1.100.7 eq 8909
+ permit tcp 10.1.162.0 0.0.1.255 host 10.1.24.16 eq lpd
+ permit tcp 10.1.162.0 0.0.1.255 host 10.1.24.16 eq 139
+ permit tcp 10.1.162.0 0.0.1.255 host 10.1.24.16 eq 445
+ permit tcp 10.1.162.0 0.0.1.255 host 10.1.24.16 eq 9100
+ permit tcp 10.1.162.0 0.0.1.255 host 10.1.24.16 eq www
+ permit tcp 10.1.162.0 0.0.1.255 host 10.1.24.16 eq 443
+ permit tcp 10.1.162.0 0.0.1.255 host 10.1.24.17 eq 7290
+ permit tcp 10.1.162.0 0.0.1.255 host 10.1.24.17 eq 631
+ permit udp 10.1.162.0 0.0.1.255 host 10.1.24.17 eq 631
+ permit tcp 10.1.162.0 0.0.1.255 host 10.1.26.17 eq 139
+ permit tcp 10.1.162.0 0.0.1.255 host 10.1.26.17 eq 445
+ permit udp 10.1.162.0 0.0.1.255 host 10.1.26.17 range 135 netbios-ss
+ permit tcp 10.1.162.0 0.0.1.255 host 10.1.30.22 eq 139
+ permit tcp 10.1.162.0 0.0.1.255 host 10.1.30.22 eq 445
+ permit udp 10.1.162.0 0.0.1.255 host 10.1.30.22 range 135 netbios-ss
+ deny   tcp 10.1.162.0 0.0.1.255 10.1.20.0 0.0.0.255 range ftp 22
+ deny   tcp 10.1.162.0 0.0.1.255 10.1.21.0 0.0.0.255 range ftp 22
+ deny   tcp 10.1.162.0 0.0.1.255 192.168.0.0 0.0.255.255 range ftp 22
+ permit tcp 10.1.162.0 0.0.1.255 any eq ftp
+ permit tcp 10.1.162.0 0.0.1.255 any eq 22
+ permit tcp any host 46.183.240.171
+ deny   ip 10.1.162.0 0.0.1.255 10.0.0.0 0.255.255.255
+ deny   ip 10.1.162.0 0.0.1.255 192.168.0.0 0.0.255.255
+ip access-list extended AutoQos-4.0-ACL-Bulk-Data
+ permit tcp any any eq ftp
+ permit tcp any any eq ftp-data
+ permit tcp any any eq 22
+ permit tcp any any eq smtp
+ permit tcp any any eq 465
+ permit tcp any any eq 143
+ permit tcp any any eq 993
+ permit tcp any any eq pop3
+ permit tcp any any eq 995
+ permit tcp any any eq 1914
+ip access-list extended AutoQos-4.0-ACL-Default
+ permit ip any any
+ip access-list extended AutoQos-4.0-ACL-Multimedia-Conf
+ permit udp any any range 16384 32767
+ip access-list extended AutoQos-4.0-ACL-Scavenger
+ permit tcp any any eq 1214
+ permit udp any any eq 1214
+ permit tcp any any range 2300 2400
+ permit udp any any range 2300 2400
+ permit tcp any any eq 3689
+ permit udp any any eq 3689
+ permit tcp any any range 6881 6999
+ permit tcp any any eq 11999
+ permit tcp any any range 28800 29100
+ip access-list extended AutoQos-4.0-ACL-Signaling
+ permit tcp any any range 2000 2002
+ permit tcp any any range 5060 5061
+ permit udp any any range 5060 5061
+ip access-list extended AutoQos-4.0-ACL-Transactional-Data
+ permit tcp any any eq 443
+ permit tcp any any eq 1521
+ permit udp any any eq 1521
+ permit tcp any any eq 1526
+ permit udp any any eq 1526
+ permit tcp any any eq 1575
+ permit udp any any eq 1575
+ permit tcp any any eq 1630
+ permit udp any any eq 1630
+ip access-list extended BarnesStudent1
+ permit udp any eq bootpc any
+ permit udp 10.1.96.0 0.0.0.255 any eq domain
+ permit udp any 10.1.96.0 0.0.0.255 eq domain
+ permit tcp 10.1.96.0 0.0.0.255 any eq www
+ permit tcp 10.1.96.0 0.0.0.255 any eq 443
+ permit ip 10.1.96.0 0.0.0.255 host 192.168.1.6
+ permit ip 10.1.96.0 0.0.0.255 10.1.0.0 0.0.255.255
+ permit ip 10.1.96.0 0.0.0.255 192.168.0.0 0.0.255.255
+ deny   ip 10.1.96.0 0.0.0.255 10.0.0.0 0.255.255.255
+ deny   ip 10.1.96.0 0.0.0.255 192.168.0.0 0.0.255.255
+ deny   ip 10.1.96.0 0.0.0.255 172.16.0.0 0.15.255.255
+ip access-list extended BioMassVLAN5WAPLan
+ permit udp any eq bootpc any
+ permit udp 192.168.5.0 0.0.0.255 any eq domain
+ permit udp any 192.168.5.0 0.0.0.255 eq domain
+ permit tcp 192.168.5.0 0.0.0.255 any eq www
+ permit tcp 192.168.5.0 0.0.0.255 any eq 443
+ permit ip 192.168.5.0 0.0.0.255 192.168.8.0 0.0.0.255
+ permit ip 192.168.5.0 0.0.0.255 192.168.5.0 0.0.0.255
+ permit tcp host 192.168.5.101 eq 3389 host 10.1.30.48
+ permit tcp host 192.168.5.101 eq 3389 172.16.6.88 0.0.0.7
+ permit tcp host 192.168.5.101 eq 3389 host 10.1.30.47
+ permit tcp host 192.168.5.131 172.16.6.88 0.0.0.7
+ permit tcp host 192.168.5.132 172.16.6.88 0.0.0.7
+ permit ip 192.168.5.0 0.0.0.255 172.16.7.0 0.0.0.255
+ deny   ip 192.168.5.0 0.0.0.255 10.0.0.0 0.255.255.255
+ deny   ip 192.168.5.0 0.0.0.255 192.168.0.0 0.0.255.255
+ deny   ip 192.168.5.0 0.0.0.255 172.16.0.0 0.15.255.255
+ip access-list extended EDUROAM
+ permit udp any eq bootpc any
+ permit udp 10.1.192.0 0.0.7.255 host 10.1.20.140 eq domain
+ permit udp 10.1.192.0 0.0.7.255 host 10.1.20.141 eq domain
+ permit udp 10.1.192.0 0.0.7.255 any eq domain
+ permit udp host 10.1.20.140 10.1.192.0 0.0.7.255 eq domain
+ permit udp host 10.1.20.141 10.1.192.0 0.0.7.255 eq domain
+ permit udp any 10.1.192.0 0.0.7.255 eq domain
+ deny   ip 10.1.192.0 0.0.7.255 10.0.0.0 0.255.255.255
+ deny   ip 10.1.192.0 0.0.7.255 172.16.0.0 0.0.15.255
+ deny   ip 10.1.192.0 0.0.7.255 192.168.0.0 0.0.255.255
+ permit icmp 10.1.192.0 0.0.7.255 any
+ permit tcp 10.1.192.0 0.0.7.255 any eq ftp
+ permit tcp 10.1.192.0 0.0.7.255 any eq 22
+ permit tcp 10.1.192.0 0.0.7.255 any eq www
+ permit tcp 10.1.192.0 0.0.7.255 any eq 143
+ permit tcp 10.1.192.0 0.0.7.255 any eq 220
+ permit tcp 10.1.192.0 0.0.7.255 any eq 406
+ permit tcp 10.1.192.0 0.0.7.255 any eq 443
+ permit tcp 10.1.192.0 0.0.7.255 any eq 465
+ permit tcp 10.1.192.0 0.0.7.255 any eq 587
+ permit tcp 10.1.192.0 0.0.7.255 any eq 636
+ permit tcp 10.1.192.0 0.0.7.255 any eq 993
+ permit tcp 10.1.192.0 0.0.7.255 any eq 995
+ permit tcp 10.1.192.0 0.0.7.255 any eq 1194
+ permit tcp 10.1.192.0 0.0.7.255 any eq 1494
+ permit tcp 10.1.192.0 0.0.7.255 any eq 1723
+ permit tcp 10.1.192.0 0.0.7.255 any eq 3128
+ permit tcp 10.1.192.0 0.0.7.255 any eq 3389
+ permit tcp 10.1.192.0 0.0.7.255 any eq 3653
+ permit tcp 10.1.192.0 0.0.7.255 any eq 5900
+ permit tcp 10.1.192.0 0.0.7.255 any eq 8080
+ permit tcp 10.1.192.0 0.0.7.255 any eq 10000
+ permit udp 10.1.192.0 0.0.7.255 any eq ntp
+ permit udp 10.1.192.0 0.0.7.255 any eq isakmp
+ permit udp 10.1.192.0 0.0.7.255 any eq 1194
+ permit udp 10.1.192.0 0.0.7.255 any eq 3653
+ permit udp 10.1.192.0 0.0.7.255 any eq non500-isakmp
+ permit udp 10.1.192.0 0.0.7.255 any range 7000 7007
+ permit udp 10.1.192.0 0.0.7.255 any eq 10000
+ permit esp 10.1.192.0 0.0.7.255 any
+ permit ahp 10.1.192.0 0.0.7.255 any
+ permit gre 10.1.192.0 0.0.7.255 any
+ deny   ip any any
+ip access-list extended FAST_School_WLan120
+ permit udp any eq bootpc any
+ permit udp 10.1.120.0 0.0.1.255 any eq domain
+ permit udp any 10.1.120.0 0.0.1.255 eq domain
+ permit tcp 10.1.120.0 0.0.1.255 any eq www
+ permit tcp 10.1.120.0 0.0.1.255 any eq 443
+ permit ip 10.1.120.0 0.0.1.255 host 10.1.20.41
+ permit icmp 10.1.120.0 0.0.1.255 host 10.1.120.1
+ permit icmp 10.1.120.0 0.0.1.255 host 10.1.100.6
+ permit icmp 10.1.120.0 0.0.1.255 host 10.1.100.7
+ permit icmp 10.1.120.0 0.0.1.255 host 10.1.100.17
+ permit tcp 10.1.120.0 0.0.1.255 host 10.1.100.6 eq 8443
+ permit tcp 10.1.120.0 0.0.1.255 host 10.1.100.6 eq 8905
+ permit tcp 10.1.120.0 0.0.1.255 host 10.1.100.6 eq 8909
+ permit udp 10.1.120.0 0.0.1.255 host 10.1.100.6 eq 8905
+ permit udp 10.1.120.0 0.0.1.255 host 10.1.100.6 eq 8909
+ permit tcp 10.1.120.0 0.0.1.255 host 10.1.100.7 eq 8443
+ permit tcp 10.1.120.0 0.0.1.255 host 10.1.100.7 eq 8905
+ permit tcp 10.1.120.0 0.0.1.255 host 10.1.100.7 eq 8909
+ permit udp 10.1.120.0 0.0.1.255 host 10.1.100.7 eq 8905
+ permit udp 10.1.120.0 0.0.1.255 host 10.1.100.7 eq 8909
+ permit tcp 10.1.120.0 0.0.1.255 host 10.1.100.17 eq 8443
+ permit tcp 10.1.120.0 0.0.1.255 host 10.1.100.17 eq 8905
+ permit tcp 10.1.120.0 0.0.1.255 host 10.1.100.17 eq 8909
+ permit udp 10.1.120.0 0.0.1.255 host 10.1.100.17 eq 8905
+ permit udp 10.1.120.0 0.0.1.255 host 10.1.100.17 eq 8909
+ permit tcp 10.1.120.0 0.0.1.255 host 10.1.24.16 eq lpd
+ permit tcp 10.1.120.0 0.0.1.255 host 10.1.24.16 eq 139
+ permit tcp 10.1.120.0 0.0.1.255 host 10.1.24.16 eq 445
+ permit tcp 10.1.120.0 0.0.1.255 host 10.1.24.16 eq 9100
+ permit tcp 10.1.120.0 0.0.1.255 host 10.1.24.16 eq www
+ permit tcp 10.1.120.0 0.0.1.255 host 10.1.24.16 eq 443
+ permit tcp 10.1.120.0 0.0.1.255 host 10.1.24.17 eq 7290
+ permit tcp 10.1.120.0 0.0.1.255 host 10.1.24.17 eq 631
+ permit udp 10.1.120.0 0.0.1.255 host 10.1.24.17 eq 631
+ permit tcp 10.1.120.0 0.0.1.255 host 10.1.26.17 eq 139
+ permit tcp 10.1.120.0 0.0.1.255 host 10.1.26.17 eq 445
+ permit udp 10.1.120.0 0.0.1.255 host 10.1.26.17 range 135 netbios-ss
+ permit tcp any host 46.183.240.171
+ permit tcp host 10.1.100.6 eq 8905 10.1.120.0 0.0.1.255
+ permit udp host 10.1.100.6 eq 8905 10.1.120.0 0.0.1.255
+ deny   ip 10.1.120.0 0.0.1.255 10.0.0.0 0.255.255.255
+ deny   ip 10.1.120.0 0.0.1.255 192.168.0.0 0.0.255.255
+ deny   ip 10.1.120.0 0.0.0.255 172.16.0.0 0.15.255.255
+ip access-list extended GSA-PERSONAL
+ permit udp any eq bootpc any
+ permit udp 10.1.128.0 0.0.7.255 host 10.1.20.140 eq domain
+ permit udp 10.1.128.0 0.0.7.255 host 10.1.20.141 eq domain
+ permit udp 10.1.128.0 0.0.7.255 any eq domain
+ permit udp host 10.1.20.140 10.1.128.0 0.0.7.255 eq domain
+ permit udp host 10.1.20.141 10.1.128.0 0.0.7.255 eq domain
+ permit udp any 10.1.128.0 0.0.7.255 eq domain
+ permit tcp 10.1.128.0 0.0.7.255 host 10.1.100.7 eq 8443
+ permit tcp 10.1.128.0 0.0.7.255 host 10.1.100.7 eq 8905
+ permit tcp 10.1.128.0 0.0.7.255 host 10.1.100.7 eq 8909
+ permit udp 10.1.128.0 0.0.7.255 host 10.1.100.7 eq 8905
+ permit udp 10.1.128.0 0.0.7.255 host 10.1.100.7 eq 8909
+ permit tcp 10.1.128.0 0.0.7.255 host 10.1.100.17 eq 8443
+ permit tcp 10.1.128.0 0.0.7.255 host 10.1.100.17 eq 8905
+ permit tcp 10.1.128.0 0.0.7.255 host 10.1.100.17 eq 8909
+ permit udp 10.1.128.0 0.0.7.255 host 10.1.100.17 eq 8905
+ permit udp 10.1.128.0 0.0.7.255 host 10.1.100.17 eq 8909
+ deny   ip 10.1.128.0 0.0.7.255 host 10.1.100.7
+ deny   ip 10.1.128.0 0.0.7.255 host 10.1.100.17
+ permit icmp 10.1.128.0 0.0.7.255 any
+ permit tcp 10.1.128.0 0.0.7.255 any eq ftp
+ permit tcp 10.1.128.0 0.0.7.255 any eq 22
+ permit tcp 10.1.128.0 0.0.7.255 any eq telnet
+ permit tcp 10.1.128.0 0.0.7.255 any eq www
+ permit tcp 10.1.128.0 0.0.7.255 any eq 142
+ permit tcp 10.1.128.0 0.0.7.255 any eq 220
+ permit tcp 10.1.128.0 0.0.7.255 any eq 389
+ permit tcp 10.1.128.0 0.0.7.255 any eq 406
+ permit tcp 10.1.128.0 0.0.7.255 any eq 443
+ permit tcp 10.1.128.0 0.0.7.255 any eq 445
+ permit tcp 10.1.128.0 0.0.7.255 any eq 465
+ permit tcp 10.1.128.0 0.0.7.255 any eq lpd
+ permit tcp 10.1.128.0 0.0.7.255 any eq 587
+ permit tcp 10.1.128.0 0.0.7.255 any eq 631
+ permit tcp 10.1.128.0 0.0.7.255 any eq 636
+ permit tcp 10.1.128.0 0.0.7.255 any eq 993
+ permit tcp 10.1.128.0 0.0.7.255 any eq 995
+ permit tcp 10.1.128.0 0.0.7.255 any eq 1494
+ permit tcp 10.1.128.0 0.0.7.255 any eq 1935
+ permit tcp 10.1.128.0 0.0.7.255 any eq 3389
+ permit tcp 10.1.128.0 0.0.7.255 any eq 5900
+ permit tcp 10.1.128.0 0.0.7.255 any eq 7290
+ permit tcp 10.1.128.0 0.0.7.255 any eq 9100
+ permit tcp 10.1.128.0 0.0.7.255 host 46.183.240.171
+ permit udp 10.1.128.0 0.0.7.255 any eq ntp
+ permit udp 10.1.128.0 0.0.7.255 any range 135 netbios-ss
+ permit udp 10.1.128.0 0.0.7.255 any eq 631
+ permit udp 10.1.128.0 0.0.7.255 any range 7000 7007
+ deny   ip any any
+ip access-list extended GUEST
+ permit udp any eq bootpc any
+ permit udp 10.1.108.0 0.0.1.255 host 10.1.20.140 eq domain
+ permit udp 10.1.108.0 0.0.1.255 host 10.1.20.141 eq domain
+ permit udp 10.1.108.0 0.0.1.255 any eq domain
+ permit udp host 10.1.20.140 10.1.108.0 0.0.1.255 eq domain
+ permit udp host 10.1.20.141 10.1.108.0 0.0.1.255 eq domain
+ permit udp any 10.1.108.0 0.0.1.255 eq domain
+ deny   tcp any any eq 22
+ deny   tcp any any eq telnet
+ deny   udp any any eq snmp
+ deny   udp any any eq 22
+ deny   udp any any eq 23
+ permit ip 10.1.108.0 0.0.1.255 host 10.1.100.7
+ permit ip 10.1.108.0 0.0.1.255 host 10.1.100.17
+ permit ip 10.1.108.0 0.0.1.255 host 10.1.100.15
+ permit icmp 10.1.108.0 0.0.1.255 any
+ permit tcp 10.1.108.0 0.0.1.255 any eq www
+ permit tcp 10.1.108.0 0.0.1.255 any eq 443
+ deny   ip any any
+ip access-list extended IAD_ALL_NONAC_VLan119
+ permit icmp any any
+ permit udp any any eq bootps
+ permit udp any any eq bootpc
+ permit udp any eq bootps any
+ permit udp any eq bootpc any
+ permit udp 10.1.119.0 0.0.0.255 any eq domain
+ permit udp any 10.1.119.0 0.0.0.255 eq domain
+ permit tcp 10.1.119.0 0.0.0.255 any eq www
+ permit tcp 10.1.119.0 0.0.0.255 any eq 443
+ permit icmp 10.1.119.0 0.0.0.255 host 10.1.119.1
+ permit icmp 10.1.119.0 0.0.0.255 host 10.1.100.6
+ permit icmp 10.1.119.0 0.0.0.255 host 10.1.100.7
+ permit icmp 10.1.119.0 0.0.0.255 host 10.1.100.17
+ permit tcp 10.1.119.0 0.0.0.255 host 10.1.100.6 eq 8443
+ permit tcp 10.1.119.0 0.0.0.255 host 10.1.100.6 eq 8905
+ permit tcp 10.1.119.0 0.0.0.255 host 10.1.100.6 eq 8909
+ permit udp 10.1.119.0 0.0.0.255 host 10.1.100.6 eq 8905
+ permit udp 10.1.119.0 0.0.0.255 host 10.1.100.6 eq 8909
+ permit tcp 10.1.119.0 0.0.0.255 host 10.1.100.7 eq 8443
+ permit tcp 10.1.119.0 0.0.0.255 host 10.1.100.7 eq 8905
+ permit tcp 10.1.119.0 0.0.0.255 host 10.1.100.7 eq 8909
+ permit udp 10.1.119.0 0.0.0.255 host 10.1.100.7 eq 8905
+ permit udp 10.1.119.0 0.0.0.255 host 10.1.100.7 eq 8909
+ permit tcp 10.1.119.0 0.0.0.255 host 10.1.100.17 eq 8443
+ permit tcp 10.1.119.0 0.0.0.255 host 10.1.100.17 eq 8905
+ permit tcp 10.1.119.0 0.0.0.255 host 10.1.100.17 eq 8909
+ permit udp 10.1.119.0 0.0.0.255 host 10.1.100.17 eq 8905
+ permit udp 10.1.119.0 0.0.0.255 host 10.1.100.17 eq 8909
+ deny   tcp 10.1.119.0 0.0.0.255 192.168.0.0 0.0.255.255 eq 22
+ deny   tcp 10.1.119.0 0.0.0.255 10.1.20.0 0.0.0.255 eq 22
+ deny   tcp 10.1.119.0 0.0.0.255 192.168.0.0 0.0.255.255 eq ftp
+ deny   tcp 10.1.119.0 0.0.0.255 10.1.20.0 0.0.0.255 eq ftp
+ permit tcp 10.1.119.0 0.0.0.255 any eq ftp
+ permit tcp 10.1.119.0 0.0.0.255 any eq 22
+ permit tcp 10.1.119.0 0.0.0.255 host 10.1.24.16 eq lpd
+ permit tcp 10.1.119.0 0.0.0.255 host 10.1.24.16 eq 139
+ permit tcp 10.1.119.0 0.0.0.255 host 10.1.24.16 eq 445
+ permit tcp 10.1.119.0 0.0.0.255 host 10.1.24.16 eq 9100
+ permit tcp 10.1.119.0 0.0.0.255 host 10.1.24.16 eq www
+ permit tcp 10.1.119.0 0.0.0.255 host 10.1.24.16 eq 443
+ permit tcp 10.1.119.0 0.0.0.255 host 10.1.24.17 eq 7290
+ permit tcp 10.1.119.0 0.0.0.255 host 10.1.24.17 eq 631
+ permit udp 10.1.119.0 0.0.0.255 host 10.1.24.17 eq 631
+ permit tcp 10.1.119.0 0.0.0.255 host 10.1.26.17 eq 139
+ permit tcp 10.1.119.0 0.0.0.255 host 10.1.26.17 eq 445
+ permit udp 10.1.119.0 0.0.0.255 host 10.1.26.17 range 135 netbios-ss
+ permit tcp any host 46.183.240.171
+ permit tcp host 10.1.100.6 eq 8905 10.1.119.0 0.0.0.255
+ permit udp host 10.1.100.6 eq 8905 10.1.119.0 0.0.0.255
+ deny   ip 10.1.119.0 0.0.0.255 10.0.0.0 0.255.255.255
+ deny   ip 10.1.119.0 0.0.0.255 192.168.0.0 0.0.255.255
+ deny   ip 10.1.119.0 0.0.0.255 172.16.0.0 0.15.255.255
+ip access-list extended IDC_ALL_NAC_VLan169
+ permit udp any any eq bootps
+ permit udp any any eq bootpc
+ permit udp any eq bootps any
+ permit udp any eq bootpc any
+ permit udp 10.1.169.0 0.0.0.255 any eq domain
+ permit udp any 10.1.169.0 0.0.0.255 eq domain
+ permit tcp 10.1.169.0 0.0.0.255 any eq www
+ permit tcp 10.1.169.0 0.0.0.255 any eq 443
+ deny   tcp 10.1.169.0 0.0.0.255 any eq telnet
+ deny   udp 10.1.169.0 0.0.0.255 any eq snmp
+ deny   tcp 10.1.169.0 0.0.0.255 host 10.1.169.1 eq 22
+ permit icmp 10.1.169.0 0.0.0.255 host 10.1.169.1
+ permit icmp 10.1.169.0 0.0.0.255 host 10.1.100.6
+ permit icmp 10.1.169.0 0.0.0.255 host 10.1.100.7
+ permit icmp 10.1.169.0 0.0.0.255 host 10.1.100.17
+ permit tcp 10.1.169.0 0.0.0.255 host 10.1.100.6 eq 8443
+ permit tcp 10.1.169.0 0.0.0.255 host 10.1.100.6 eq 8905
+ permit tcp 10.1.169.0 0.0.0.255 host 10.1.100.6 eq 8909
+ permit udp 10.1.169.0 0.0.0.255 host 10.1.100.6 eq 8905
+ permit udp 10.1.169.0 0.0.0.255 host 10.1.100.6 eq 8909
+ permit tcp 10.1.169.0 0.0.0.255 host 10.1.100.7 eq 8443
+ permit tcp 10.1.169.0 0.0.0.255 host 10.1.100.7 eq 8905
+ permit tcp 10.1.169.0 0.0.0.255 host 10.1.100.7 eq 8909
+ permit udp 10.1.169.0 0.0.0.255 host 10.1.100.7 eq 8905
+ permit udp 10.1.169.0 0.0.0.255 host 10.1.100.7 eq 8909
+ permit tcp host 10.1.100.6 eq 8905 10.1.169.0 0.0.0.255
+ permit udp host 10.1.100.6 eq 8905 10.1.169.0 0.0.0.255
+ permit udp 10.1.160.0 0.0.1.255 host 10.1.100.6 eq 8905
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.24.16 eq lpd
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.24.16 eq 139
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.24.16 eq 445
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.24.16 eq 9100
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.24.16 eq www
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.24.16 eq 443
+ permit tcp 10.1.169.0 0.0.0.255 host 10.1.24.17 eq 7290
+ permit tcp 10.1.169.0 0.0.0.255 host 10.1.24.17 eq 631
+ permit udp 10.1.169.0 0.0.0.255 host 10.1.24.17 eq 631
+ permit tcp 10.1.169.0 0.0.0.255 host 10.1.96.25 eq 139
+ permit tcp 10.1.169.0 0.0.0.255 host 10.1.96.25 eq 445
+ permit udp 10.1.169.0 0.0.0.255 host 10.1.96.25 range 135 netbios-ss
+ deny   tcp 10.1.169.0 0.0.0.255 10.1.20.0 0.0.0.255 range ftp 22
+ deny   tcp 10.1.169.0 0.0.0.255 10.1.21.0 0.0.0.255 range ftp 22
+ deny   tcp 10.1.169.0 0.0.0.255 192.168.0.0 0.0.255.255 range ftp 22
+ permit tcp 10.1.169.0 0.0.0.255 any eq ftp
+ permit tcp 10.1.169.0 0.0.0.255 any eq 22
+ permit tcp any host 46.183.240.171
+ deny   ip 10.1.169.0 0.0.0.255 10.0.0.0 0.255.255.255
+ deny   ip 10.1.169.0 0.0.0.255 192.168.0.0 0.0.255.255
+ip access-list extended ISE-SPAN
+ permit tcp any any eq www
+ permit udp any any eq bootps
+ permit udp any any eq bootpc
+ permit tcp any any eq 443
+ permit udp any any eq domain
+ip access-list extended MFD24VLAN
+ permit udp any eq bootpc any
+ permit udp 10.1.24.0 0.0.0.255 any eq domain
+ permit udp any 10.1.24.0 0.0.0.255 eq domain
+ permit tcp any 10.1.24.0 0.0.0.255 eq lpd
+ permit tcp 10.1.24.0 0.0.0.255 any eq 9100
+ permit tcp 10.1.24.0 0.0.0.255 any eq 9102
+ permit tcp 10.1.24.0 0.0.0.255 any eq 161
+ permit udp 10.1.24.0 0.0.0.255 any eq snmp
+ permit tcp any 10.1.24.0 0.0.0.255 eq 9100
+ permit tcp any 10.1.24.0 0.0.0.255 eq 9102
+ permit tcp any 10.1.24.0 0.0.0.255 eq 161
+ permit tcp any 10.1.24.0 0.0.0.255 range 721 731
+ permit tcp host 10.1.45.139 10.1.24.0 0.0.0.255
+ permit tcp 10.1.40.0 0.0.0.255 10.1.24.0 0.0.0.255
+ permit tcp host 10.1.24.16 10.1.40.0 0.0.0.255
+ permit udp any 10.1.24.0 0.0.0.255 eq snmp
+ permit tcp any 10.1.24.0 0.0.0.255 eq 139
+ permit tcp any 10.1.24.0 0.0.0.255 eq 445
+ permit udp any 10.1.24.0 0.0.0.255 eq netbios-ns
+ permit udp any 10.1.24.0 0.0.0.255 eq netbios-dgm
+ permit tcp any 10.1.24.0 0.0.0.255 eq 135
+ permit udp any 10.1.24.0 0.0.0.255 eq netbios-ss
+ permit udp any 10.1.24.0 0.0.0.255 eq 389
+ permit tcp any 10.1.24.0 0.0.0.255 eq 464
+ permit udp any 10.1.24.0 0.0.0.255 eq 464
+ permit tcp any 10.1.24.0 0.0.0.255 eq 3268
+ permit tcp any 10.1.24.0 0.0.0.255 eq 3269
+ permit tcp 10.1.24.0 0.0.0.255 any eq www
+ permit tcp 10.1.24.0 0.0.0.255 any eq 443
+ permit tcp host 10.1.24.16 10.0.0.0 0.255.255.255
+ permit tcp host 10.1.24.16 192.168.0.0 0.0.255.255
+ permit tcp 10.1.30.0 0.0.0.255 10.1.24.0 0.0.0.255
+ deny   ip 10.1.24.0 0.0.0.255 10.0.0.0 0.255.255.255
+ deny   ip 10.1.24.0 0.0.0.255 192.168.0.0 0.0.255.255
+ deny   ip 10.1.24.0 0.0.0.255 172.16.0.0 0.15.255.255
+ip access-list extended PD-PDE_ST_NAC_VLan166
+ permit udp any any eq bootps
+ permit udp any any eq bootpc
+ permit udp any eq bootps any
+ permit udp any eq bootpc any
+ permit udp 10.1.166.0 0.0.1.255 any eq domain
+ permit udp any 10.1.166.0 0.0.1.255 eq domain
+ permit tcp 10.1.166.0 0.0.1.255 any eq www
+ permit tcp 10.1.166.0 0.0.1.255 any eq 443
+ deny   tcp 10.1.166.0 0.0.1.255 any eq telnet
+ deny   udp 10.1.166.0 0.0.1.255 any eq snmp
+ deny   tcp 10.1.166.0 0.0.1.255 host 10.1.160.1 eq 22
+ permit ip 10.1.166.0 0.0.1.255 host 10.1.160.1
+ permit icmp 10.1.166.0 0.0.1.255 host 10.1.100.6
+ permit icmp 10.1.166.0 0.0.1.255 host 10.1.100.7
+ permit icmp 10.1.166.0 0.0.1.255 host 10.1.100.17
+ permit icmp 10.1.166.0 0.0.1.255 host 10.1.166.1
+ permit tcp 10.1.166.0 0.0.1.255 host 10.1.100.6 eq 8443
+ permit tcp 10.1.166.0 0.0.1.255 host 10.1.100.6 eq 8905
+ permit tcp 10.1.166.0 0.0.1.255 host 10.1.100.6 eq 8909
+ permit udp 10.1.166.0 0.0.1.255 host 10.1.100.6 eq 8905
+ permit udp 10.1.166.0 0.0.1.255 host 10.1.100.6 eq 8909
+ permit tcp 10.1.166.0 0.0.1.255 host 10.1.100.7 eq 8443
+ permit tcp 10.1.166.0 0.0.1.255 host 10.1.100.7 eq 8905
+ permit tcp 10.1.166.0 0.0.1.255 host 10.1.100.7 eq 8909
+ permit udp 10.1.166.0 0.0.1.255 host 10.1.100.7 eq 8905
+ permit udp 10.1.166.0 0.0.1.255 host 10.1.100.7 eq 8909
+ permit ip host 10.1.100.7 10.1.166.0 0.0.1.255
+ permit tcp 10.1.116.0 0.0.1.255 host 10.1.100.7 eq 8443
+ permit tcp 10.1.116.0 0.0.1.255 host 10.1.100.7 eq 8905
+ permit tcp 10.1.116.0 0.0.1.255 host 10.1.100.7 eq 8909
+ permit tcp host 10.1.100.7 eq 8905 10.1.166.0 0.0.1.255
+ permit tcp host 10.1.100.7 eq 8909 10.1.166.0 0.0.1.255
+ permit tcp host 10.1.100.7 eq 8443 10.1.166.0 0.0.1.255
+ permit tcp host 10.1.100.6 eq 8905 10.1.166.0 0.0.1.255
+ permit udp host 10.1.100.6 eq 8905 10.1.166.0 0.0.1.255
+ permit tcp 10.1.166.0 0.0.1.255 host 10.1.24.16 eq lpd
+ permit tcp 10.1.166.0 0.0.1.255 host 10.1.24.16 eq 139
+ permit tcp 10.1.166.0 0.0.1.255 host 10.1.24.16 eq 445
+ permit tcp 10.1.166.0 0.0.1.255 host 10.1.24.16 eq 9100
+ permit tcp 10.1.166.0 0.0.1.255 host 10.1.24.16 eq www
+ permit tcp 10.1.166.0 0.0.1.255 host 10.1.24.16 eq 443
+ permit tcp 10.1.166.0 0.0.1.255 host 10.1.24.17 eq 7290
+ permit tcp 10.1.166.0 0.0.1.255 host 10.1.24.17 eq 631
+ permit udp 10.1.166.0 0.0.1.255 host 10.1.24.17 eq 631
+ permit tcp 10.1.166.0 0.0.1.255 host 10.1.26.17 eq 139
+ permit tcp 10.1.166.0 0.0.1.255 host 10.1.26.17 eq 445
+ permit udp 10.1.166.0 0.0.1.255 host 10.1.26.17 range 135 netbios-ss
+ permit tcp 10.1.166.0 0.0.1.255 host 10.1.26.25 eq 139
+ permit tcp 10.1.166.0 0.0.1.255 host 10.1.26.25 eq 445
+ permit udp 10.1.166.0 0.0.1.255 host 10.1.26.25 range 135 netbios-ss
+ permit tcp 10.1.166.0 0.0.1.255 host 10.1.96.25 eq 139
+ permit tcp 10.1.166.0 0.0.1.255 host 10.1.96.25 eq 445
+ permit udp 10.1.166.0 0.0.1.255 host 10.1.96.25 range 135 netbios-ss
+ deny   tcp 10.1.166.0 0.0.1.255 10.1.20.0 0.0.0.255 range ftp 22
+ deny   tcp 10.1.166.0 0.0.1.255 10.1.21.0 0.0.0.255 range ftp 22
+ deny   tcp 10.1.166.0 0.0.1.255 192.168.0.0 0.0.255.255 range ftp 22
+ permit tcp 10.1.166.0 0.0.1.255 any eq ftp
+ permit tcp 10.1.166.0 0.0.1.255 any eq 22
+ permit tcp any host 46.183.240.171
+ deny   ip 10.1.166.0 0.0.1.255 10.0.0.0 0.255.255.255
+ deny   ip 10.1.166.0 0.0.1.255 192.168.0.0 0.0.255.255
+ip access-list extended STAFF_NAC_VLan160
+ permit udp any any eq bootps
+ permit udp any any eq bootpc
+ permit udp any eq bootps any
+ permit udp any eq bootpc any
+ permit udp 10.1.160.0 0.0.1.255 any eq domain
+ permit udp any 10.1.160.0 0.0.1.255 eq domain
+ permit tcp 10.1.160.0 0.0.1.255 any eq www
+ permit tcp 10.1.160.0 0.0.1.255 any eq 443
+ deny   tcp 10.1.160.0 0.0.1.255 any eq telnet
+ deny   udp 10.1.160.0 0.0.1.255 any eq snmp
+ deny   tcp 10.1.160.0 0.0.1.255 host 10.1.160.1 eq 22
+ permit icmp 10.1.160.0 0.0.1.255 host 10.1.160.1
+ permit icmp 10.1.160.0 0.0.1.255 host 10.1.100.7
+ permit icmp 10.1.160.0 0.0.1.255 host 10.1.100.6
+ permit icmp 10.1.160.0 0.0.1.255 host 10.1.100.17
+ permit ip 10.1.160.0 0.0.1.255 host 10.1.160.1
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.100.6 eq 8443
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.100.6 eq 8905
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.100.6 eq 8909
+ permit udp 10.1.160.0 0.0.1.255 host 10.1.100.6 eq 8905
+ permit udp 10.1.160.0 0.0.1.255 host 10.1.100.6 eq 8909
+ permit tcp 10.1.140.0 0.0.1.255 host 10.1.100.6 eq 8443
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.100.7 eq 8443
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.100.7 eq 8905
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.100.7 eq 8909
+ permit udp 10.1.160.0 0.0.1.255 host 10.1.100.7 eq 8905
+ permit udp 10.1.160.0 0.0.1.255 host 10.1.100.7 eq 8909
+ permit tcp 10.1.140.0 0.0.1.255 host 10.1.100.7 eq 8443
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.100.17 eq 8443
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.100.17 eq 8905
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.100.17 eq 8909
+ permit udp 10.1.160.0 0.0.1.255 host 10.1.100.17 eq 8905
+ permit udp 10.1.160.0 0.0.1.255 host 10.1.100.17 eq 8909
+ permit tcp 10.1.140.0 0.0.1.255 host 10.1.100.17 eq 8443
+ permit tcp host 10.1.100.6 eq 8905 10.1.160.0 0.0.1.255
+ permit udp host 10.1.100.6 eq 8905 10.1.160.0 0.0.1.255
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.24.16 eq lpd
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.24.16 eq 139
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.24.16 eq 445
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.24.16 eq 9100
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.24.16 eq www
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.24.16 eq 443
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.24.17 eq 7290
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.24.17 eq 631
+ permit udp 10.1.160.0 0.0.1.255 host 10.1.24.17 eq 631
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.26.17 eq 139
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.26.17 eq 445
+ permit udp 10.1.160.0 0.0.1.255 host 10.1.26.17 range 135 netbios-ss
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.20.67 eq 139
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.20.67 eq 445
+ permit udp 10.1.160.0 0.0.1.255 host 10.1.20.67 range 135 netbios-ss
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.20.64 eq 139
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.20.64 eq 445
+ permit udp 10.1.160.0 0.0.1.255 host 10.1.20.64 range 135 netbios-ss
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.26.25 eq 139
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.26.25 eq 445
+ permit udp 10.1.160.0 0.0.1.255 host 10.1.26.25 range 135 netbios-ss
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.28.17 eq 139
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.28.17 eq 445
+ permit udp 10.1.160.0 0.0.1.255 host 10.1.28.17 range 135 netbios-ss
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.30.22 eq 139
+ permit tcp 10.1.160.0 0.0.1.255 host 10.1.30.22 eq 445
+ permit udp 10.1.160.0 0.0.1.255 host 10.1.30.22 range 135 netbios-ss
+ permit tcp 10.1.160.0 0.0.1.255 host 172.31.20.31 eq 139
+ permit tcp 10.1.160.0 0.0.1.255 host 172.31.20.31 eq 445
+ permit udp 10.1.160.0 0.0.1.255 host 172.31.20.31 range 135 netbios-ss
+ deny   tcp 10.1.160.0 0.0.1.255 10.1.20.0 0.0.0.255 range ftp 22
+ deny   tcp 10.1.160.0 0.0.1.255 10.1.21.0 0.0.0.255 range ftp 22
+ deny   tcp 10.1.160.0 0.0.1.255 192.168.0.0 0.0.255.255 range ftp 22
+ permit tcp 10.1.160.0 0.0.1.255 any eq ftp
+ permit tcp 10.1.160.0 0.0.1.255 any eq 22
+ip access-list extended STUDENT_NAC_VLan164
+ permit udp any any eq bootps
+ permit udp any any eq bootpc
+ permit udp any eq bootps any
+ permit udp any eq bootpc any
+ permit udp 10.1.164.0 0.0.1.255 any eq domain
+ permit udp any 10.1.164.0 0.0.1.255 eq domain
+ permit tcp 10.1.164.0 0.0.1.255 any eq www
+ permit tcp 10.1.164.0 0.0.1.255 any eq 443
+ deny   tcp 10.1.164.0 0.0.1.255 any eq telnet
+ deny   udp 10.1.164.0 0.0.1.255 any eq snmp
+ deny   tcp 10.1.164.0 0.0.1.255 host 10.1.160.1 eq 22
+ permit icmp 10.1.164.0 0.0.1.255 host 10.1.164.1
+ permit icmp 10.1.164.0 0.0.1.255 host 10.1.100.7
+ permit icmp 10.1.164.0 0.0.1.255 host 10.1.119.17
+ permit icmp 10.1.164.0 0.0.1.255 host 10.1.119.6
+ permit tcp 10.1.164.0 0.0.1.255 host 10.1.100.7 eq 8443
+ permit tcp 10.1.164.0 0.0.1.255 host 10.1.100.7 eq 8905
+ permit tcp 10.1.164.0 0.0.1.255 host 10.1.100.7 eq 8909
+ permit udp 10.1.164.0 0.0.1.255 host 10.1.100.7 eq 8905
+ permit udp 10.1.164.0 0.0.1.255 host 10.1.100.7 eq 8909
+ permit tcp 10.1.164.0 0.0.1.255 host 10.1.100.17 eq 8443
+ permit tcp 10.1.164.0 0.0.1.255 host 10.1.100.17 eq 8905
+ permit tcp 10.1.164.0 0.0.1.255 host 10.1.100.17 eq 8909
+ permit udp 10.1.164.0 0.0.1.255 host 10.1.100.17 eq 8905
+ permit udp 10.1.164.0 0.0.1.255 host 10.1.100.17 eq 8909
+ permit tcp 10.1.164.0 0.0.1.255 host 10.1.100.6 eq 8443
+ permit tcp 10.1.164.0 0.0.1.255 host 10.1.100.6 eq 8905
+ permit tcp 10.1.164.0 0.0.1.255 host 10.1.100.6 eq 8909
+ permit udp 10.1.164.0 0.0.1.255 host 10.1.100.6 eq 8905
+ permit udp 10.1.164.0 0.0.1.255 host 10.1.100.6 eq 8909
+ permit ip 10.1.164.0 0.0.1.255 host 10.1.160.1
+ permit tcp host 10.1.100.6 eq 8905 10.1.164.0 0.0.1.255
+ permit udp host 10.1.100.6 eq 8905 10.1.164.0 0.0.1.255
+ permit tcp 10.1.164.0 0.0.1.255 host 10.1.24.16 eq lpd
+ permit tcp 10.1.164.0 0.0.1.255 host 10.1.24.16 eq 139
+ permit tcp 10.1.164.0 0.0.1.255 host 10.1.24.16 eq 445
+ permit tcp 10.1.164.0 0.0.1.255 host 10.1.24.16 eq 9100
+ permit tcp 10.1.164.0 0.0.1.255 host 10.1.24.16 eq www
+ permit tcp 10.1.164.0 0.0.1.255 host 10.1.24.16 eq 443
+ permit tcp 10.1.164.0 0.0.1.255 host 10.1.24.17 eq 7290
+ permit tcp 10.1.164.0 0.0.1.255 host 10.1.24.17 eq 631
+ permit udp 10.1.164.0 0.0.1.255 host 10.1.24.17 eq 631
+ permit tcp 10.1.164.0 0.0.1.255 host 10.1.26.17 eq 139
+ permit tcp 10.1.164.0 0.0.1.255 host 10.1.26.17 eq 445
+ permit udp 10.1.164.0 0.0.1.255 host 10.1.26.17 range 135 netbios-ss
+ permit tcp 10.1.164.0 0.0.1.255 host 10.1.20.64 eq 139
+ permit tcp 10.1.164.0 0.0.1.255 host 10.1.20.64 eq 445
+ permit udp 10.1.164.0 0.0.1.255 host 10.1.20.64 range 135 netbios-ss
+ permit tcp 10.1.164.0 0.0.1.255 host 10.1.28.17 eq 139
+ permit tcp 10.1.164.0 0.0.1.255 host 10.1.28.17 eq 445
+ permit udp 10.1.164.0 0.0.1.255 host 10.1.28.17 range 135 netbios-ss
+ permit tcp 10.1.164.0 0.0.1.255 host 10.1.26.25 eq 139
+ permit tcp 10.1.164.0 0.0.1.255 host 10.1.26.25 eq 445
+ permit udp 10.1.164.0 0.0.1.255 host 10.1.26.25 range 135 netbios-ss
+ deny   tcp 10.1.164.0 0.0.1.255 10.1.20.0 0.0.0.255 range ftp 22
+ deny   tcp 10.1.164.0 0.0.1.255 10.1.21.0 0.0.0.255 range ftp 22
+ deny   tcp 10.1.164.0 0.0.1.255 192.168.0.0 0.0.255.255 range ftp 22
+ permit tcp 10.1.164.0 0.0.1.255 any eq ftp
+ permit tcp 10.1.164.0 0.0.1.255 any eq 22
+ permit tcp any host 46.183.240.171
+ deny   ip 10.1.164.0 0.0.1.255 10.0.0.0 0.255.255.255
+ deny   ip 10.1.164.0 0.0.1.255 192.168.0.0 0.0.255.255
+ip access-list extended VSL-BFD
+ permit udp any any eq 3784
+ip access-list extended VSL-DHCP-CLIENT-TO-SERVER
+ permit udp any eq bootpc any eq bootps
+ip access-list extended VSL-DHCP-SERVER-TO-CLIENT
+ permit udp any eq bootps any eq bootpc
+ip access-list extended VSL-DHCP-SERVER-TO-SERVER
+ permit udp any eq bootps any eq bootps
+ip access-list extended VSL-IPV4-ROUTING
+ permit ip any 224.0.0.0 0.0.0.255
+ip access-list extended adminin
+ permit udp any any eq bootps
+ permit udp any any eq bootpc
+ permit udp any eq bootps any
+ permit udp any eq bootpc any
+ permit ip 192.168.2.0 0.0.0.255 10.1.20.0 0.0.0.255
+ permit tcp 192.168.2.0 0.0.0.255 host 10.1.100.6
+ permit ip 192.168.2.0 0.0.0.255 10.1.21.0 0.0.0.255
+ permit ip 192.168.2.0 0.0.0.255 192.168.8.0 0.0.0.255
+ permit ip 192.168.2.0 0.0.0.255 host 192.168.11.101
+ permit ip 192.168.2.0 0.0.0.255 host 192.168.11.107
+ permit ip 192.168.2.0 0.0.0.255 host 192.168.11.102
+ permit ip 192.168.2.0 0.0.0.255 host 192.168.9.27
+ permit ip 192.168.2.0 0.0.0.255 host 10.1.40.27
+ permit ip host 192.168.2.49 host 10.1.30.49
+ permit ip 192.168.2.0 0.0.0.255 host 10.1.40.35
+ permit ip host 192.168.2.15 10.1.0.0 0.0.255.255
+ permit ip host 192.168.2.15 192.168.0.0 0.0.255.255
+ permit ip host 192.168.2.15 10.3.0.0 0.0.255.255
+ permit udp host 192.168.2.15 192.168.22.0 0.0.0.255 eq domain
+ permit ip 192.168.2.0 0.0.0.255 192.168.9.0 0.0.0.255
+ permit ip host 192.168.2.41 10.1.0.0 0.0.255.255
+ permit ip host 192.168.2.41 192.168.6.0 0.0.0.255
+ permit tcp 192.168.2.0 0.0.0.255 host 10.1.25.25 eq 139
+ permit tcp 192.168.2.0 0.0.0.255 host 10.1.25.25 eq 445
+ permit ip 192.168.2.0 0.0.0.255 host 192.168.6.30
+ permit ip host 192.168.2.44 any
+ permit ip any host 255.255.255.255
+ permit tcp 192.168.2.0 0.0.0.255 host 10.1.40.33 eq 6080
+ permit tcp 192.168.2.0 0.0.0.255 host 10.1.40.33 eq www
+ permit tcp 192.168.2.0 0.0.0.255 host 192.168.9.29 eq www
+ permit tcp 192.168.2.0 0.0.0.255 10.1.21.0 0.0.0.255 eq www
+ permit ip 192.168.2.0 0.0.0.255 host 192.168.6.39
+ permit tcp 192.168.2.0 0.0.0.255 host 192.168.11.106 eq www
+ permit tcp 192.168.2.0 0.0.0.255 host 10.1.40.50 eq 9100
+ permit tcp 192.168.2.0 0.0.0.255 host 10.1.24.16
+ permit ip host 192.168.2.20 192.168.6.0 0.0.0.255
+ permit ip host 192.168.2.20 10.1.45.0 0.0.0.255
+ permit ip any host 192.168.1.6
+ permit tcp 192.168.2.0 0.0.0.255 host 80.6.91.146 eq 22
+ permit ip host 192.168.2.42 10.1.45.0 0.0.0.255
+ deny   ip 192.168.2.0 0.0.0.255 10.1.0.0 0.0.255.255
+ deny   ip 192.168.2.0 0.0.0.255 192.168.0.0 0.0.255.255
+ permit ip 192.168.2.0 0.0.0.255 any
+ permit ip 192.168.2.0 0.0.0.255 host 192.168.6.45
+ip access-list extended deny-PD-PDE-ST-NONAC_VLAN116
+ permit udp any eq bootpc any
+ permit udp 10.1.116.0 0.0.1.255 any eq domain
+ permit udp any 10.1.116.0 0.0.1.255 eq domain
+ permit tcp 10.1.116.0 0.0.1.255 any eq www
+ permit tcp 10.1.116.0 0.0.1.255 any eq ftp
+ permit tcp 10.1.116.0 0.0.1.255 any eq 465
+ permit tcp 10.1.116.0 0.0.1.255 any eq 993
+ permit tcp 10.1.116.0 0.0.1.255 any eq 995
+ permit icmp 10.1.116.0 0.0.1.255 host 10.1.116.1
+ permit icmp 10.1.116.0 0.0.1.255 host 10.1.100.7
+ permit icmp 10.1.116.0 0.0.1.255 host 10.1.100.17
+ permit icmp 10.1.116.0 0.0.1.255 host 10.1.100.6
+ permit tcp 10.1.116.0 0.0.1.255 host 10.1.100.7 eq 8443
+ permit tcp 10.1.116.0 0.0.1.255 host 10.1.100.7 eq 8905
+ permit tcp 10.1.116.0 0.0.1.255 host 10.1.100.7 eq 8909
+ permit udp 10.1.116.0 0.0.1.255 host 10.1.100.7 eq 8905
+ permit udp 10.1.116.0 0.0.1.255 host 10.1.100.7 eq 8909
+ permit tcp 10.1.116.0 0.0.1.255 host 10.1.100.17 eq 8443
+ permit tcp 10.1.116.0 0.0.1.255 host 10.1.100.17 eq 8905
+ permit tcp 10.1.116.0 0.0.1.255 host 10.1.100.17 eq 8909
+ permit udp 10.1.116.0 0.0.1.255 host 10.1.100.17 eq 8905
+ permit udp 10.1.116.0 0.0.1.255 host 10.1.100.17 eq 8909
+ permit tcp 10.1.116.0 0.0.1.255 host 10.1.100.6 eq 8443
+ permit tcp 10.1.116.0 0.0.1.255 host 10.1.100.6 eq 8905
+ permit tcp 10.1.116.0 0.0.1.255 host 10.1.100.6 eq 8909
+ permit udp 10.1.116.0 0.0.1.255 host 10.1.100.6 eq 8905
+ permit udp 10.1.116.0 0.0.1.255 host 10.1.100.6 eq 8909
+ permit tcp 10.1.116.0 0.0.1.255 host 10.1.24.16 eq lpd
+ permit tcp 10.1.116.0 0.0.1.255 host 10.1.24.16 eq 139
+ permit tcp 10.1.116.0 0.0.1.255 host 10.1.24.16 eq 445
+ permit tcp 10.1.116.0 0.0.1.255 host 10.1.24.16 eq 9100
+ permit tcp 10.1.116.0 0.0.1.255 host 10.1.24.16 eq www
+ permit tcp 10.1.116.0 0.0.1.255 host 10.1.24.16 eq 443
+ permit tcp 10.1.116.0 0.0.1.255 host 10.1.24.17 eq 7290
+ permit tcp 10.1.116.0 0.0.1.255 host 10.1.24.17 eq www
+ permit tcp 10.1.116.0 0.0.1.255 host 10.1.24.17 eq 631
+ permit udp 10.1.166.0 0.0.1.255 host 10.1.100.7 eq 8905
+ permit udp 10.1.166.0 0.0.1.255 host 10.1.100.7
+ permit udp 10.1.116.0 0.0.1.255 host 10.1.24.17 eq 631
+ permit tcp host 10.1.100.7 10.1.166.0 0.0.1.255
+ permit udp host 10.1.100.7 10.1.166.0 0.0.1.255
+ permit tcp 10.1.116.0 0.0.1.255 host 10.1.26.17 eq 139
+ permit tcp 10.1.116.0 0.0.1.255 host 10.1.26.17 eq 445
+ permit udp 10.1.116.0 0.0.1.255 host 10.1.26.17 range 135 netbios-ss
+ permit tcp 10.1.116.0 0.0.1.255 any eq ftp-data
+ permit tcp any host 46.183.240.171
+ permit tcp 10.1.116.0 0.0.1.255 any eq 443
+ deny   ip 10.1.116.0 0.0.1.255 10.0.0.0 0.255.255.255
+ deny   ip 10.1.116.0 0.0.1.255 192.168.0.0 0.0.255.255
+ deny   ip 10.1.116.0 0.0.1.255 172.16.0.0 0.15.255.255
+ip access-list extended denyGSAWLan114
+ permit udp any eq bootpc any
+ permit udp 10.1.114.0 0.0.1.255 any eq domain
+ permit udp any 10.1.114.0 0.0.1.255 eq domain
+ permit tcp 10.1.114.0 0.0.1.255 any eq www
+ permit tcp 10.1.114.0 0.0.1.255 any eq 443
+ permit icmp 10.1.114.0 0.0.1.255 host 10.1.114.1
+ permit icmp 10.1.114.0 0.0.1.255 host 10.1.100.7
+ permit icmp 10.1.114.0 0.0.1.255 host 10.1.100.17
+ permit icmp 10.1.114.0 0.0.1.255 host 10.1.100.6
+ permit tcp 10.1.114.0 0.0.1.255 host 10.1.100.7 eq 8443
+ permit tcp 10.1.114.0 0.0.1.255 host 10.1.100.7 eq 8905
+ permit tcp 10.1.114.0 0.0.1.255 host 10.1.100.7 eq 8909
+ permit udp 10.1.114.0 0.0.1.255 host 10.1.100.7 eq 8905
+ permit udp 10.1.114.0 0.0.1.255 host 10.1.100.7 eq 8909
+ permit tcp 10.1.114.0 0.0.1.255 host 10.1.100.17 eq 8443
+ permit tcp 10.1.114.0 0.0.1.255 host 10.1.100.17 eq 8905
+ permit tcp 10.1.114.0 0.0.1.255 host 10.1.100.17 eq 8909
+ permit udp 10.1.114.0 0.0.1.255 host 10.1.100.17 eq 8905
+ permit udp 10.1.114.0 0.0.1.255 host 10.1.100.17 eq 8909
+ permit tcp 10.1.114.0 0.0.1.255 host 10.1.100.6 eq 8443
+ permit tcp 10.1.114.0 0.0.1.255 host 10.1.100.6 eq 8905
+ permit tcp 10.1.114.0 0.0.1.255 host 10.1.100.6 eq 8909
+ permit udp 10.1.114.0 0.0.1.255 host 10.1.100.6 eq 8905
+ permit udp 10.1.114.0 0.0.1.255 host 10.1.100.6 eq 8909
+ permit tcp 10.1.114.0 0.0.1.255 host 10.1.24.16 eq lpd
+ permit tcp 10.1.114.0 0.0.1.255 host 10.1.24.16 eq 139
+ permit tcp 10.1.114.0 0.0.1.255 host 10.1.24.16 eq 445
+ permit tcp 10.1.114.0 0.0.1.255 host 10.1.24.16 eq 9100
+ permit tcp 10.1.114.0 0.0.1.255 host 10.1.24.16 eq www
+ permit tcp 10.1.114.0 0.0.1.255 host 10.1.24.16 eq 443
+ permit tcp 10.1.114.0 0.0.1.255 host 10.1.24.17 eq 7290
+ permit tcp 10.1.114.0 0.0.1.255 host 10.1.24.17 eq 631
+ permit udp 10.1.114.0 0.0.1.255 host 10.1.24.17 eq 631
+ permit tcp 10.1.114.0 0.0.1.255 host 10.1.26.17 eq 139
+ permit tcp 10.1.114.0 0.0.1.255 host 10.1.26.17 eq 445
+ permit udp 10.1.114.0 0.0.1.255 host 10.1.26.17 range 135 netbios-ss
+ permit tcp any host 46.183.240.171
+ permit tcp host 10.1.100.6 eq 8905 10.1.114.0 0.0.1.255
+ permit udp host 10.1.100.6 eq 8905 10.1.114.0 0.0.1.255
+ deny   ip 10.1.114.0 0.0.1.255 10.0.0.0 0.255.255.255
+ deny   ip 10.1.114.0 0.0.1.255 192.168.0.0 0.0.255.255
+ deny   ip 10.1.114.0 0.0.0.255 172.16.0.0 0.15.255.255
+ip access-list extended denyGSAWLan120
+ permit udp any eq bootpc any
+ permit udp 10.1.120.0 0.0.1.255 any eq domain
+ permit udp any 10.1.120.0 0.0.1.255 eq domain
+ permit tcp 10.1.120.0 0.0.1.255 any eq www
+ permit tcp 10.1.120.0 0.0.1.255 any eq 443
+ permit tcp 10.1.120.0 0.0.1.255 host 10.1.100.6 eq 8443
+ permit icmp 10.1.120.0 0.0.1.255 host 10.1.120.1
+ permit icmp 10.1.120.0 0.0.1.255 host 10.1.100.7
+ permit icmp 10.1.120.0 0.0.1.255 host 10.1.100.17
+ permit icmp 10.1.120.0 0.0.1.255 host 10.1.100.6
+ permit tcp 10.1.120.0 0.0.1.255 host 10.1.100.7 eq 8443
+ permit tcp 10.1.120.0 0.0.1.255 host 10.1.100.7 eq 8905
+ permit tcp 10.1.120.0 0.0.1.255 host 10.1.100.7 eq 8909
+ permit udp 10.1.120.0 0.0.1.255 host 10.1.100.7 eq 8905
+ permit udp 10.1.120.0 0.0.1.255 host 10.1.100.7 eq 8909
+ permit tcp 10.1.120.0 0.0.1.255 host 10.1.100.17 eq 8443
+ permit tcp 10.1.120.0 0.0.1.255 host 10.1.100.17 eq 8905
+ permit tcp 10.1.120.0 0.0.1.255 host 10.1.100.17 eq 8909
+ permit udp 10.1.120.0 0.0.1.255 host 10.1.100.17 eq 8905
+ permit udp 10.1.120.0 0.0.1.255 host 10.1.100.17 eq 8909
+ permit tcp 10.1.120.0 0.0.1.255 host 10.1.100.6 eq 8905
+ permit tcp 10.1.120.0 0.0.1.255 host 10.1.100.6 eq 8909
+ permit udp 10.1.120.0 0.0.1.255 host 10.1.100.6 eq 8905
+ permit udp 10.1.120.0 0.0.1.255 host 10.1.100.6 eq 8909
+ permit tcp any host 46.183.240.171
+ deny   ip 10.1.120.0 0.0.1.255 10.0.0.0 0.255.255.255
+ deny   ip 10.1.120.0 0.0.1.255 192.168.0.0 0.0.255.255
+ deny   ip 10.1.120.0 0.0.1.255 172.16.0.0 0.15.255.255
+ip access-list extended denyGSAWLan130
+ deny   udp any any eq snmp
+ deny   tcp any any eq telnet
+ deny   tcp any any eq 22
+ deny   udp any any eq 23
+ deny   udp any any eq 22
+ permit ip 10.1.130.0 0.0.1.255 host 10.1.130.1
+ permit udp any eq bootpc any
+ permit udp 10.1.130.0 0.0.1.255 any eq domain
+ permit udp any 10.1.130.0 0.0.1.255 eq domain
+ permit tcp 10.1.130.0 0.0.1.255 any eq www
+ permit tcp 10.1.130.0 0.0.1.255 any eq 443
+ permit tcp 10.1.130.0 0.0.1.255 host 10.1.100.6 eq 8443
+ deny   ip 10.1.130.0 0.0.1.255 10.0.0.0 0.255.255.255
+ deny   ip 10.1.130.0 0.0.1.255 192.168.0.0 0.0.255.255
+ip access-list extended denyGuest2WLan108
+ deny   udp any any eq snmp
+ deny   udp any any eq 22
+ deny   udp any any eq 23
+ deny   tcp any any eq telnet
+ deny   tcp any any eq 22
+ permit udp any eq bootpc any
+ permit udp 10.1.108.0 0.0.1.255 any eq domain
+ permit udp any 10.1.108.0 0.0.1.255 eq domain
+ permit ip 10.1.108.0 0.0.1.255 host 192.168.1.6
+ permit ip 10.1.108.0 0.0.1.255 host 10.1.100.6
+ permit ip 10.1.108.0 0.0.1.255 host 10.1.100.16
+ permit ip 10.1.108.0 0.0.1.255 host 10.1.100.7
+ permit ip 10.1.108.0 0.0.1.255 host 10.1.100.17
+ permit tcp any host 46.183.240.171
+ permit ip 10.1.108.0 0.0.1.255 host 10.1.100.5
+ deny   ip 10.1.108.0 0.0.1.255 172.16.0.0 0.15.255.255
+ deny   ip 10.1.108.0 0.0.1.255 10.0.0.0 0.255.255.255
+ deny   ip 10.1.108.0 0.0.1.255 192.168.0.0 0.0.255.255
+ permit tcp 10.1.108.0 0.0.1.255 any eq www
+ permit tcp 10.1.108.0 0.0.1.255 any eq 443
+ip access-list extended denyMSAWLan124
+ permit udp any eq bootpc any
+ permit udp 10.1.124.0 0.0.1.255 any eq domain
+ permit udp any 10.1.124.0 0.0.1.255 eq domain
+ permit tcp 10.1.124.0 0.0.1.255 any eq www
+ permit tcp 10.1.124.0 0.0.1.255 any eq 443
+ permit icmp 10.1.124.0 0.0.1.255 host 10.1.124.1
+ permit icmp 10.1.124.0 0.0.1.255 host 10.1.100.7
+ permit icmp 10.1.124.0 0.0.1.255 host 10.1.100.17
+ permit icmp 10.1.124.0 0.0.1.255 host 10.1.100.6
+ permit tcp 10.1.124.0 0.0.1.255 host 10.1.100.7 eq 8443
+ permit tcp 10.1.124.0 0.0.1.255 host 10.1.100.7 eq 8905
+ permit tcp 10.1.124.0 0.0.1.255 host 10.1.100.7 eq 8909
+ permit udp 10.1.124.0 0.0.1.255 host 10.1.100.7 eq 8905
+ permit udp 10.1.124.0 0.0.1.255 host 10.1.100.7 eq 8909
+ permit tcp 10.1.124.0 0.0.1.255 host 10.1.100.17 eq 8443
+ permit tcp 10.1.124.0 0.0.1.255 host 10.1.100.17 eq 8905
+ permit tcp 10.1.124.0 0.0.1.255 host 10.1.100.17 eq 8909
+ permit udp 10.1.124.0 0.0.1.255 host 10.1.100.17 eq 8905
+ permit udp 10.1.124.0 0.0.1.255 host 10.1.100.17 eq 8909
+ permit tcp 10.1.124.0 0.0.1.255 host 10.1.100.6 eq 8443
+ permit tcp 10.1.124.0 0.0.1.255 host 10.1.100.6 eq 8905
+ permit tcp 10.1.124.0 0.0.1.255 host 10.1.100.6 eq 8909
+ permit udp 10.1.124.0 0.0.1.255 host 10.1.100.6 eq 8905
+ permit udp 10.1.124.0 0.0.1.255 host 10.1.100.6 eq 8909
+ permit tcp 10.1.124.0 0.0.1.255 host 10.1.24.16 eq lpd
+ permit tcp 10.1.124.0 0.0.1.255 host 10.1.24.16 eq 139
+ permit tcp 10.1.124.0 0.0.1.255 host 10.1.24.16 eq 445
+ permit tcp 10.1.124.0 0.0.1.255 host 10.1.24.16 eq 9100
+ permit tcp 10.1.124.0 0.0.1.255 host 10.1.24.16 eq www
+ permit tcp 10.1.124.0 0.0.1.255 host 10.1.24.16 eq 443
+ permit tcp 10.1.124.0 0.0.1.255 host 10.1.24.17 eq 7290
+ permit tcp 10.1.124.0 0.0.1.255 host 10.1.24.17 eq www
+ permit tcp 10.1.124.0 0.0.1.255 host 10.1.24.17 eq 631
+ permit udp 10.1.124.0 0.0.1.255 host 10.1.24.17 eq 631
+ permit tcp 10.1.124.0 0.0.1.255 host 10.1.26.17 eq 139
+ permit tcp 10.1.124.0 0.0.1.255 host 10.1.26.17 eq 445
+ permit udp 10.1.124.0 0.0.1.255 host 10.1.26.17 range 135 netbios-ss
+ permit tcp any host 46.183.240.171
+ permit ip 10.1.124.0 0.0.1.255 host 192.168.1.6
+ permit tcp 10.1.125.0 0.0.0.225 any eq 8443
+ deny   ip 10.1.124.0 0.0.1.255 10.0.0.0 0.255.255.255
+ deny   ip 10.1.124.0 0.0.1.255 192.168.0.0 0.0.255.255
+ deny   ip 10.1.124.0 0.0.1.255 172.16.0.0 0.15.255.255
+ip access-list extended denyPhonesWLan144
+ permit udp any eq bootpc any
+ permit ip host 10.1.144.124 any
+ permit udp 10.1.144.0 0.0.3.255 any eq domain
+ permit udp any 10.1.144.0 0.0.3.255 eq domain
+ permit tcp 10.1.144.0 0.0.3.255 any eq www
+ permit tcp 10.1.144.0 0.0.3.255 any eq 443
+ permit icmp 10.1.144.0 0.0.3.255 host 10.1.144.1
+ permit icmp 10.1.144.0 0.0.3.255 host 10.1.100.7
+ permit icmp 10.1.144.0 0.0.3.255 host 10.1.100.17
+ permit icmp 10.1.144.0 0.0.3.255 host 10.1.100.6
+ permit tcp 10.1.144.0 0.0.3.255 host 10.1.100.7 eq 8443
+ permit tcp 10.1.144.0 0.0.3.255 host 10.1.100.7 eq 8905
+ permit tcp 10.1.144.0 0.0.3.255 host 10.1.100.7 eq 8909
+ permit udp 10.1.144.0 0.0.3.255 host 10.1.100.7 eq 8905
+ permit udp 10.1.144.0 0.0.3.255 host 10.1.100.7 eq 8909
+ permit tcp 10.1.144.0 0.0.3.255 host 10.1.100.17 eq 8443
+ permit tcp 10.1.144.0 0.0.3.255 host 10.1.100.17 eq 8905
+ permit tcp 10.1.144.0 0.0.3.255 host 10.1.100.17 eq 8909
+ permit udp 10.1.144.0 0.0.3.255 host 10.1.100.17 eq 8905
+ permit udp 10.1.144.0 0.0.3.255 host 10.1.100.17 eq 8909
+ permit tcp 10.1.144.0 0.0.3.255 host 10.1.100.6 eq 8443
+ permit tcp 10.1.144.0 0.0.3.255 host 10.1.100.6 eq 8905
+ permit tcp 10.1.144.0 0.0.3.255 host 10.1.100.6 eq 8909
+ permit udp 10.1.144.0 0.0.3.255 host 10.1.100.6 eq 8905
+ permit udp 10.1.144.0 0.0.3.255 host 10.1.100.6 eq 8909
+ permit tcp 10.1.144.0 0.0.3.255 host 10.1.24.16 eq www
+ permit tcp 10.1.144.0 0.0.3.255 host 10.1.24.16 eq 443
+ permit tcp 10.1.144.0 0.0.3.255 host 10.1.24.17 eq 7290
+ permit tcp 10.1.144.0 0.0.3.255 host 10.1.24.17 eq 631
+ permit udp 10.1.144.0 0.0.3.255 host 10.1.24.17 eq 631
+ permit tcp 10.1.144.0 0.0.3.255 host 10.1.24.17 eq 4244
+ permit tcp 10.1.144.0 0.0.3.255 host 10.1.24.17 eq 5222
+ permit tcp 10.1.144.0 0.0.3.255 host 10.1.24.17 eq 5223
+ permit tcp 10.1.144.0 0.0.3.255 host 10.1.24.17 eq 5228
+ permit tcp 10.1.144.0 0.0.3.255 host 10.1.24.17 eq 5242
+ permit tcp 10.1.144.0 0.0.3.255 host 10.1.24.17 eq 59234
+ permit tcp 10.1.144.0 0.0.3.255 host 10.1.24.17 eq 50318
+ permit tcp 10.1.144.0 0.0.3.255 host 10.1.24.17 eq 3478
+ permit tcp 10.1.144.0 0.0.3.255 host 10.1.24.17 eq 45395
+ permit udp 10.1.144.0 0.0.3.255 host 10.1.24.17 eq 59234
+ permit udp 10.1.144.0 0.0.3.255 host 10.1.24.17 eq 50318
+ permit udp 10.1.144.0 0.0.3.255 host 10.1.24.17 eq 3478
+ permit tcp any host 46.183.240.171
+ permit tcp 10.1.140.0 0.0.0.255 host 83.223.124.13 eq 443
+ deny   ip 10.1.144.0 0.0.3.255 10.0.0.0 0.255.255.255
+ deny   ip 10.1.144.0 0.0.3.255 192.168.0.0 0.0.255.255
+ deny   ip 10.1.144.0 0.0.3.255 172.16.0.0 0.15.255.255
+ip access-list extended denyStaffWLan140
+ permit udp any eq bootpc any
+ permit udp 10.1.140.0 0.0.1.255 any eq domain
+ permit udp any 10.1.140.0 0.0.1.255 eq domain
+ permit tcp 10.1.140.0 0.0.1.255 any eq www
+ permit tcp 10.1.140.0 0.0.1.255 any eq 443
+ permit tcp 10.1.140.0 0.0.1.255 any eq 465
+ permit tcp 10.1.140.0 0.0.1.255 any eq 993
+ permit tcp 10.1.140.0 0.0.1.255 any eq 995
+ permit icmp 10.1.140.0 0.0.1.255 host 10.1.144.1
+ permit icmp 10.1.140.0 0.0.1.255 host 10.1.100.7
+ permit icmp 10.1.140.0 0.0.1.255 host 10.1.100.17
+ permit icmp 10.1.140.0 0.0.1.255 host 10.1.100.6
+ permit tcp 10.1.140.0 0.0.1.255 host 10.1.100.6 eq 8443
+ permit tcp 10.1.140.0 0.0.1.255 host 10.1.100.6 eq 8905
+ permit tcp 10.1.140.0 0.0.1.255 host 10.1.100.6 eq 8909
+ permit udp 10.1.140.0 0.0.1.255 host 10.1.100.6 eq 8905
+ permit udp 10.1.140.0 0.0.1.255 host 10.1.100.6 eq 8909
+ permit tcp 10.1.140.0 0.0.1.255 host 10.1.100.7 eq 8443
+ permit tcp 10.1.140.0 0.0.1.255 host 10.1.100.7 eq 8905
+ permit tcp 10.1.140.0 0.0.1.255 host 10.1.100.7 eq 8909
+ permit udp 10.1.140.0 0.0.1.255 host 10.1.100.7 eq 8905
+ permit udp 10.1.140.0 0.0.1.255 host 10.1.100.7 eq 8909
+ permit tcp 10.1.140.0 0.0.1.255 host 10.1.100.17 eq 8443
+ permit tcp 10.1.140.0 0.0.1.255 host 10.1.100.17 eq 8905
+ permit tcp 10.1.140.0 0.0.1.255 host 10.1.100.17 eq 8909
+ permit udp 10.1.140.0 0.0.1.255 host 10.1.100.17 eq 8905
+ permit udp 10.1.140.0 0.0.1.255 host 10.1.100.17 eq 8909
+ permit tcp 10.1.140.0 0.0.1.255 host 10.1.24.16 eq lpd
+ permit tcp 10.1.140.0 0.0.1.255 host 10.1.24.16 eq 139
+ permit tcp 10.1.140.0 0.0.1.255 host 10.1.24.16 eq 445
+ permit tcp 10.1.140.0 0.0.1.255 host 10.1.24.16 eq 9100
+ permit tcp 10.1.140.0 0.0.1.255 host 10.1.24.16 eq www
+ permit tcp 10.1.140.0 0.0.1.255 host 10.1.24.16 eq 443
+ permit tcp 10.1.140.0 0.0.1.255 host 10.1.24.17 eq 7290
+ permit tcp 10.1.140.0 0.0.1.255 host 83.223.124.13
+ permit tcp 10.1.140.0 0.0.1.255 host 10.1.24.17 eq 631
+ permit udp 10.1.140.0 0.0.1.255 host 10.1.24.17 eq 631
+ permit tcp 10.1.140.0 0.0.1.255 host 10.1.26.17 eq 139
+ permit tcp 10.1.140.0 0.0.1.255 host 10.1.26.17 eq 445
+ permit udp 10.1.140.0 0.0.1.255 host 10.1.26.17 range 135 netbios-ss
+ permit tcp 10.1.140.0 0.0.1.255 host 10.1.96.25 eq 139
+ permit tcp 10.1.140.0 0.0.1.255 host 10.1.96.25 eq 445
+ permit udp 10.1.140.0 0.0.1.255 host 10.1.96.25 range 135 netbios-ss
+ permit tcp 10.1.140.0 0.0.1.255 any eq 1935
+ permit ip 10.1.140.0 0.0.1.255 host 10.1.96.25
+ permit tcp 10.1.140.0 0.0.1.255 host 192.168.8.70 eq 3389 log
+ permit tcp any host 46.183.240.171
+ deny   ip 10.1.140.0 0.0.1.255 10.0.0.0 0.255.255.255
+ deny   ip 10.1.140.0 0.0.1.255 192.168.0.0 0.0.255.255
+ip access-list extended denyUnknown_VLan104
+ deny   udp any any eq snmp
+ deny   udp any any eq 22
+ deny   udp any any eq 23
+ deny   tcp any any eq telnet
+ deny   tcp any any eq 22
+ permit udp any eq bootpc any
+ permit udp any any eq bootps
+ permit udp 10.1.104.0 0.0.0.255 any eq domain
+ permit udp any 10.1.104.0 0.0.0.255 eq domain
+ permit ip 10.1.104.0 0.0.0.255 host 10.1.100.6
+ permit ip 10.1.104.0 0.0.0.255 host 10.1.100.16
+ permit ip 10.1.104.0 0.0.0.255 host 10.1.100.5
+ permit ip host 10.1.100.6 10.1.104.0 0.0.0.255
+ permit ip host 10.1.100.16 10.1.104.0 0.0.0.255
+ permit ip host 10.1.100.5 10.1.104.0 0.0.0.255
+ deny   ip 10.1.104.0 0.0.0.255 172.16.0.0 0.15.255.255
+ deny   ip 10.1.104.0 0.0.0.255 10.0.0.0 0.255.255.255
+ deny   ip 10.1.104.0 0.0.0.255 192.168.0.0 0.0.255.255
+ deny   ip any any
+ip access-list extended eduroam_VLan196
+ permit udp any eq bootpc any
+ permit udp 10.1.196.0 0.0.3.255 any eq domain
+ permit udp any 10.1.196.0 0.0.3.255 eq domain
+ permit icmp 10.1.196.0 0.0.3.255 any
+ permit icmp any any echo-reply
+ permit icmp any any echo
+ permit tcp 10.1.196.0 0.0.3.255 host 10.1.40.27 eq www
+ permit tcp 10.1.196.0 0.0.3.255 host 10.1.40.27 eq 443
+ permit tcp 10.1.196.0 0.0.3.255 host 10.1.21.76 eq www
+ permit tcp 10.1.196.0 0.0.3.255 host 10.1.21.76 eq 443
+ permit tcp 10.1.196.0 0.0.3.255 host 10.1.24.16 eq lpd
+ permit tcp 10.1.196.0 0.0.3.255 host 10.1.24.16 eq 139
+ permit tcp 10.1.196.0 0.0.3.255 host 10.1.24.16 eq 445
+ permit tcp 10.1.196.0 0.0.3.255 host 10.1.24.16 eq 9100
+ permit tcp 10.1.196.0 0.0.3.255 host 10.1.24.16 eq www
+ permit tcp 10.1.196.0 0.0.3.255 host 10.1.24.16 eq 443
+ permit tcp 10.1.196.0 0.0.3.255 host 10.1.24.17 eq 7290
+ permit tcp 10.1.196.0 0.0.3.255 host 10.1.24.17 eq 631
+ permit udp 10.1.196.0 0.0.3.255 host 10.1.24.17 eq 631
+ permit tcp 10.1.196.0 0.0.3.255 host 10.1.26.17 eq 139
+ permit tcp 10.1.196.0 0.0.3.255 host 10.1.26.17 eq 445
+ permit udp 10.1.196.0 0.0.3.255 host 10.1.26.17 range 135 netbios-ss
+ deny   udp 10.1.196.0 0.0.3.255 any eq snmp
+ deny   tcp 10.1.196.0 0.0.3.255 any eq telnet
+ deny   tcp 10.1.196.0 0.0.3.255 host 10.1.196.1 eq 22
+ deny   tcp 10.1.196.0 0.0.3.255 host 10.1.196.1 eq ftp
+ permit ip 10.1.196.0 0.0.3.255 host 10.1.198.1
+ deny   ip 10.1.196.0 0.0.3.255 10.0.0.0 0.255.255.255
+ deny   ip 10.1.196.0 0.0.3.255 172.16.0.0 0.15.255.255
+ deny   ip 10.1.196.0 0.0.3.255 192.168.0.0 0.0.255.255
+ permit udp 10.1.196.0 0.0.3.255 any eq non500-isakmp
+ permit tcp 10.1.196.0 0.0.3.255 any eq 10000
+ permit udp 10.1.196.0 0.0.3.255 any eq 10000
+ permit gre 10.1.196.0 0.0.3.255 any
+ permit tcp 10.1.196.0 0.0.3.255 any eq 1723
+ permit tcp 10.1.196.0 0.0.3.255 any eq 1194
+ permit udp 10.1.196.0 0.0.3.255 any eq 1194
+ permit udp 10.1.196.0 0.0.3.255 any range 5000 5110
+ permit udp 10.1.196.0 0.0.3.255 any eq ntp
+ permit tcp 10.1.196.0 0.0.3.255 any eq 22
+ permit tcp 10.1.196.0 0.0.3.255 any eq www
+ permit tcp 10.1.196.0 0.0.3.255 any eq 443
+ permit tcp 10.1.196.0 0.0.3.255 any eq 389
+ permit tcp 10.1.196.0 0.0.3.255 any eq 636
+ permit tcp 10.1.196.0 0.0.3.255 any eq 406
+ permit tcp 10.1.196.0 0.0.3.255 any eq 143
+ permit tcp 10.1.196.0 0.0.3.255 any eq 220
+ permit tcp 10.1.196.0 0.0.3.255 any eq 993
+ permit tcp 10.1.196.0 0.0.3.255 any eq pop3
+ permit tcp 10.1.196.0 0.0.3.255 any eq 995
+ permit tcp 10.1.196.0 0.0.3.255 any eq ftp
+ permit tcp 10.1.196.0 0.0.3.255 any eq 465
+ permit tcp 10.1.196.0 0.0.3.255 any eq 587
+ permit tcp 10.1.196.0 0.0.3.255 any eq 3389
+ permit tcp 10.1.196.0 0.0.3.255 any eq 5900
+ permit tcp 10.1.196.0 0.0.3.255 any eq 1494
+ permit tcp 10.1.196.0 0.0.3.255 any range 7000 7007
+ permit esp 10.1.196.0 0.0.3.255 any
+ permit ahp 10.1.196.0 0.0.3.255 any
+ permit udp 10.1.196.0 0.0.3.255 any eq isakmp
+ permit tcp 10.1.196.0 0.0.3.255 any eq 3128
+ permit tcp 10.1.196.0 0.0.3.255 any eq 8080
+ip access-list extended outbound
+ permit ip host 192.168.2.17 host 192.168.11.107
+ permit ip 192.168.8.0 0.0.0.255 any
+ permit ip 10.1.0.0 0.0.255.255 10.2.250.0 0.0.0.255
+ permit ip 172.29.4.0 0.0.0.255 172.31.0.0 0.0.255.255
+ permit ip 172.31.0.0 0.0.255.255 172.29.4.0 0.0.0.255
+ permit ip 172.28.4.0 0.0.0.255 172.31.0.0 0.0.255.255
+ permit ip 172.31.0.0 0.0.255.255 172.28.4.0 0.0.0.255
+ permit ip 172.28.4.0 0.0.0.255 192.168.8.0 0.0.0.255
+ permit ip 172.29.4.0 0.0.0.255 192.168.8.0 0.0.0.255
+ permit ip 10.1.20.0 0.0.0.255 host 40.113.27.188
+ permit ip 10.1.20.0 0.0.0.255 host 10.210.2.20.10
+ permit ip host 172.31.4.15 host 10.2.20.10
+ permit ip host 10.1.26.12 host 10.2.20.10
+ permit ip host 10.1.28.11 host 10.2.20.10
+ permit ip host 10.1.26.10 host 10.2.20.10
+ deny   udp any any eq 1434
+ deny   udp any any eq 8998
+ deny   udp any any eq 135
+ deny   tcp any any eq 139
+ deny   tcp any any eq 445
+ deny   tcp any any eq 135
+ deny   ip any host 66.235.212.132
+ deny   ip any host 66.235.203.181
+ deny   ip host 10.1.108.65 any
+ deny   ip host 10.1.108.224 any
+ permit ip any any
+ permit ip 10.3.26.0 0.0.0.255 any
+ permit ip any 10.3.26.0 0.0.0.255
+ permit ip 172.25.25.0 0.0.0.255 any
+ permit ip any 172.25.25.0 0.0.0.255
+ permit ip 10.4.25.0 0.0.0.255 any
+ permit ip any 10.4.25.0 0.0.0.255
+ip access-list extended staffin
+ permit ip 10.1.100.0 0.0.0.255 10.1.20.0 0.0.0.255
+ permit ip any host 255.255.255.255
+ permit ip 10.1.100.0 0.0.0.255 host 10.1.30.21
+ permit ip 10.1.100.0 0.0.0.255 host 10.1.30.22
+ permit ip 10.1.100.0 0.0.0.255 host 192.168.11.102
+ permit ip 10.1.100.0 0.0.0.255 host 192.168.11.101
+ permit tcp 10.1.100.0 0.0.0.255 host 192.168.6.33 eq 9100
+ permit tcp 10.1.100.0 0.0.0.255 host 192.168.6.34 eq 9100
+ permit tcp 10.1.100.0 0.0.0.255 host 192.168.6.32 eq 9100
+ permit udp 10.1.100.0 0.0.0.255 host 192.168.6.32 eq 9100
+ permit tcp 10.1.100.0 0.0.0.255 10.1.21.0 0.0.0.255 eq www
+ permit tcp 10.1.100.0 0.0.0.255 10.1.21.0 0.0.0.255 eq 443
+ permit tcp 10.1.100.0 0.0.0.255 any eq smtp
+ permit tcp 10.1.100.0 0.0.0.255 any eq pop3
+ permit tcp 10.1.100.0 0.0.0.255 host 10.1.21.60 eq www
+ permit tcp 10.1.100.0 0.0.0.255 host 10.1.21.60 eq pop3
+ permit tcp 10.1.100.0 0.0.0.255 host 10.1.21.60 eq 443
+ deny   ip 10.1.100.0 0.0.0.255 10.1.0.0 0.0.255.255
+ deny   ip 10.1.100.0 0.0.0.255 192.168.0.0 0.0.255.255
+ permit tcp 10.1.100.0 0.0.0.255 any
+ip access-list extended studentin
+ permit ip 10.1.101.0 0.0.0.255 10.1.20.0 0.0.0.255
+ permit ip any host 255.255.255.255
+ permit ip 10.1.101.0 0.0.0.255 host 10.1.30.21
+ permit ip 10.1.101.0 0.0.0.255 host 10.1.30.22
+ip access-list extended vlan502Out
+ permit tcp host 10.1.21.53 eq www any
+ permit tcp host 10.1.21.52 eq www any
+ permit tcp host 10.1.21.52 eq 443 any
+ permit tcp 10.1.50.128 0.0.0.15 any
+ permit icmp 10.1.50.128 0.0.0.15 any
+ permit tcp host 10.1.21.60 eq www any
+ permit tcp host 10.1.21.60 eq 443 any
+ permit tcp host 10.1.20.41 eq 8080 any
+ permit ip host 10.1.36.21 any
+ permit ip host 10.1.20.26 any
+ permit ip host 10.1.20.15 any
+ permit ip host 192.168.2.15 any
+ permit ip host 10.1.25.25 any
+ permit ip host 10.1.20.19 any
+ip access-list extended vlan999Out
+ permit ip any host 255.255.255.255
+ permit udp host 10.1.20.15 eq domain any
+ permit tcp host 10.1.20.15 eq domain any
+ permit ip 10.1.99.0 0.0.0.255 10.1.99.0 0.0.0.255
+ permit ip 192.168.8.0 0.0.0.255 any
+ permit tcp any eq www 10.1.99.0 0.0.0.255
+ permit tcp any eq 443 10.1.99.0 0.0.0.255
+ deny   ip 10.1.0.0 0.0.255.255 any
+ deny   ip 192.168.0.0 0.0.255.255 any
+ permit tcp any eq 5060 10.1.99.0 0.0.0.255
+ permit udp any eq 5060 10.1.99.0 0.0.0.255
+ permit tcp any eq 5062 10.1.99.0 0.0.0.255
+ permit udp any eq 5062 10.1.99.0 0.0.0.255
+ permit udp any range 12000 15000 10.1.99.0 0.0.0.255
+ permit tcp any eq 12043 10.1.99.0 0.0.0.255
+ permit tcp any eq 21002 10.1.99.0 0.0.0.255
+!
+ip access-list logging interval 10
+logging trap debugging
+logging source-interface Vlan1
+logging host 192.168.8.195 transport udp port 8514
+!
+snmp-server community gsa!read RO
+snmp-server community gsa!write RW
+snmp-server community pingnms!read RO
+snmp-server community GSAsnmpRead RO
+snmp-server community p1ngS0lar RO
+snmp-server trap-source Vlan1
+snmp-server location GSA
+snmp-server contact Sid Meldrum
+snmp-server enable traps snmp coldstart warmstart
+snmp-server enable traps entity
+snmp-server enable traps flash insertion removal
+snmp-server enable traps vtp
+snmp-server enable traps vlancreate
+snmp-server enable traps vlandelete
+snmp-server enable traps envmon fan shutdown supply temperature status
+snmp-server enable traps bridge newroot topologychange
+snmp-server enable traps stpx inconsistency root-inconsistency loop-inconsistency
+snmp-server host 192.168.1.241 GSAsnmpRead
+snmp-server host 192.168.1.241 gsa!read
+snmp-server host 193.35.28.202 version 2c p1ngS0lar
+snmp-server host 9.254.254.254 version 2c p1ngS0lar
+tacacs server DSA-ISE
+tacacs server GSA-ISE
+ address ipv4 10.1.100.7
+ key N2gc65dTrWm*8G
+!
+!
+!
+ipv6 access-list VSL-IPV6-ROUTING
+ permit ipv6 any FF02::/124
+!
+line con 0
+ login authentication failsafe
+ stopbits 1
+line vty 0 4
+ length 0
+line vty 5 15
+ length 0
+!
+!
+module provision switch 1
+ chassis-type 72 base-mac 6C41.6ABA.9280
+ slot 1 slot-type 402 base-mac 6C41.6ABA.9280
+ !
+module provision switch 2
+ chassis-type 72 base-mac 80E0.1DC6.1C40
+ slot 1 slot-type 402 base-mac 80E0.1DC6.1C40
+
+!
+
+ ntp source Vlan1
+ ntp server 10.1.20.16
+ ntp server 10.1.20.17
+end
+

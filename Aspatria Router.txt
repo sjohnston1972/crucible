@@ -1,0 +1,477 @@
+Aspatria router
+
+Aspatria-RTR#s hrun
+show hrun
+      ^
+% Invalid input detected at '^' marker.
+
+Aspatria-RTR# sh run
+Building configuration...
+
+
+Current configuration : 10717 bytes
+!
+! Last configuration change at 10:17:07 BST Mon Sep 24 2018 by pingnms
+! NVRAM config last updated at 11:08:59 BST Fri Sep 28 2018 by administrator
+!
+version 15.1
+service timestamps debug datetime msec localtime show-timezone
+service timestamps log datetime msec localtime show-timezone
+service password-encryption
+!
+hostname Aspatria-RTR
+!
+boot-start-marker
+boot system flash
+boot-end-marker
+!
+!
+logging buffered 51200 warnings
+enable secret 5 $1$2CGJ$gX4XTXF91pU6R0.Y/SKnE1
+!
+no aaa new-model
+clock timezone GMT 0 0
+clock summer-time BST recurring last Sun Mar 2:00 last Sun Oct 2:00
+network-clock-participate wic 0
+network-clock-participate wic 1
+network-clock-select 1 BRI0/0/0
+network-clock-select 2 BRI0/0/1
+network-clock-select 3 BRI0/1/0
+network-clock-select 4 BRI0/1/1
+!
+dot11 syslog
+ip source-route
+!
+!
+ip cef
+no ip dhcp use vrf connected
+ip dhcp excluded-address 192.168.11.0 192.168.11.20
+!
+ip dhcp pool VOICE
+   network 192.168.11.0 255.255.255.0
+   default-router 192.168.11.1
+   option 150 ip 192.168.2.202 192.168.2.203
+   domain-name first-milk.co.uk
+!
+!
+!
+no ip domain lookup
+ip domain name yourdomain.com
+no ipv6 cef
+multilink bundle-name authenticated
+!
+!
+!
+!
+isdn switch-type basic-net3
+!
+!
+trunk group LDC-BRI
+ hunt-scheme round-robin both up
+ translation-profile incoming PSTN-IN
+!
+!
+key chain decrypt
+ key 1
+  key-string 7 01B82A802D07
+!
+voice call send-alert
+voice call carrier capacity active
+voice rtp send-recv
+!
+voice service voip
+ fax protocol pass-through g711alaw
+ modem passthrough nse codec g711alaw
+!
+voice class codec 1
+ codec preference 1 g711alaw
+ codec preference 2 g711ulaw
+ codec preference 3 g729r8
+!
+voice class h323 1
+  h225 timeout tcp establish 3
+!
+!
+!
+!
+voice translation-rule 1
+ rule 1 /^.*/ /90&/
+!
+voice translation-rule 2
+ rule 1 /320218/ /1702/
+ rule 2 /^.*\(....\)/ /\1/
+!
+!
+voice translation-profile PSTN-IN
+ translate calling 1
+ translate called 2
+!
+!
+voice-card 0
+!
+crypto pki token default removal timeout 0
+!
+crypto pki trustpoint TP-self-signed-2052488689
+ enrollment selfsigned
+ subject-name cn=IOS-Self-Signed-Certificate-2052488689
+ revocation-check none
+ rsakeypair TP-self-signed-2052488689
+!
+!
+crypto pki certificate chain TP-self-signed-2052488689
+ certificate self-signed 01
+  30820253 308201BC A0030201 02020101 300D0609 2A864886 F70D0101 04050030
+  31312F30 2D060355 04031326 494F532D 53656C66 2D536967 6E65642D 43657274
+  69666963 6174652D 32303532 34383836 3839301E 170D3037 30323232 31343530
+  34345A17 0D323030 31303130 30303030 305A3031 312F302D 06035504 03132649
+  4F532D53 656C662D 5369676E 65642D43 65727469 66696361 74652D32 30353234
+  38383638 3930819F 300D0609 2A864886 F70D0101 01050003 818D0030 81890281
+  8100AFBD AB7B5CA1 C64275A3 9696FF84 4CFAC395 C0598682 DE917A44 95BA807B
+  917CFA4F 75A411B2 5AA74BE5 4C5848D0 00FA246D 22771B18 F896FAB1 D6AE04A6
+  6AA27EA3 C2D38DDA F11C85E6 79A031E2 C0D28FC6 AB148D7D 57908253 F8687495
+  C43C83CD 3943A78A BBE08CE0 7FEAEE3C 6C78F067 D8933604 A4F91D9B BCE0041D
+  00A90203 010001A3 7B307930 0F060355 1D130101 FF040530 030101FF 30260603
+  551D1104 1F301D82 1B417370 61747269 612D5254 522E796F 7572646F 6D61696E
+  2E636F6D 301F0603 551D2304 18301680 142F64CD A16F8107 09FB542E 40571980
+  E5071992 19301D06 03551D0E 04160414 2F64CDA1 6F810709 FB542E40 571980E5
+  07199219 300D0609 2A864886 F70D0101 04050003 81810066 D14F71BA 07D874D7
+  B7332C74 26655E20 E75AE7D3 80B6031C CB117CBE 06F1C5E0 9F15E0B1 A0F3D795
+  E6359E38 7F206AFA FA1ED877 3887C5A3 993D8374 00936B2E AEBE5360 DE57D3F4
+  015BB8EC 30A62251 CAA97AF2 B74AEB7F 3C41F41F 5BD8CC65 50A678C5 7819ED89
+  15E70A56 F6A34567 AD0E89C7 7BF06057 C25B4088 9540DC
+        quit
+!
+!
+license udi pid CISCO2811 sn FCZ1105706U
+username admin privilege 15 password 7 15022B1F173D7B362C
+username administrator privilege 15 password 7 044B2B151C361C5C0D
+username pingnms privilege 15 password 7 0103570A5C5A535676191D
+!
+!
+!
+class-map match-any AutoQoS-VoIP-RTP-Trust
+ match ip dscp ef
+class-map match-any AutoQoS-VoIP-Control-Trust
+ match ip dscp cs3
+ match ip dscp af31
+!
+!
+policy-map AutoQoS-Policy-Trust
+ class AutoQoS-VoIP-RTP-Trust
+  priority percent 70
+ class AutoQoS-VoIP-Control-Trust
+  bandwidth percent 5
+ class class-default
+  fair-queue
+!
+!
+!
+!
+!
+!
+interface FastEthernet0/0
+ description Aspatria LAN
+ no ip address
+ duplex auto
+ speed auto
+!
+interface FastEthernet0/0.1
+ encapsulation dot1Q 1 native
+ ip address 172.18.139.1 255.255.255.0
+!
+interface FastEthernet0/0.2
+ encapsulation dot1Q 2
+ ip address 192.168.11.1 255.255.255.0
+ h323-gateway voip interface
+ h323-gateway voip bind srcaddr 192.168.11.1
+!
+interface FastEthernet0/0.50
+ description ***Cheese Control Network***
+ encapsulation dot1Q 50
+ ip address 172.16.4.254 255.255.255.0
+!
+interface FastEthernet0/0.56
+ description ***DAG_REPL***
+ encapsulation dot1Q 56
+ ip address 192.168.6.1 255.255.255.0
+!
+interface FastEthernet0/0.60
+ description ***LTHW-Network ****
+ encapsulation dot1Q 60
+ ip address 172.18.141.1 255.255.255.0
+!
+interface FastEthernet0/0.70
+ description ***HMI Network***
+ encapsulation dot1Q 70
+ ip address 172.18.142.1 255.255.255.0
+!
+interface FastEthernet0/0.99
+ description ***PLC Temp - See JP***
+ encapsulation dot1Q 99
+ ip address 192.168.68.1 255.255.255.0
+!
+interface FastEthernet0/0.150
+ description REPL_GLA
+ encapsulation dot1Q 150
+ ip address 172.18.150.1 255.255.255.0
+!
+interface FastEthernet0/1
+ ip address 10.0.0.66 255.255.255.252
+ duplex auto
+ speed auto
+!
+interface BRI0/0/0
+ no ip address
+ isdn switch-type basic-net3
+ isdn point-to-point-setup
+ isdn incoming-voice voice
+ isdn send-alerting
+ isdn sending-complete
+ isdn static-tei 0
+ trunk-group LDC-BRI 1
+!
+interface BRI0/0/1
+ no ip address
+ isdn switch-type basic-net3
+ isdn point-to-point-setup
+ isdn incoming-voice voice
+ isdn send-alerting
+ isdn sending-complete
+ isdn static-tei 0
+ trunk-group LDC-BRI 1
+!
+interface BRI0/1/0
+ no ip address
+ isdn switch-type basic-net3
+ isdn point-to-point-setup
+ isdn incoming-voice voice
+ isdn send-alerting
+ isdn sending-complete
+ isdn static-tei 0
+ trunk-group LDC-BRI 1
+!
+interface BRI0/1/1
+ no ip address
+ isdn switch-type basic-net3
+ isdn point-to-point-setup
+ isdn incoming-voice voice
+ isdn send-alerting
+ isdn sending-complete
+ isdn static-tei 0
+ trunk-group LDC-BRI 1
+!
+interface Serial0/2/0
+ description Leased Line Connection to Stars MPLS Network - PCA2706769
+ ip address 10.0.0.26 255.255.255.252
+ shutdown
+ auto qos voip trust
+ down-when-looped
+ serial restart-delay 0
+ service-policy output AutoQoS-Policy-Trust
+!
+router bgp 64512
+ bgp log-neighbor-changes
+ neighbor 10.0.0.65 remote-as 8426
+ neighbor 10.0.0.65 version 4
+ !
+ address-family ipv4
+  redistribute connected
+  redistribute static
+  neighbor 10.0.0.65 activate
+  neighbor 10.0.0.65 send-community
+  neighbor 10.0.0.65 soft-reconfiguration inbound
+  neighbor 10.0.0.65 prefix-list fromClaranet in
+  neighbor 10.0.0.65 route-map toClaranet out
+  no auto-summary
+ exit-address-family
+!
+ip forward-protocol nd
+ip http server
+ip http authentication local
+ip http secure-server
+ip http timeout-policy idle 5 life 86400 requests 10000
+!
+ip bgp-community new-format
+!
+ip route 0.0.0.0 0.0.0.0 Serial0/2/0
+ip route 9.254.254.0 255.255.255.0 192.168.1.125
+!
+ip access-list standard SNMP_ACCESS
+ permit 9.254.254.254
+!
+!
+ip prefix-list fromClaranet seq 5 permit 0.0.0.0/0
+ip prefix-list fromClaranet seq 10 deny 0.0.0.0/0 le 32
+!
+ip prefix-list toClaranet seq 5 permit 172.16.4.0/24
+ip prefix-list toClaranet seq 10 permit 172.18.139.0/24
+ip prefix-list toClaranet seq 15 permit 172.18.141.0/24
+ip prefix-list toClaranet seq 20 permit 172.18.142.0/24
+ip prefix-list toClaranet seq 25 permit 192.168.11.0/24
+ip prefix-list toClaranet seq 30 permit 192.168.68.0/24
+ip prefix-list toClaranet seq 35 permit 192.168.5.0/25
+ip prefix-list toClaranet seq 40 permit 192.168.6.0/24
+ip prefix-list toClaranet seq 100 deny 0.0.0.0/0 le 32
+logging esm config
+logging trap errors
+logging 192.168.1.59
+logging 9.254.254.254
+!
+route-map toClaranet permit 10
+ match ip address prefix-list toClaranet set
+ set community 6656:70
+!
+snmp-server community FML-public RO SNMP_ACCESS
+snmp-server community FML-private RW
+snmp-server enable traps snmp coldstart warmstart
+snmp-server enable traps flash insertion removal
+snmp-server enable traps envmon
+snmp-server enable traps entity
+snmp-server enable traps hsrp
+snmp-server enable traps ipsla
+snmp-server enable traps vtp
+snmp-server host 192.168.1.59 FML-public
+snmp-server host 9.254.254.254 FML-public
+!
+!
+control-plane
+!
+rmon event 33333 log trap AutoQoS description "AutoQoS SNMP traps for Voice Drops" owner AutoQoS
+rmon alarm 33333 cbQosCMDropBitRate.242.4349265 30 absolute rising-threshold 1 33333 falling-threshold 0 owner AutoQoS
+!
+voice-port 0/0/0
+ translation-profile incoming PSTN-IN
+ compand-type a-law
+ cptone GB
+ bearer-cap Speech
+!
+voice-port 0/0/1
+ translation-profile incoming PSTN-IN
+ compand-type a-law
+ cptone GB
+ bearer-cap Speech
+!
+voice-port 0/1/0
+ translation-profile incoming PSTN-IN
+ compand-type a-law
+ cptone GB
+ bearer-cap Speech
+!
+voice-port 0/1/1
+ translation-profile incoming PSTN-IN
+ compand-type a-law
+ cptone GB
+ bearer-cap Speech
+!
+!
+!
+mgcp profile default
+!
+!
+dial-peer voice 9 pots
+ trunkgroup LDC-BRI 1
+ destination-pattern 9T
+ progress_ind setup enable 3
+ progress_ind alert enable 8
+ progress_ind progress enable 8
+ progress_ind connect enable 8
+ incoming called-number .
+ direct-inward-dial
+!
+dial-peer voice 999 pots
+ trunkgroup LDC-BRI
+ preference 1
+ destination-pattern 999
+ progress_ind setup enable 3
+ progress_ind alert enable 8
+ progress_ind progress enable 8
+ progress_ind connect enable 8
+ forward-digits all
+!
+dial-peer voice 4 voip
+ translation-profile outgoing PSTN-IN
+ preference 1
+ destination-pattern [1-8]...
+ session target ipv4:192.168.2.202
+ incoming called-number .
+ voice-class codec 1
+ voice-class h323 1
+ dtmf-relay h245-alphanumeric
+ no vad
+!
+dial-peer voice 5 voip
+ translation-profile outgoing PSTN-IN
+ destination-pattern [1-8]...
+ session target ipv4:192.168.2.203
+ incoming called-number .
+ voice-class codec 1
+ voice-class h323 1
+ dtmf-relay h245-alphanumeric
+ no vad
+!
+!
+!
+call-manager-fallback
+ max-conferences 8 gain -6
+ transfer-system full-consult
+ ip source-address 192.168.11.1 port 2000
+ max-ephones 42
+ max-dn 144
+ no huntstop
+ pickup 1702
+ alias 1 1702 to 4901
+ alias 2 1702 to 4902
+ alias 3 1702 to 4903
+ alias 4 1702 to 4907
+!
+!
+!
+line con 0
+line aux 0
+line vty 0 4
+ privilege level 15
+ password 7 1119391604055B1E00
+ login local
+ length 0
+ transport input telnet ssh
+line vty 5 15
+ privilege level 15
+ password 7 071F015F5D1E491713
+ login local
+ transport input telnet ssh
+!
+scheduler allocate 20000 1000
+ntp server 192.168.1.18 prefer
+end
+
+Aspatria-RTR#         sh ip int b
+% Incomplete command.
+
+Aspatria-RTR#         sh ip int brief
+Interface                  IP-Address      OK? Method Status                Protocol
+FastEthernet0/0            unassigned      YES NVRAM  up                    up  
+FastEthernet0/0.1          172.18.139.1    YES NVRAM  up                    up  
+FastEthernet0/0.2          192.168.11.1    YES NVRAM  up                    up  
+FastEthernet0/0.50         172.16.4.254    YES NVRAM  up                    up  
+FastEthernet0/0.55         unassigned      YES manual deleted               down
+FastEthernet0/0.56         192.168.6.1     YES manual up                    up  
+FastEthernet0/0.60         172.18.141.1    YES NVRAM  up                    up  
+FastEthernet0/0.70         172.18.142.1    YES NVRAM  up                    up  
+FastEthernet0/0.99         192.168.68.1    YES NVRAM  up                    up  
+FastEthernet0/0.150        172.18.150.1    YES manual up                    up  
+FastEthernet0/1            10.0.0.66       YES NVRAM  up                    up  
+FastEthernet0/1.56         unassigned      YES manual deleted               down
+BRI0/0/0                   unassigned      YES NVRAM  down                  down
+BRI0/0/1                   unassigned      YES NVRAM  up                    up  
+BRI0/1/0                   unassigned      YES NVRAM  down                  down
+BRI0/1/1                   unassigned      YES NVRAM  down                  down
+Serial0/2/0                10.0.0.26       YES NVRAM  administratively down down
+BRI0/0/0:1                 unassigned      YES unset  down                  down
+BRI0/0/0:2                 unassigned      YES unset  down                  down
+BRI0/0/1:1                 unassigned      YES unset  down                  down
+BRI0/0/1:2                 unassigned      YES unset  down                  down
+BRI0/1/0:1                 unassigned      YES unset  down                  down
+BRI0/1/0:2                 unassigned      YES unset  down                  down
+BRI0/1/1:1                 unassigned      YES unset  down                  down
+BRI0/1/1:2                 unassigned      YES unset  down                  down
+Aspatria-RTR#
