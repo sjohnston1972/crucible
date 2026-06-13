@@ -143,9 +143,24 @@
       <label class="checkbox"><input id="sec-enable" type="checkbox" /><span>Set a secure username &amp; password</span></label>
       <div id="sec-rows" class="grid2 hidden" style="margin-top:0.75rem; grid-template-columns: 1fr 1fr;">
         <label class="field"><span>Username</span><input id="sec-user" type="text" placeholder="netadmin" autocomplete="off" /></label>
-        <label class="field"><span>Password / secret</span><input id="sec-pass" type="text" placeholder="strong secret" autocomplete="off" /></label>
-        <label class="field"><span>Enable secret <span class="muted small">(optional — defaults to password)</span></span><input id="sec-enable-secret" type="text" placeholder="(reuse password)" autocomplete="off" /></label>
-        <label class="field"><span>Config-key for type-6 <span class="muted small">(optional)</span></span><input id="sec-configkey" type="text" placeholder="password-encrypt key" autocomplete="off" /></label>
+        <label class="field"><span>Password / secret</span>
+          <div class="secret-input">
+            <input id="sec-pass" type="password" placeholder="strong secret" autocomplete="new-password" />
+            <button type="button" class="secret-toggle" data-target="sec-pass" aria-label="Show password">👁</button>
+          </div>
+        </label>
+        <label class="field"><span>Enable secret <span class="muted small">(optional — defaults to password)</span></span>
+          <div class="secret-input">
+            <input id="sec-enable-secret" type="password" placeholder="(reuse password)" autocomplete="new-password" />
+            <button type="button" class="secret-toggle" data-target="sec-enable-secret" aria-label="Show enable secret">👁</button>
+          </div>
+        </label>
+        <label class="field"><span>Config-key for type-6 <span class="muted small">(optional)</span></span>
+          <div class="secret-input">
+            <input id="sec-configkey" type="password" placeholder="password-encrypt key" autocomplete="new-password" />
+            <button type="button" class="secret-toggle" data-target="sec-configkey" aria-label="Show config-key">👁</button>
+          </div>
+        </label>
       </div>
     </section>
 

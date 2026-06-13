@@ -959,6 +959,15 @@ function init() {
   $("sec-enable").addEventListener("change", () =>
     $("sec-rows").classList.toggle("hidden", !$("sec-enable").checked)
   );
+  document.querySelectorAll(".secret-toggle").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      const inp = $(btn.dataset.target);
+      const reveal = inp.type === "password";
+      inp.type = reveal ? "text" : "password";
+      btn.textContent = reveal ? "🙈" : "👁";
+      btn.setAttribute("aria-label", reveal ? "Hide" : "Show");
+    })
+  );
   document.querySelectorAll('input[name="insertion"]').forEach((el) => el.addEventListener("change", refreshTagMap));
   $("if-all").addEventListener("change", () => {
     applyIfAllDisabled();

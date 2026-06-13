@@ -330,6 +330,15 @@ code {
 .empty { text-align: center; color: var(--text-muted); padding: 1.5rem; font-size: 0.9rem; }
 
 /* ---- interfaces: all-row + manual ---- */
+.secret-input { position: relative; display: flex; }
+.secret-input input { flex: 1; padding-right: 2.3rem; width: 100%; }
+.secret-toggle {
+  position: absolute; right: 0.25rem; top: 50%; transform: translateY(-50%);
+  background: none; border: none; cursor: pointer; font-size: 0.95rem;
+  line-height: 1; padding: 0.25rem; opacity: 0.65; border-radius: 6px;
+}
+.secret-toggle:hover { opacity: 1; }
+
 .if-all-row {
   display: flex; align-items: center; gap: 1rem; margin-bottom: 0.85rem;
   padding: 0.65rem 0.8rem; border: 1px dashed var(--border-strong); border-radius: 10px;
