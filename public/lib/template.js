@@ -195,6 +195,10 @@ function fillSlot(slot, config, parsed, opts) {
       return lines.length ? { lines, found: true } : { lines: NOT_FOUND("VRFs"), found: false };
     }
     case "stp": {
+      const stp = parsed.spanningTree || {};
+      const hasStp =
+        stp.mode || (stp.vlanConfig && stp.vlanConfig.length) || stp.mstConfig || (stp.raw && stp.raw.length);
+      if (!hasStp) return { lines: NOT_FOUND("spanning-tree"), found: false }; // e.g. a router — never emit STP root lines
       const lines = buildSpanningTreeBlock(parsed, opts.stpRole || "asis", opts.stpVlans || null);
       return lines.length ? { lines, found: true } : { lines: NOT_FOUND("spanning-tree"), found: false };
     }

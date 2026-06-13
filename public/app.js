@@ -569,7 +569,9 @@ function makeUnit(site, parsed, sourceNames) {
 function populateStpRoot(config) {
   const wrap = $("stp-root-wrap");
   const sel = $("stp-root");
-  const stpUnits = state.units.filter((u) => config.stp.enabled && u.parsed.spanningTree.mode);
+  // Show the root picker whenever a scanned device runs spanning-tree, regardless of
+  // whether the STP collection checkbox is ticked — electing a root implies emitting it.
+  const stpUnits = state.units.filter((u) => u.parsed.spanningTree.mode);
   if (stpUnits.length < 1) {
     wrap.classList.add("hidden");
     return;
@@ -609,6 +611,9 @@ async function onSave() {
 
   $("run-status").textContent = "Building & saving…";
   const electedRoot = $("stp-root").value || null;
+  // Electing a root implies the STP block must be emitted (with root/secondary rewrites),
+  // even if the user didn't separately tick "Spanning-tree" collection.
+  if (electedRoot) config.stp.enabled = true;
   const zipFiles = [];
   const allWarnings = [];
 

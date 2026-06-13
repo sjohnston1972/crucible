@@ -131,6 +131,15 @@ test("STP root election: elected root gets root primary, non-root secondary", ()
   assert.ok(nonRoot.includes("spanning-tree vlan 10 root secondary"));
 });
 
+test("STP slot is not emitted for a device with no spanning-tree (router)", () => {
+  const cfg = { interfacesAll: { enabled: false }, interfaces: [], routing: {}, vrf: {}, stp: { enabled: true }, dhcp: {} };
+  const router = parse("hostname RTR\ninterface Gi0/0\n ip address 10.0.0.1 255.255.255.0\n!\n");
+  const slots = buildBlocks(cfg, router, { stpRole: "nonroot", stpVlans: "1-10" });
+  const stpSlot = slots.find((s) => s.key === "stp");
+  assert.equal(stpSlot.found, false);
+  assert.doesNotMatch(stpSlot.lines.join("\n"), /root secondary/); // router must not get STP root lines
+});
+
 test("renderTagBased replaces markers and removes unmatched lines", () => {
   const slots = buildBlocks(CFG, SRC, { hardenLines: ["no ip http server"] });
   const template = [
