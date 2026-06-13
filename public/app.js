@@ -24,6 +24,9 @@ import { buildZip } from "./lib/zip.js";
 const CONFIG_EXT = /\.(txt|cfg)$/i;
 const isConfigFile = (name) => CONFIG_EXT.test(name);
 
+// Distinct accent colours assigned per port-channel number (cycled if exceeded).
+const PO_PALETTE = ["#2f8d99", "#7c4dff", "#2f9e57", "#cf4f86", "#3f7fd6", "#c98a3a", "#1f9aa8", "#8e9b34"];
+
 const state = {
   mode: null, // 'primary' | 'fallback'
   rootHandle: null,
@@ -272,6 +275,15 @@ function renderDiscoveredInterfaces() {
     box.innerHTML = `<p class="muted small">No interfaces found in the scanned sources.</p>`;
     return;
   }
+
+  // Assign a distinct colour to each port-channel number across the scan.
+  const poNums = [
+    ...new Set(
+      state.units.flatMap((u) => (u.parsed.interfaces || []).map((f) => f.channelGroup).filter((n) => n != null))
+    ),
+  ].sort((a, b) => a - b);
+  const poColor = new Map(poNums.map((n, i) => [n, PO_PALETTE[i % PO_PALETTE.length]]));
+
   box.innerHTML = "";
   for (const u of state.units) {
     const ifaces = (u.parsed.interfaces || [])
@@ -296,7 +308,8 @@ function renderDiscoveredInterfaces() {
       });
       const p = prev.get(key) || {};
       const tile = document.createElement("div");
-      tile.className = "disc-if" + (f.shutdown ? " shutdown" : "");
+      tile.className = "disc-if" + (f.channelGroup != null ? " bundled" : "") + (f.shutdown ? " shutdown" : "");
+      if (f.channelGroup != null) tile.style.setProperty("--po-color", poColor.get(f.channelGroup));
       tile.dataset.unit = u.id;
       tile.dataset.name = f.normName;
       const badges =

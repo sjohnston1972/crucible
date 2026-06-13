@@ -373,6 +373,15 @@ code {
 .disc-if-name { font-family: var(--font-mono); font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .disc-if-row2 { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; }
 .disc-if-mode { padding: 0.25rem 0.4rem; font-size: 0.76rem; }
+/* Port-channel members take their PO's colour (--po-color set per tile in JS). */
+.disc-if.bundled {
+  border-color: color-mix(in srgb, var(--po-color) 50%, var(--border));
+  background: color-mix(in srgb, var(--po-color) 8%, var(--surface));
+}
+.disc-if.bundled .disc-if-name { color: var(--po-color); }
+.disc-if.bundled:hover { border-color: var(--po-color); }
+
+/* Shutdown overrides the port-channel tint (defined after, so it wins). */
 .disc-if.shutdown { border-color: color-mix(in srgb, var(--bad) 55%, transparent); background: color-mix(in srgb, var(--bad) 8%, transparent); }
 .disc-if.shutdown .disc-if-name { color: var(--bad); }
 .disc-if-badges { display: inline-flex; gap: 0.3rem; flex-wrap: wrap; align-items: center; }
@@ -381,10 +390,11 @@ code {
   border: 1px solid color-mix(in srgb, var(--bad) 50%, transparent); border-radius: 4px; padding: 0.02rem 0.28rem;
 }
 .disc-if-po {
-  font-size: 0.6rem; font-weight: 700; letter-spacing: 0.03em; color: var(--steel);
-  background: var(--steel-soft);
-  border: 1px solid color-mix(in srgb, var(--steel) 45%, transparent); border-radius: 4px; padding: 0.02rem 0.32rem;
-  white-space: nowrap;
+  font-size: 0.6rem; font-weight: 700; letter-spacing: 0.03em;
+  color: var(--po-color, var(--steel));
+  background: color-mix(in srgb, var(--po-color, var(--steel)) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--po-color, var(--steel)) 45%, transparent);
+  border-radius: 4px; padding: 0.02rem 0.32rem; white-space: nowrap;
 }
 .inert { opacity: 0.4; pointer-events: none; }
 
