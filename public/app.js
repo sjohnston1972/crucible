@@ -639,8 +639,7 @@ function renderMergeTile(site) {
   const committed = state.mergeSel.get(site.path) || new Set();
   const merged = committed.size >= 2;
   const tile = document.createElement("details");
-  tile.className = "unit merge-tile";
-  tile.open = true; // stays open while selecting; commit happens on the button
+  tile.className = "unit merge-tile"; // collapsed by default; selecting doesn't rebuild, so it stays open while interacting
 
   const files = (site.parsedFiles || [])
     .map((pf) => {
