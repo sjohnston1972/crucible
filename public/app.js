@@ -571,7 +571,9 @@ function rebuildUnits() {
       const merged = mergeParsed(chosen.map((pf) => pf.parsed));
       const customName = state.mergeName.get(site.path);
       if (customName) merged.hostname = customName;
-      state.units.push(makeUnit(site, merged, chosen.map((pf) => ({ name: pf.name, text: pf.parsed.text }))));
+      const mu = makeUnit(site, merged, chosen.map((pf) => ({ name: pf.name, text: pf.parsed.text })));
+      mu.mergedFrom = chosen.map((pf) => ({ name: pf.name, parsed: pf.parsed })); // faint source cards
+      state.units.push(mu);
     } else {
       singles.push(...chosen); // a lone "merge" tick is just a single device
     }
@@ -627,11 +629,38 @@ function renderSiteBlock(site, units) {
     state.rootBySite.set(site.path, selectedId);
   }
 
-  for (const u of units) block.appendChild(renderUnit(u, currentRootId));
+  for (const u of units) {
+    block.appendChild(renderUnit(u, currentRootId));
+    // Faint, read-only cards for the devices that were merged into this one.
+    if (u.mergedFrom) {
+      const mergedName = u.parsed.hostname || u.sourceNames[0];
+      for (const src of u.mergedFrom) block.appendChild(renderMergedSourceCard(src, mergedName));
+    }
+  }
 
   // Merge tile — styled like a device card, at the bottom of the site (candidate sites only).
   if (candidate) block.appendChild(renderMergeTile(site));
   return block;
+}
+
+/** A faded, read-only card for a source device that was merged into another. */
+function renderMergedSourceCard(src, mergedName) {
+  const p = src.parsed;
+  const card = document.createElement("details");
+  card.className = "unit merged-source";
+  card.innerHTML =
+    `<summary class="unit-head"><span class="unit-titlebar">` +
+    `<span class="unit-host">${escapeHtml(p.hostname || src.name)}</span>` +
+    `<span class="unit-src muted small"> ← ${escapeHtml(src.name)}</span></span>` +
+    `<span class="merged-badge">↳ merged into ${escapeHtml(mergedName)}</span>` +
+    `<button class="btn btn-small unit-view" type="button">⤢ view config</button></summary>` +
+    `<div class="unit-body"><p class="muted small">This device's config was combined into <strong>${escapeHtml(mergedName)}</strong>. Adjust collection on the merged device above; this source is kept for reference only.</p></div>`;
+  card.querySelector(".unit-view").addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openConfigModal(p.hostname || src.name, [{ name: src.name, text: p.text }]);
+  });
+  return card;
 }
 
 /** A device-card-styled tile to select files and merge them into one named device. */

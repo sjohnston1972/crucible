@@ -495,6 +495,20 @@ code {
   text-transform: uppercase; color: var(--text);
   border-left: 3px solid var(--accent); padding-left: 0.6rem;
 }
+.merged-source {
+  opacity: 0.62;
+  border-style: dashed;
+  border-left-color: var(--text-muted);
+}
+.merged-source:hover { opacity: 0.85; }
+.merged-source .unit-host { font-weight: 500; }
+.merged-badge {
+  margin-left: auto;
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.02em; color: var(--steel);
+  background: var(--steel-soft); border: 1px solid color-mix(in srgb, var(--steel) 40%, transparent);
+  border-radius: 999px; padding: 0.12rem 0.55rem; white-space: nowrap;
+}
+.merged-source .unit-view { margin-left: 0.5rem; }
 .merge-tile { border-left-color: var(--steel); }
 .merge-tile .unit-site { color: var(--steel); background: var(--steel-soft); }
 .merge-tile .merge-flag { margin-left: auto; }
