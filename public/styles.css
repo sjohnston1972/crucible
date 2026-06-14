@@ -494,7 +494,8 @@ code {
   border-left: 3px solid var(--accent); padding-left: 0.6rem;
 }
 .site-sub { margin-bottom: 0; }
-.site-sub-body { padding: 0.7rem 0.85rem; }
+.site-sub-body, .stp-root-body { padding: 0.7rem 0.85rem; }
+.stp-root-body > p { margin: 0.4rem 0 0; }
 .site-sub-body > p { margin: 0 0 0.5rem; }
 .site-sub-body .field { max-width: 420px; }
 .unit {

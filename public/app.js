@@ -642,31 +642,19 @@ function renderSiteBlock(site, units) {
     block.appendChild(merge);
   }
 
-  // Spanning-tree root election — collapsible section (sites with a switch).
+  // Seed the per-site spanning-tree root default (current root if not already chosen);
+  // the actual control lives inside each switch's card (see renderUnit).
   const stpUnits = units.filter((u) => u.parsed.spanningTree.mode);
+  let currentRootId = null;
   if (stpUnits.length) {
     const current = detectCurrentRoot(stpUnits);
+    currentRootId = current ? current.id : null;
     const stored = state.rootBySite.get(site.path);
-    const selectedId = stored && stpUnits.some((u) => u.id === stored) ? stored : current ? current.id : "";
+    const selectedId = stored && stpUnits.some((u) => u.id === stored) ? stored : currentRootId || "";
     state.rootBySite.set(site.path, selectedId);
-
-    const rootDiv = document.createElement("details");
-    rootDiv.className = "unit-sub site-sub";
-    rootDiv.innerHTML =
-      `<summary class="unit-sub-head"><strong>Spanning-tree root</strong>` +
-      (current ? ` <span class="muted small">currently ${escapeHtml(current.parsed.hostname || current.sourceNames[0])}</span>` : "") +
-      `</summary><div class="site-sub-body"><label class="field"><span>Root switch for this site</span>` +
-      `<select class="site-root-sel"><option value="">— leave spanning-tree unchanged —</option>` +
-      stpUnits
-        .map((u) => `<option value="${escapeHtml(u.id)}"${u.id === selectedId ? " selected" : ""}>${escapeHtml(u.parsed.hostname || u.sourceNames[0])}</option>`)
-        .join("") +
-      `</select></label></div>`;
-    const selEl = rootDiv.querySelector(".site-root-sel");
-    selEl.addEventListener("change", () => state.rootBySite.set(site.path, selEl.value || ""));
-    block.appendChild(rootDiv);
   }
 
-  for (const u of units) block.appendChild(renderUnit(u));
+  for (const u of units) block.appendChild(renderUnit(u, currentRootId));
   return block;
 }
 
@@ -953,8 +941,8 @@ function setPath(o, path, v) {
   t[last] = v;
 }
 
-/** A fully self-contained, collapsible per-device card: header + Interfaces + Routing & services + Hardening. */
-function renderUnit(unit) {
+/** A fully self-contained, collapsible per-device card: header + Interfaces + Routing & services + (STP root) + Hardening. */
+function renderUnit(unit, currentRootId = null) {
   const p = unit.parsed;
   const d = deviceCfg(unit);
   const card = document.createElement("details");
@@ -1046,6 +1034,16 @@ function renderUnit(unit) {
     `<details class="unit-sub"><summary class="unit-sub-head"><strong>Routing &amp; services</strong></summary>` +
     `<p class="muted small sub-desc">Pre-ticked with what this device actually has — untick anything you don't want carried across.</p>` +
     `<div class="coll-groups">${collHtml}</div></details>` +
+    // Spanning-tree root subsection (switch devices only)
+    (p.spanningTree.mode
+      ? `<details class="unit-sub"><summary class="unit-sub-head"><strong>Spanning-tree root</strong>` +
+        (currentRootId === unit.id ? ` <span class="feat-pill on">currently root</span>` : "") +
+        `</summary><div class="stp-root-body">` +
+        `<label class="checkbox"><input type="checkbox" class="root-elect" data-site="${escapeHtml(unit.site.path)}"${state.rootBySite.get(unit.site.path) === unit.id ? " checked" : ""} />` +
+        `<span>Elect this switch as the spanning-tree root for its site</span></label>` +
+        `<p class="muted small">Sets it as the sole root (root primary); other switches in the site stand down (root secondary). Leave unticked to carry spanning-tree across unchanged.</p>` +
+        `</div></details>`
+      : "") +
     // Hardening subsection
     `<details class="harden-section"><summary class="harden-head">` +
     `<strong>Hardening</strong> <span class="muted small">${pass} pass · ${missing.length} missing</span>` +
@@ -1110,6 +1108,21 @@ function renderUnit(unit) {
     card.querySelector(".harden-section").open = true;
     runAiReview(unit, card);
   });
+
+  // --- spanning-tree root (per site, mutually exclusive across the site's switch cards) ---
+  const rootCb = card.querySelector(".root-elect");
+  if (rootCb) {
+    rootCb.addEventListener("change", () => {
+      if (rootCb.checked) {
+        state.rootBySite.set(unit.site.path, unit.id);
+        document.querySelectorAll(".root-elect").forEach((o) => {
+          if (o !== rootCb && o.dataset.site === unit.site.path) o.checked = false;
+        });
+      } else if (state.rootBySite.get(unit.site.path) === unit.id) {
+        state.rootBySite.set(unit.site.path, "");
+      }
+    });
+  }
 
   // --- view config ---
   card.querySelector(".unit-view").addEventListener("click", (e) => {
