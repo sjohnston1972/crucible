@@ -13,6 +13,7 @@ import {
   computeOutput,
   applyHostname,
   buildSecureAccess,
+  buildVtp,
 } from "../public/lib/template.js";
 
 const CFG = {
@@ -206,6 +207,19 @@ test("buildSecureAccess: SHA-256 secrets, AAA local, type-6, SSH/VTY", () => {
   assert.match(lines, /^ip ssh version 2/m);
   assert.match(lines, / transport input ssh/);
   assert.match(lines, / login authentication default/);
+});
+
+test("buildVtp: version 3, transparent default, optional password; empty without domain", () => {
+  assert.deepEqual(buildVtp({ domain: "CORP" }), [
+    "vtp domain CORP",
+    "vtp version 3",
+    "vtp mode transparent",
+  ]);
+  const withPw = buildVtp({ domain: "CORP", password: "s3cret", mode: "server" });
+  assert.ok(withPw.includes("vtp mode server"));
+  assert.ok(withPw.includes("vtp password s3cret"));
+  assert.deepEqual(buildVtp({}), []);
+  assert.deepEqual(buildVtp({ password: "x" }), []);
 });
 
 test("buildSecureAccess: enable secret defaults to password; empty without creds", () => {

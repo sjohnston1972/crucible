@@ -69,22 +69,14 @@
       <div class="card-head">
         <h2><span class="step-num">3</span> Source files &amp; merge</h2>
         <p class="step-desc">
-          Tell Crucible how many config files each site should contain, and whether to collapse a
-          site’s devices (e.g. a router + a switch) into a single Layer-3 switch template.
+          Each scanned site and its config files are listed below. Sites that contain both a
+          <strong>router and a switch</strong> are flagged as <strong>merge candidates</strong> and pulse for
+          attention. Tick the files you want to <strong>collapse into one</strong> Layer-3 switch template;
+          everything left unticked becomes its own template.
         </p>
       </div>
-      <div class="grid2">
-        <label class="field">
-          <span>Source files per site</span>
-          <input id="source-count" type="number" min="1" value="1" />
-        </label>
-        <label class="field checkbox">
-          <input id="merge" type="checkbox" />
-          <span>Merge a site’s sources into one template (router + switch → L3 switch)</span>
-        </label>
-      </div>
-      <div id="role-rows" class="role-rows hidden">
-        <p class="muted small">Optional: map each source slot to a filename pattern so collection rules can target it.</p>
+      <div id="merge-sites" class="merge-sites">
+        <p class="muted small">Scan a folder in Step 1 to list sites here.</p>
       </div>
     </section>
 
@@ -136,6 +128,22 @@
         <label class="checkbox"><input id="c-tacacs" type="checkbox" /><span>TACACS+ (<code>tacacs server</code> / <code>aaa group server tacacs+</code>)</span></label>
         <label class="checkbox"><input id="c-logging" type="checkbox" /><span>Logging (<code>logging</code>)</span></label>
         <label class="checkbox"><input id="c-ntp" type="checkbox" /><span>NTP (<code>ntp</code>)</span></label>
+      </div>
+
+      <h3 class="sub">VTP (switches)</h3>
+      <p class="sub-desc">Add VTP version 3 to every <strong>switch</strong> template (routers are skipped). Mode defaults to <strong>transparent</strong>.</p>
+      <label class="checkbox"><input id="vtp-enable" type="checkbox" /><span>Configure VTP v3 on switch templates</span></label>
+      <div id="vtp-rows" class="grid3 hidden" style="margin-top:0.75rem">
+        <label class="field"><span>Domain name</span><input id="vtp-domain" type="text" placeholder="CORP" autocomplete="off" /></label>
+        <label class="field"><span>Password <span class="muted small">(optional)</span></span>
+          <div class="secret-input">
+            <input id="vtp-password" type="password" placeholder="vtp secret" autocomplete="new-password" />
+            <button type="button" class="secret-toggle" data-target="vtp-password" aria-label="Show VTP password">👁</button>
+          </div>
+        </label>
+        <label class="field"><span>Mode</span>
+          <select id="vtp-mode"><option value="transparent" selected>transparent</option><option value="server">server</option><option value="client">client</option><option value="off">off</option></select>
+        </label>
       </div>
 
       <h3 class="sub">Secure access</h3>

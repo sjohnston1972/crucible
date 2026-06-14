@@ -339,6 +339,44 @@ code {
 }
 .secret-toggle:hover { opacity: 1; }
 
+/* ---- per-site source/merge picker ---- */
+.merge-sites { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 0.5rem; }
+.merge-site {
+  border: 1px solid var(--border); border-radius: 11px; background: var(--surface-2);
+  padding: 0.85rem 1rem;
+}
+.merge-site.candidate {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  animation: candidate-pulse 2.2s ease-in-out infinite;
+}
+@keyframes candidate-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 35%, transparent); }
+  50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 0%, transparent); }
+}
+.merge-site-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.6rem; }
+.merge-site-path { font-family: var(--font-mono); font-size: 0.9rem; font-weight: 600; }
+.merge-flag {
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.03em; color: #fff;
+  background: var(--accent-grad); border-radius: 999px; padding: 0.15rem 0.6rem; white-space: nowrap;
+}
+.merge-files { display: flex; flex-direction: column; gap: 0.3rem; }
+.merge-file {
+  display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 0.55rem;
+  padding: 0.4rem 0.55rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface);
+  cursor: pointer; transition: border-color 0.15s;
+}
+.merge-file:hover { border-color: var(--accent); }
+.merge-file input { accent-color: var(--accent); }
+.merge-file-name { font-family: var(--font-mono); font-size: 0.82rem; overflow: hidden; text-overflow: ellipsis; }
+.merge-file-host { font-family: var(--font-mono); }
+.dev-chip {
+  font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+  border-radius: 4px; padding: 0.08rem 0.4rem; white-space: nowrap;
+}
+.dev-switch { color: var(--steel); background: var(--steel-soft); border: 1px solid color-mix(in srgb, var(--steel) 40%, transparent); }
+.dev-router { color: #7c4dff; background: color-mix(in srgb, #7c4dff 12%, transparent); border: 1px solid color-mix(in srgb, #7c4dff 40%, transparent); }
+.merge-hint { margin: 0.55rem 0 0; }
+
 .if-all-row {
   display: flex; align-items: center; gap: 1rem; margin-bottom: 0.85rem;
   padding: 0.65rem 0.8rem; border: 1px dashed var(--border-strong); border-radius: 10px;
@@ -360,6 +398,7 @@ code {
 .dev-name {
   font-family: var(--font-mono); font-weight: 600; font-size: 0.9rem; color: var(--accent);
 }
+.dev-select-all { margin-left: auto; }
 .disc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(195px, 1fr)); gap: 0.5rem; }
 .disc-if {
   display: flex; flex-direction: column; gap: 0.4rem;

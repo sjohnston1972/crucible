@@ -336,6 +336,17 @@ export function buildSecureAccess({ username, password, enableSecret, configKey 
   return lines;
 }
 
+/**
+ * VTP version 3 block for switch templates. Mode defaults to transparent.
+ * Returns [] without a domain.
+ */
+export function buildVtp({ domain, password, mode } = {}) {
+  if (!domain) return [];
+  const lines = [`vtp domain ${domain}`, "vtp version 3", `vtp mode ${mode || "transparent"}`];
+  if (password) lines.push(`vtp password ${password}`);
+  return lines;
+}
+
 /** Rewrite (or insert) the in-config hostname line (§12.4: default on with rename). */
 export function applyHostname(content, hostname) {
   if (/^hostname\s+\S+/m.test(content)) {

@@ -17,6 +17,7 @@ import {
   computeOutput,
   applyHostname,
   buildSecureAccess,
+  buildVtp,
 } from "./lib/template.js";
 import { redactForAI } from "./lib/redact.js";
 import { buildZip } from "./lib/zip.js";
@@ -37,8 +38,9 @@ function interfacePo(f) {
 const state = {
   mode: null, // 'primary' | 'fallback'
   rootHandle: null,
-  sites: [], // { path, name, dirHandle?, files: [{ name, handle? | file? }] }
-  units: [], // analyzed output units (see analyze())
+  sites: [], // { path, name, dirHandle?, files: [...], parsedFiles: [{ name, entry, parsed }] }
+  mergeSel: new Map(), // sitePath -> Set(fileName) chosen to merge into one template
+  units: [], // built output units
   stpVlans: null,
 };
 
@@ -194,8 +196,6 @@ function readConfig() {
     .map((r) => ({ name: r.querySelector(".if-name").value.trim(), mode: r.querySelector(".if-mode").value }))
     .filter((i) => i.name);
   return {
-    sourceCount: Math.max(1, Number($("source-count").value) || 1),
-    merge: $("merge").checked,
     interfacesAll: { enabled: $("if-all").checked, mode: $("if-all-mode").value },
     manualInterfaces,
     routing: {
@@ -216,6 +216,12 @@ function readConfig() {
       password: $("sec-pass").value.trim(),
       enableSecret: $("sec-enable-secret").value.trim(),
       configKey: $("sec-configkey").value.trim(),
+    },
+    vtp: {
+      enabled: $("vtp-enable").checked,
+      domain: $("vtp-domain").value.trim(),
+      password: $("vtp-password").value.trim(),
+      mode: $("vtp-mode").value,
     },
     insertion: document.querySelector('input[name="insertion"]:checked').value,
     naming: {
@@ -302,7 +308,8 @@ function renderDiscoveredInterfaces() {
     group.className = "dev-group";
     group.innerHTML =
       `<div class="dev-group-head"><span class="dev-name">${escapeHtml(host)}</span>` +
-      `<span class="muted small">${escapeHtml(u.site.path)} · ${ifaces.length} interface${ifaces.length === 1 ? "" : "s"}</span></div>`;
+      `<span class="muted small">${escapeHtml(u.site.path)} · ${ifaces.length} interface${ifaces.length === 1 ? "" : "s"}</span>` +
+      `<button class="btn btn-small btn-ghost dev-select-all" type="button">Select all</button></div>`;
     const grid = document.createElement("div");
     grid.className = "disc-grid";
 
@@ -341,6 +348,23 @@ function renderDiscoveredInterfaces() {
     }
     group.appendChild(grid);
     box.appendChild(group);
+
+    // Per-device "Select all" / "Clear all" toggle.
+    const selAll = group.querySelector(".dev-select-all");
+    const cbs = () => [...grid.querySelectorAll(".disc-if-cb")];
+    const syncLabel = () => {
+      const list = cbs();
+      selAll.textContent = list.length && list.every((c) => c.checked) ? "Clear all" : "Select all";
+    };
+    selAll.addEventListener("click", () => {
+      const list = cbs();
+      const target = !(list.length && list.every((c) => c.checked));
+      list.forEach((c) => (c.checked = target));
+      syncLabel();
+      refreshTagMap();
+    });
+    cbs().forEach((c) => c.addEventListener("change", syncLabel));
+    syncLabel();
   }
   applyIfAllDisabled();
 }
@@ -430,6 +454,7 @@ async function loadSampleData() {
 function clearAll() {
   state.rootHandle = null;
   state.sites = [];
+  state.mergeSel = new Map();
   state.units = [];
   state.template = null;
   state.ifaceConfigs = new Map();
@@ -437,6 +462,7 @@ function clearAll() {
   $("folder-name").textContent = "";
   $("sites-summary").textContent = "No folder selected yet.";
   $("sites-list").innerHTML = "";
+  $("merge-sites").innerHTML = `<p class="muted small">Scan a folder in Step 1 to list sites here.</p>`;
   $("results").innerHTML = "";
   $("disc-ifaces").innerHTML = `<p class="muted small">Scan a folder in Step 1 and the interfaces found in each device appear here.</p>`;
   $("iface-rows").innerHTML = "";
@@ -527,43 +553,69 @@ function mergeParsed(list) {
 
 // ----------------------------------------------------------------- analyze
 
-async function onAnalyze() {
-  const config = readConfig();
-  if (!state.sites.length) return;
-  $("run-status").textContent = "Analyzing…";
-  $("warnings").innerHTML = "";
-  state.units = [];
-  const analysisWarnings = [];
+function isSwitchParsed(p) {
+  return (
+    (p.interfaces || []).some((f) => f.switchportLines.length) ||
+    !!p.spanningTree.mode ||
+    (p.interfaces || []).some((f) => f.stpLines.length)
+  );
+}
+const deviceType = (p) => (isSwitchParsed(p) ? "switch" : "router");
 
+/** A site holding at least one switch and at least one router is a merge candidate. */
+function isMergeCandidate(parsedFiles) {
+  if (!parsedFiles || parsedFiles.length < 2) return false;
+  const types = new Set(parsedFiles.map((pf) => deviceType(pf.parsed)));
+  return types.has("switch") && types.has("router");
+}
+
+/** Parse every file, cache results, seed default merge selections, render Step 3, build units. */
+async function onAnalyze() {
+  if (!state.sites.length) return;
+  $("run-status").textContent = "Parsing…";
+  $("warnings").innerHTML = "";
   try {
     for (const site of state.sites) {
-      // File-count mismatch → flag, but still process (§10).
-      if (site.files.length !== config.sourceCount) {
-        analysisWarnings.push(
-          `${site.path}: found ${site.files.length} config file(s), expected ${config.sourceCount}.`
-        );
-      }
-      const parsedList = [];
+      site.parsedFiles = [];
       for (const entry of site.files) {
         const text = await readEntryText(entry);
-        parsedList.push({ entry, parsed: parse(text) });
+        site.parsedFiles.push({ name: entry.name, entry, parsed: parse(text) });
       }
-      if (config.merge) {
-        const list = parsedList.map((p) => p.parsed);
-        detectStpConflicts(list, site).forEach((w) => analysisWarnings.push(w));
-        const merged = mergeParsed(list);
-        state.units.push(makeUnit(site, merged, site.files.map((f) => f.name)));
-      } else {
-        for (const { entry, parsed } of parsedList) {
-          state.units.push(makeUnit(site, parsed, [entry.name]));
-        }
+      // Default: pre-select all files on a candidate site (suggest merge), else none.
+      if (!state.mergeSel.has(site.path)) {
+        const sel = new Set();
+        if (isMergeCandidate(site.parsedFiles)) site.parsedFiles.forEach((pf) => sel.add(pf.name));
+        state.mergeSel.set(site.path, sel);
       }
     }
   } catch (err) {
     $("run-status").textContent = "";
     return reportError(err);
   }
-  renderWarnings(analysisWarnings);
+  renderSourcesMerge();
+  rebuildUnits();
+}
+
+/** Build units from cached parses + per-site merge selection, then audit + render. */
+function rebuildUnits() {
+  const config = readConfig();
+  state.units = [];
+  const warnings = [];
+
+  for (const site of state.sites) {
+    const sel = state.mergeSel.get(site.path) || new Set();
+    const chosen = (site.parsedFiles || []).filter((pf) => sel.has(pf.name));
+    const singles = (site.parsedFiles || []).filter((pf) => !sel.has(pf.name));
+    if (chosen.length >= 2) {
+      detectStpConflicts(chosen.map((pf) => pf.parsed), site).forEach((w) => warnings.push(w));
+      const merged = mergeParsed(chosen.map((pf) => pf.parsed));
+      state.units.push(makeUnit(site, merged, chosen.map((pf) => pf.name)));
+    } else {
+      singles.push(...chosen); // a lone "merge" tick is just a single device
+    }
+    for (const pf of singles) state.units.push(makeUnit(site, pf.parsed, [pf.name]));
+  }
+  renderWarnings(warnings);
 
   // STP vlan union across the scan (for root election rewrites)
   const vlanSet = new Set();
@@ -577,8 +629,49 @@ async function onAnalyze() {
   renderDiscoveredInterfaces();
   populateStpRoot(config);
   renderResults(config);
-  $("run-status").textContent = `Analyzed ${state.units.length} device template${state.units.length === 1 ? "" : "s"}.`;
+  $("run-status").textContent = `Built ${state.units.length} device template${state.units.length === 1 ? "" : "s"}.`;
   $("btn-save").disabled = false;
+}
+
+/** Step 3: list each site, flag router+switch merge candidates, let the user pick files to merge. */
+function renderSourcesMerge() {
+  const box = $("merge-sites");
+  if (!state.sites.length) {
+    box.innerHTML = `<p class="muted small">Scan a folder in Step 1 to list sites here.</p>`;
+    return;
+  }
+  box.innerHTML = "";
+  for (const site of state.sites) {
+    const candidate = isMergeCandidate(site.parsedFiles);
+    const sel = state.mergeSel.get(site.path) || new Set();
+    const card = document.createElement("div");
+    card.className = "merge-site" + (candidate ? " candidate" : "");
+
+    let rows = "";
+    for (const pf of site.parsedFiles || []) {
+      const t = deviceType(pf.parsed);
+      rows +=
+        `<label class="merge-file"><input type="checkbox" class="merge-file-cb" data-site="${escapeHtml(site.path)}" data-file="${escapeHtml(pf.name)}"${sel.has(pf.name) ? " checked" : ""} />` +
+        `<span class="merge-file-name">${escapeHtml(pf.name)}</span>` +
+        `<span class="dev-chip dev-${t}">${t}</span>` +
+        `<span class="muted small merge-file-host">${escapeHtml(pf.parsed.hostname || "")}</span></label>`;
+    }
+    card.innerHTML =
+      `<div class="merge-site-head"><span class="merge-site-path">${escapeHtml(site.path)}</span>` +
+      (candidate ? `<span class="merge-flag">⚡ merge candidate</span>` : "") +
+      `</div><div class="merge-files">${rows}</div>` +
+      `<p class="muted small merge-hint">Tick the files to <strong>merge into one</strong> template (e.g. router + switch → L3 switch). Unticked files each become their own template.</p>`;
+    box.appendChild(card);
+  }
+  box.querySelectorAll(".merge-file-cb").forEach((cb) =>
+    cb.addEventListener("change", () => {
+      const set = state.mergeSel.get(cb.dataset.site) || new Set();
+      if (cb.checked) set.add(cb.dataset.file);
+      else set.delete(cb.dataset.file);
+      state.mergeSel.set(cb.dataset.site, set);
+      rebuildUnits();
+    })
+  );
 }
 
 function makeUnit(site, parsed, sourceNames) {
@@ -759,6 +852,16 @@ async function onSave() {
         : renderTagBased(templateText, slots);
 
     let content = rendered.content;
+
+    // VTP v3 block — switch templates only (routers don't run VTP).
+    if (config.vtp && config.vtp.enabled && isSwitchParsed(unit.parsed)) {
+      const vtpLines = buildVtp(config.vtp);
+      if (vtpLines.length) {
+        content = content.replace(/\n*$/, "") + `\n!\n! ==== VTP ====\n${vtpLines.join("\n")}\n`;
+      } else {
+        allWarnings.push(`${unit.id}: VTP enabled but no domain name — skipped.`);
+      }
+    }
 
     // Secure access block (user-supplied hardened admin + SSH login), appended to every output.
     if (config.secureAccess && config.secureAccess.enabled) {
@@ -1107,11 +1210,14 @@ function init() {
 
   // live tag map + conditional UI
   [
-    "source-count", "merge", "r-default", "r-static", "r-protocols",
+    "r-default", "r-static", "r-protocols",
     "c-vrf", "c-stp", "c-dhcp", "c-snmp", "c-tacacs", "c-logging", "c-ntp",
   ].forEach((id) => $(id).addEventListener("input", refreshTagMap));
   $("sec-enable").addEventListener("change", () =>
     $("sec-rows").classList.toggle("hidden", !$("sec-enable").checked)
+  );
+  $("vtp-enable").addEventListener("change", () =>
+    $("vtp-rows").classList.toggle("hidden", !$("vtp-enable").checked)
   );
   document.querySelectorAll(".secret-toggle").forEach((btn) =>
     btn.addEventListener("click", () => {
@@ -1128,15 +1234,6 @@ function init() {
     refreshTagMap();
   });
   $("if-all-mode").addEventListener("input", refreshTagMap);
-  // Merge / source-count change device grouping → re-analyze automatically (replaces the old button).
-  $("merge").addEventListener("change", () => {
-    $("role-rows").classList.toggle("hidden", !$("merge").checked || Number($("source-count").value) < 2);
-    if (state.sites.length) onAnalyze().catch(reportError);
-  });
-  $("source-count").addEventListener("change", () => {
-    $("role-rows").classList.toggle("hidden", !$("merge").checked || Number($("source-count").value) < 2);
-    if (state.sites.length) onAnalyze().catch(reportError);
-  });
   $("rename").addEventListener("change", () => $("rename-rows").classList.toggle("hidden", !$("rename").checked));
 
   refreshTagMap();
