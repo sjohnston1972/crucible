@@ -495,34 +495,18 @@ code {
   text-transform: uppercase; color: var(--text);
   border-left: 3px solid var(--accent); padding-left: 0.6rem;
 }
-.merged-source {
-  margin-left: 2rem;
-  opacity: 0.58;
-  border-style: dashed;
-  border-left: 3px solid var(--steel);
-  position: relative;
-}
-.merged-source::before {
-  content: "";
-  position: absolute;
-  left: -1.05rem;
-  top: -0.5rem;
-  height: 1.6rem;
-  width: 0.85rem;
+.merged-from {
+  display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+  margin: -0.35rem 0 0 1.8rem; padding-left: 0.7rem;
   border-left: 2px dashed var(--border-strong);
-  border-bottom: 2px dashed var(--border-strong);
-  border-bottom-left-radius: 7px;
 }
-.merged-source:hover { opacity: 0.85; }
-.merged-source .unit-head { padding: 0.5rem 0.9rem; }
-.merged-source .unit-host { font-size: 0.86rem; font-weight: 500; }
-.merged-badge {
-  margin-left: auto;
-  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.02em; color: var(--steel);
-  background: var(--steel-soft); border: 1px solid color-mix(in srgb, var(--steel) 40%, transparent);
-  border-radius: 999px; padding: 0.12rem 0.55rem; white-space: nowrap;
+.merged-from-label { font-size: 0.74rem; color: var(--text-muted); font-style: italic; }
+.merged-chip {
+  font: inherit; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 0.4rem;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px;
+  padding: 0.2rem 0.65rem; cursor: pointer; color: var(--text); font-family: var(--font-mono);
 }
-.merged-source .unit-view { margin-left: 0.5rem; }
+.merged-chip:hover { border-color: var(--accent); }
 .merge-tile { border-left-color: var(--steel); }
 .merge-tile .unit-site { color: var(--steel); background: var(--steel-soft); }
 .merge-tile .merge-flag { margin-left: auto; }
