@@ -79,54 +79,15 @@
       </div>
     </section>
 
-    <!-- Step 4: Collection -->
+    <!-- Step 4: Global additions (per-device collection lives in each device card, Step 2) -->
     <section class="card" id="step-collection">
       <div class="card-head">
-        <h2><span class="step-num">4</span> What to collect</h2>
+        <h2><span class="step-num">4</span> Global additions</h2>
         <p class="step-desc">
-          Choose exactly what to pull from each source device into its new template.
+          What to <strong>collect</strong> from each device — interfaces, routing, VRF, DHCP, management — is
+          chosen <strong>per device</strong> in its card up in Step 2 (pre-ticked with what it already has).
+          The settings here are injected into <strong>every</strong> output template.
         </p>
-      </div>
-
-      <h3 class="sub">Interfaces</h3>
-      <p class="sub-desc">
-        Interfaces found in your scan, <strong>grouped by device</strong>. Tick the ones to carry across and
-        pick <em>All data</em> or <em>IP only</em> for each. Shutdown ports are flagged in red — hover any
-        interface to preview its current config.
-      </p>
-      <div class="if-all-row">
-        <label class="checkbox"><input id="if-all" type="checkbox" /><span><strong>All interfaces</strong> from every device</span></label>
-        <select id="if-all-mode" class="if-all-mode"><option value="full">All data</option><option value="ip">IP only</option></select>
-      </div>
-      <div id="disc-ifaces" class="disc-ifaces">
-        <p class="muted small">Scan a folder in Step 1 and the interfaces found in each device appear here.</p>
-      </div>
-      <div id="iface-rows" class="iface-rows"></div>
-      <button id="btn-add-iface" class="btn btn-small" type="button">+ Add interface (manual)</button>
-
-      <h3 class="sub">IP routing</h3>
-      <p class="sub-desc">Select which routing information to migrate. A legacy <code>ip default-gateway</code> is rewritten as a modern default route automatically.</p>
-      <div class="checks">
-        <label class="checkbox"><input id="r-default" type="checkbox" /><span>Default gateway → modern default route</span></label>
-        <label class="checkbox"><input id="r-static" type="checkbox" /><span>All static routes</span></label>
-        <label class="checkbox"><input id="r-protocols" type="checkbox" /><span>Routing protocols (OSPF / EIGRP / BGP / RIP)</span></label>
-      </div>
-
-      <h3 class="sub">Other data</h3>
-      <p class="sub-desc">Carry across these blocks wherever they exist in the source.</p>
-      <div class="checks">
-        <label class="checkbox"><input id="c-vrf" type="checkbox" /><span>VRFs in use</span></label>
-        <label class="checkbox"><input id="c-stp" type="checkbox" /><span>Spanning-tree (global / per-VLAN / MST)</span></label>
-        <label class="checkbox"><input id="c-dhcp" type="checkbox" /><span>DHCP scopes</span></label>
-      </div>
-
-      <h3 class="sub">Management services</h3>
-      <p class="sub-desc">Crucible scans each source for these services and can carry the existing config across. Counts are shown per device in the analysis above.</p>
-      <div class="checks">
-        <label class="checkbox"><input id="c-snmp" type="checkbox" /><span>SNMP (<code>snmp-server</code>)</span></label>
-        <label class="checkbox"><input id="c-tacacs" type="checkbox" /><span>TACACS+ (<code>tacacs server</code> / <code>aaa group server tacacs+</code>)</span></label>
-        <label class="checkbox"><input id="c-logging" type="checkbox" /><span>Logging (<code>logging</code>)</span></label>
-        <label class="checkbox"><input id="c-ntp" type="checkbox" /><span>NTP (<code>ntp</code>)</span></label>
       </div>
 
       <h3 class="sub">VTP (switches)</h3>

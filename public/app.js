@@ -41,6 +41,8 @@ const state = {
   sites: [], // { path, name, dirHandle?, files: [...], parsedFiles: [{ name, entry, parsed }] }
   mergeSel: new Map(), // sitePath -> Set(fileName) chosen to merge into one template
   units: [], // built output units
+  deviceCfg: new Map(), // unitId -> per-device collection state (see defaultDeviceCfg)
+  poColor: new Map(), // port-channel number -> colour (computed per scan)
   stpVlans: null,
 };
 
@@ -190,26 +192,9 @@ function dedupInterfaces(list) {
   return out;
 }
 
-/** Shared collection settings (interface picks are resolved per-device, see unitConfig). */
-function readConfig() {
-  const manualInterfaces = [...document.querySelectorAll(".iface-row")]
-    .map((r) => ({ name: r.querySelector(".if-name").value.trim(), mode: r.querySelector(".if-mode").value }))
-    .filter((i) => i.name);
+/** Global-only settings — collection is now per-device (see deviceCfg / unitConfig). */
+function readGlobalConfig() {
   return {
-    interfacesAll: { enabled: $("if-all").checked, mode: $("if-all-mode").value },
-    manualInterfaces,
-    routing: {
-      defaultGateway: $("r-default").checked,
-      allStatic: $("r-static").checked,
-      protocols: $("r-protocols").checked,
-    },
-    vrf: { enabled: $("c-vrf").checked },
-    stp: { enabled: $("c-stp").checked },
-    dhcp: { enabled: $("c-dhcp").checked },
-    snmp: { enabled: $("c-snmp").checked },
-    tacacs: { enabled: $("c-tacacs").checked },
-    logging: { enabled: $("c-logging").checked },
-    ntp: { enabled: $("c-ntp").checked },
     secureAccess: {
       enabled: $("sec-enable").checked,
       username: $("sec-user").value.trim(),
@@ -233,37 +218,67 @@ function readConfig() {
   };
 }
 
-/** Interfaces ticked under a specific device in the grouped picker. */
-function unitInterfaces(unitId) {
-  return [...document.querySelectorAll(".disc-if")]
-    .filter((t) => t.dataset.unit === unitId && t.querySelector(".disc-if-cb").checked)
-    .map((t) => ({ name: t.dataset.name, mode: t.querySelector(".disc-if-mode").value }));
+/** Per-device collection state, pre-seeded with whatever the device actually has. */
+function defaultDeviceCfg(p) {
+  return {
+    interfacesAll: { enabled: false, mode: "full" },
+    ifaceSel: new Map(), // normName -> { checked, mode }
+    routing: {
+      defaultGateway: !!p.defaultGateway,
+      allStatic: p.staticRoutes.length > 0,
+      protocols: p.protocols.length > 0,
+    },
+    vrf: p.vrfs.length > 0,
+    stp: !!p.spanningTree.mode,
+    dhcp: p.dhcpPools.length > 0,
+    snmp: p.snmp.length > 0,
+    tacacs: p.tacacs.length > 0,
+    logging: p.logging.length > 0,
+    ntp: p.ntp.length > 0,
+  };
+}
+function deviceCfg(unit) {
+  if (!state.deviceCfg.has(unit.id)) state.deviceCfg.set(unit.id, defaultDeviceCfg(unit.parsed));
+  return state.deviceCfg.get(unit.id);
 }
 
-/** Per-device config: this device's ticked interfaces + global manual rows (or all). */
-function unitConfig(unit, cfg) {
-  const interfaces = cfg.interfacesAll.enabled
+/** Build a buildBlocks/buildTagMap config for one device from its per-device state + globals. */
+function unitConfig(unit, global) {
+  const d = deviceCfg(unit);
+  const interfaces = d.interfacesAll.enabled
     ? []
-    : dedupInterfaces([...unitInterfaces(unit.id), ...cfg.manualInterfaces]);
-  return { ...cfg, interfaces };
+    : [...d.ifaceSel.entries()].filter(([, v]) => v.checked).map(([name, v]) => ({ name, mode: v.mode }));
+  return {
+    interfacesAll: d.interfacesAll,
+    interfaces,
+    routing: d.routing,
+    vrf: { enabled: d.vrf },
+    stp: { enabled: d.stp },
+    dhcp: { enabled: d.dhcp },
+    snmp: { enabled: d.snmp },
+    tacacs: { enabled: d.tacacs },
+    logging: { enabled: d.logging },
+    ntp: { enabled: d.ntp },
+    insertion: global.insertion,
+    naming: global.naming,
+  };
 }
 
 function refreshTagMap() {
-  const cfg = readConfig();
-  const rep = state.units[0];
-  const tagCfg = rep
-    ? unitConfig(rep, cfg)
-    : { ...cfg, interfaces: cfg.interfacesAll.enabled ? [] : dedupInterfaces(cfg.manualInterfaces) };
-  const slots = buildTagMap(tagCfg);
   const el = $("tagmap");
   el.innerHTML = "";
-  if (rep && !cfg.interfacesAll.enabled && state.units.length > 1) {
+  const rep = state.units[0];
+  if (!rep) {
+    el.innerHTML = `<p class="muted small">Scan a folder to compute the tag map.</p>`;
+    return;
+  }
+  if (state.units.length > 1) {
     const note = document.createElement("p");
     note.className = "muted small";
-    note.textContent = `Interface tags shown for ${rep.parsed.hostname || rep.sourceNames[0]}; each device's auto-template is generated to match its own selection.`;
+    note.textContent = `Tags shown for ${rep.parsed.hostname || rep.sourceNames[0]}; each device's auto-template matches its own selection.`;
     el.appendChild(note);
   }
-  for (const slot of slots) {
+  for (const slot of buildTagMap(unitConfig(rep, readGlobalConfig()))) {
     const div = document.createElement("div");
     div.className = "tag-entry";
     div.innerHTML = `<span class="tag-marker">{${slot.tag}}</span><span class="tag-label">${escapeHtml(slot.label)}</span>`;
@@ -271,105 +286,57 @@ function refreshTagMap() {
   }
 }
 
-/** Populate the interface picker, grouped per device, with shutdown highlight + hover config. */
-function renderDiscoveredInterfaces() {
-  const box = $("disc-ifaces");
-  // preserve selections across re-render, keyed by device + interface
-  const prev = new Map();
-  for (const t of document.querySelectorAll(".disc-if")) {
-    prev.set(`${t.dataset.unit}::${t.dataset.name}`, {
-      checked: t.querySelector(".disc-if-cb").checked,
-      mode: t.querySelector(".disc-if-mode").value,
-    });
-  }
-  state.ifaceConfigs = new Map(); // `${unitId}::${normName}` -> { text, host, shutdown }
-
-  if (!state.units.length) {
-    box.innerHTML = `<p class="muted small">No interfaces found in the scanned sources.</p>`;
-    return;
-  }
-
-  // Assign a distinct colour to each port-channel number across the scan.
+/** Distinct colour per port-channel number across the whole scan. */
+function computePoColors() {
   const poNums = [
     ...new Set(
       state.units.flatMap((u) => (u.parsed.interfaces || []).map(interfacePo).filter((n) => n != null))
     ),
   ].sort((a, b) => a - b);
-  const poColor = new Map(poNums.map((n, i) => [n, PO_PALETTE[i % PO_PALETTE.length]]));
+  state.poColor = new Map(poNums.map((n, i) => [n, PO_PALETTE[i % PO_PALETTE.length]]));
+}
 
-  box.innerHTML = "";
-  for (const u of state.units) {
-    const ifaces = (u.parsed.interfaces || [])
-      .slice()
-      .sort((a, b) => a.normName.localeCompare(b.normName, undefined, { numeric: true }));
-    const host = u.parsed.hostname || u.sourceNames[0];
-
-    const group = document.createElement("details");
-    group.className = "dev-group";
-    if (ifaces.length <= 12) group.open = true; // small lists start expanded
-    group.innerHTML =
-      `<summary class="dev-group-head"><span class="dev-name">${escapeHtml(host)}</span>` +
-      `<span class="muted small">${escapeHtml(u.site.path)} · ${ifaces.length} interface${ifaces.length === 1 ? "" : "s"}</span>` +
-      `<button class="btn btn-small btn-ghost dev-select-all" type="button">Select all</button></summary>`;
-    const grid = document.createElement("div");
-    grid.className = "disc-grid";
-
-    for (const f of ifaces) {
-      const key = `${u.id}::${f.normName}`;
-      state.ifaceConfigs.set(key, {
-        text: f.text || (f.block || []).join("\n"),
-        host,
-        shutdown: !!f.shutdown,
-      });
-      const p = prev.get(key) || {};
-      const po = interfacePo(f);
-      const isAggregate = f.channelGroup == null && po != null;
-      const tile = document.createElement("div");
-      tile.className = "disc-if" + (po != null ? " bundled" : "") + (f.shutdown ? " shutdown" : "");
-      if (po != null) tile.style.setProperty("--po-color", poColor.get(po));
-      tile.dataset.unit = u.id;
-      tile.dataset.name = f.normName;
-      const badges =
-        (f.shutdown ? '<span class="disc-if-shut">SHUT</span>' : "") +
-        (po != null
-          ? isAggregate
-            ? `<span class="disc-if-po" title="Port-channel ${po} aggregate interface">PO${po} aggregate</span>`
-            : `<span class="disc-if-po" title="Bundled into Port-channel${po}">bundled PO${po}</span>`
-          : "");
-      tile.innerHTML =
-        `<label class="disc-if-main"><input type="checkbox" class="disc-if-cb"${p.checked ? " checked" : ""} />` +
-        `<span class="disc-if-name">${escapeHtml(f.normName)}</span></label>` +
-        `<div class="disc-if-row2"><span class="disc-if-badges">${badges}</span>` +
-        `<select class="disc-if-mode"><option value="full"${p.mode !== "ip" ? " selected" : ""}>All data</option>` +
-        `<option value="ip"${p.mode === "ip" ? " selected" : ""}>IP only</option></select></div>`;
-      tile.querySelectorAll("input,select").forEach((el) => el.addEventListener("input", refreshTagMap));
-      tile.addEventListener("mouseenter", () => showIfaceTip(key, tile));
-      tile.addEventListener("mouseleave", hideIfaceTip);
-      grid.appendChild(tile);
-    }
-    group.appendChild(grid);
-    box.appendChild(group);
-
-    // Per-device "Select all" / "Clear all" toggle.
-    const selAll = group.querySelector(".dev-select-all");
-    const cbs = () => [...grid.querySelectorAll(".disc-if-cb")];
-    const syncLabel = () => {
-      const list = cbs();
-      selAll.textContent = list.length && list.every((c) => c.checked) ? "Clear all" : "Select all";
-    };
-    selAll.addEventListener("click", (e) => {
-      e.preventDefault(); // don't toggle the <details>
-      e.stopPropagation();
-      const list = cbs();
-      const target = !(list.length && list.every((c) => c.checked));
-      list.forEach((c) => (c.checked = target));
-      syncLabel();
-      refreshTagMap();
-    });
-    cbs().forEach((c) => c.addEventListener("change", syncLabel));
-    syncLabel();
-  }
-  applyIfAllDisabled();
+/** Build one interface tile bound to a device's per-device selection map. */
+function buildIfaceTile(unit, f) {
+  const d = deviceCfg(unit);
+  const sel = d.ifaceSel.get(f.normName) || { checked: false, mode: "full" };
+  const key = `${unit.id}::${f.normName}`;
+  state.ifaceConfigs.set(key, {
+    text: f.text || (f.block || []).join("\n"),
+    host: unit.parsed.hostname || unit.sourceNames[0],
+    shutdown: !!f.shutdown,
+  });
+  const po = interfacePo(f);
+  const isAggregate = f.channelGroup == null && po != null;
+  const tile = document.createElement("div");
+  tile.className = "disc-if" + (po != null ? " bundled" : "") + (f.shutdown ? " shutdown" : "");
+  if (po != null) tile.style.setProperty("--po-color", state.poColor.get(po));
+  tile.dataset.unit = unit.id;
+  tile.dataset.name = f.normName;
+  const badges =
+    (f.shutdown ? '<span class="disc-if-shut">SHUT</span>' : "") +
+    (po != null
+      ? isAggregate
+        ? `<span class="disc-if-po" title="Port-channel ${po} aggregate interface">PO${po} aggregate</span>`
+        : `<span class="disc-if-po" title="Bundled into Port-channel${po}">bundled PO${po}</span>`
+      : "");
+  tile.innerHTML =
+    `<label class="disc-if-main"><input type="checkbox" class="disc-if-cb"${sel.checked ? " checked" : ""} />` +
+    `<span class="disc-if-name">${escapeHtml(f.normName)}</span></label>` +
+    `<div class="disc-if-row2"><span class="disc-if-badges">${badges}</span>` +
+    `<select class="disc-if-mode"><option value="full"${sel.mode !== "ip" ? " selected" : ""}>All data</option>` +
+    `<option value="ip"${sel.mode === "ip" ? " selected" : ""}>IP only</option></select></div>`;
+  const cb = tile.querySelector(".disc-if-cb");
+  const modeSel = tile.querySelector(".disc-if-mode");
+  const update = () => {
+    d.ifaceSel.set(f.normName, { checked: cb.checked, mode: modeSel.value });
+    refreshTagMap();
+  };
+  cb.addEventListener("change", update);
+  modeSel.addEventListener("change", update);
+  tile.addEventListener("mouseenter", () => showIfaceTip(key, tile));
+  tile.addEventListener("mouseleave", hideIfaceTip);
+  return tile;
 }
 
 function showIfaceTip(key, anchor) {
@@ -389,16 +356,6 @@ function showIfaceTip(key, anchor) {
 
 function hideIfaceTip() {
   $("iface-tip").classList.add("hidden");
-}
-
-/** When "All interfaces" is on, the individual picker and manual rows are inert. */
-function applyIfAllDisabled() {
-  const off = $("if-all").checked;
-  $("disc-ifaces").classList.toggle("inert", off);
-  $("iface-rows").classList.toggle("inert", off);
-  document
-    .querySelectorAll(".disc-if-cb, .disc-if-mode, .if-name, .if-mode")
-    .forEach((el) => (el.disabled = off));
 }
 
 // ----------------------------------------------------------------- template file
@@ -466,27 +423,24 @@ function clearAll() {
   state.sites = [];
   state.mergeSel = new Map();
   state.units = [];
+  state.deviceCfg = new Map();
   state.template = null;
   state.ifaceConfigs = new Map();
   state.stpVlans = null;
   $("folder-name").textContent = "";
   $("sites-summary").textContent = "No folder selected yet.";
   $("sites-list").innerHTML = "";
-  $("merge-sites").innerHTML = `<p class="muted small">Scan a folder in Step 1 to list sites here.</p>`;
+  $("merge-sites").innerHTML = `<p class="muted small">Scan a folder in Step 1 to detect merge candidates.</p>`;
   $("results").innerHTML = "";
-  $("disc-ifaces").innerHTML = `<p class="muted small">Scan a folder in Step 1 and the interfaces found in each device appear here.</p>`;
-  $("iface-rows").innerHTML = "";
   $("template-name").textContent = "Using auto-generated template";
   $("template-input").value = "";
   $("btn-clear-template").classList.add("hidden");
   $("stp-root-wrap").classList.add("hidden");
   $("warnings").innerHTML = "";
   $("run-status").textContent = "";
-  $("if-all").checked = false;
   $("stp-root-none").classList.add("hidden");
   state.currentRootId = null;
   $("btn-save").disabled = true;
-  applyIfAllDisabled();
   refreshTagMap();
 }
 
@@ -608,7 +562,6 @@ async function onAnalyze() {
 
 /** Build units from cached parses + per-site merge selection, then audit + render. */
 function rebuildUnits() {
-  const config = readConfig();
   state.units = [];
   const warnings = [];
 
@@ -638,9 +591,10 @@ function rebuildUnits() {
   }
   state.stpVlans = [...vlanSet].filter(Boolean).join(",") || null;
 
-  renderDiscoveredInterfaces();
-  populateStpRoot(config);
-  renderResults(config);
+  computePoColors();
+  populateStpRoot();
+  renderResults();
+  refreshTagMap();
   $("run-status").textContent = `Built ${state.units.length} device template${state.units.length === 1 ? "" : "s"}.`;
   $("btn-save").disabled = false;
 }
@@ -733,7 +687,7 @@ function detectCurrentRoot(stpUnits) {
   return signal ? best : null;
 }
 
-function populateStpRoot(config) {
+function populateStpRoot() {
   const wrap = $("stp-root-wrap");
   const none = $("stp-root-none");
   const sel = $("stp-root");
@@ -790,38 +744,42 @@ function defaultTemplate(config, hostname) {
   return lines.join("\n");
 }
 
-function saveSanityWarnings(config, electedRoot) {
+/** True if a device has nothing selected to collect (no interfaces, routing, or other data). */
+function unitCollectsNothing(unit) {
+  const d = deviceCfg(unit);
+  const anyIface = d.interfacesAll.enabled || [...d.ifaceSel.values()].some((v) => v.checked);
+  const anyRouting = d.routing.defaultGateway || d.routing.allStatic || d.routing.protocols;
+  const anyOther = d.vrf || d.stp || d.dhcp || d.snmp || d.tacacs || d.logging || d.ntp;
+  const anyHarden = unit.findings.some((f) => f.apply);
+  return !anyIface && !anyRouting && !anyOther && !anyHarden;
+}
+
+function saveSanityWarnings(global, electedRoot) {
   const w = [];
-  const anyIface =
-    config.interfacesAll.enabled ||
-    config.manualInterfaces.length > 0 ||
-    state.units.some((u) => unitInterfaces(u.id).length > 0);
-  if (!anyIface) w.push("no interfaces selected");
-  const r = config.routing;
-  if (!r.defaultGateway && !r.allStatic && !r.protocols) w.push("no routing selected");
-  const otherData =
-    config.vrf.enabled || config.stp.enabled || config.dhcp.enabled ||
-    config.snmp.enabled || config.tacacs.enabled || config.logging.enabled ||
-    config.ntp.enabled || !!electedRoot;
-  if (!otherData) w.push("no VRF / STP / DHCP / SNMP / TACACS+ / logging / NTP selected");
-  if (!state.units.some((u) => u.findings.some((f) => f.apply))) w.push("no hardening items ticked");
-  if (!config.secureAccess.enabled) w.push("no secure-access credentials");
+  const empties = state.units.filter((u) => unitCollectsNothing(u));
+  if (empties.length === state.units.length) {
+    w.push("no device has anything selected to collect");
+  } else if (empties.length) {
+    w.push(`${empties.length} device(s) have nothing selected: ${empties.map((u) => u.parsed.hostname || u.sourceNames[0]).join(", ")}`);
+  }
+  if (!global.secureAccess.enabled && !global.vtp.enabled && !electedRoot) {
+    w.push("no global additions (VTP / secure access / root election)");
+  }
   return w;
 }
 
 async function onSave() {
-  const config = readConfig();
+  const global = readGlobalConfig();
   if (!state.units.length) return reportError(new Error("Scan a folder first (Step 1)."));
 
   const electedRoot = $("stp-root").value || null;
 
-  // Pre-generation sanity check: if the template would be sparse, confirm intent.
-  const sanity = saveSanityWarnings(config, electedRoot);
-  const blocking = sanity.filter((m) => !m.includes("secure-access")); // creds are genuinely optional
-  if (blocking.length >= 2) {
+  // Pre-generation sanity check: if no device collects much, confirm intent.
+  const sanity = saveSanityWarnings(global, electedRoot);
+  if (sanity.length >= 2) {
     const ok = await styledConfirm({
-      title: "Your template will be sparse",
-      message: "Crucible didn’t detect much to put in the output:",
+      title: "Your templates will be sparse",
+      message: "Crucible didn’t detect much selected to put in the output:",
       items: sanity,
       confirmLabel: "Generate anyway",
       cancelLabel: "Go back",
@@ -833,15 +791,16 @@ async function onSave() {
   }
 
   $("run-status").textContent = "Building & saving…";
-  // Electing a root implies the STP block must be emitted; only a *different* switch than the
-  // current root triggers a rewrite — leaving it on the current root carries STP verbatim.
-  if (electedRoot) config.stp.enabled = true;
+  // Only a switch *different* from the current root triggers a root rewrite.
   const changingRoot = !!electedRoot && electedRoot !== state.currentRootId;
   const zipFiles = [];
   const allWarnings = [];
 
   for (const unit of state.units) {
-    const stpRole = !config.stp.enabled
+    const ucfg = unitConfig(unit, global);
+    // Electing a root implies STP must be emitted for that scan's switches.
+    if (electedRoot && unit.parsed.spanningTree.mode) ucfg.stp.enabled = true;
+    const stpRole = !ucfg.stp.enabled
       ? "asis"
       : changingRoot
       ? unit.id === electedRoot
@@ -852,7 +811,6 @@ async function onSave() {
     const applied = unit.findings.filter((f) => f.apply);
     const hardenLines = remediationLines(applied);
 
-    const ucfg = unitConfig(unit, config);
     const slots = buildBlocks(ucfg, unit.parsed, {
       stpRole,
       stpVlans: state.stpVlans,
@@ -872,8 +830,8 @@ async function onSave() {
     let content = rendered.content;
 
     // VTP v3 block — switch templates only (routers don't run VTP).
-    if (config.vtp && config.vtp.enabled && isSwitchParsed(unit.parsed)) {
-      const vtpLines = buildVtp(config.vtp);
+    if (global.vtp && global.vtp.enabled && isSwitchParsed(unit.parsed)) {
+      const vtpLines = buildVtp(global.vtp);
       if (vtpLines.length) {
         content = content.replace(/\n*$/, "") + `\n!\n! ==== VTP ====\n${vtpLines.join("\n")}\n`;
       } else {
@@ -882,8 +840,8 @@ async function onSave() {
     }
 
     // Secure access block (user-supplied hardened admin + SSH login), appended to every output.
-    if (config.secureAccess && config.secureAccess.enabled) {
-      const secLines = buildSecureAccess(config.secureAccess);
+    if (global.secureAccess && global.secureAccess.enabled) {
+      const secLines = buildSecureAccess(global.secureAccess);
       if (secLines.length) {
         content = content.replace(/\n*$/, "") + `\n!\n! ==== Secure access ====\n${secLines.join("\n")}\n`;
       } else {
@@ -891,8 +849,8 @@ async function onSave() {
       }
     }
 
-    const naming = computeOutput(unit.parsed, config.naming);
-    if (config.naming.rename) content = applyHostname(content, naming.hostname);
+    const naming = computeOutput(unit.parsed, global.naming);
+    if (global.naming.rename) content = applyHostname(content, naming.hostname);
 
     rendered.warnings.forEach((w) => allWarnings.push(`${unit.id}: ${w}`));
 
@@ -962,18 +920,29 @@ function downloadZip(bytes, name) {
 
 // ----------------------------------------------------------------- results UI
 
-function renderResults(config) {
+function renderResults() {
+  state.ifaceConfigs = new Map();
   const root = $("results");
   root.innerHTML = "";
-  for (const unit of state.units) {
-    root.appendChild(renderUnit(unit, config));
-  }
+  for (const unit of state.units) root.appendChild(renderUnit(unit));
 }
 
-function renderUnit(unit, config) {
+const getPath = (o, path) => path.split(".").reduce((a, k) => (a == null ? a : a[k]), o);
+function setPath(o, path, v) {
+  const ks = path.split(".");
+  const last = ks.pop();
+  let t = o;
+  for (const k of ks) t = t[k] || (t[k] = {});
+  t[last] = v;
+}
+
+/** A fully self-contained, collapsible per-device card: header + Interfaces + Routing & services + Hardening. */
+function renderUnit(unit) {
   const p = unit.parsed;
-  const card = document.createElement("div");
+  const d = deviceCfg(unit);
+  const card = document.createElement("details");
   card.className = "unit";
+  card.open = true;
   card.dataset.unit = unit.id;
 
   const routingN = p.staticRoutes.length + p.protocols.length + (p.defaultGateway ? 1 : 0);
@@ -982,9 +951,9 @@ function renderUnit(unit, config) {
     { label: "Routing", on: routingN > 0, tip: `${p.staticRoutes.length} static route(s), ${p.protocols.length} routing protocol(s)${p.defaultGateway ? ", default gateway" : ""}` },
     { label: "VRF", on: p.vrfs.length > 0, tip: p.vrfs.length ? `VRFs: ${p.vrfs.map((v) => v.name).join(", ")}` : "No VRFs configured" },
     { label: p.spanningTree.mode ? `STP ${p.spanningTree.mode}` : "STP", on: !!p.spanningTree.mode, tip: p.spanningTree.mode ? `Spanning-tree mode ${p.spanningTree.mode}` : "No spanning-tree configured" },
-    { label: "DHCP", on: p.dhcpPools.length > 0, tip: p.dhcpPools.length ? `${p.dhcpPools.length} DHCP pool(s): ${p.dhcpPools.map((d) => d.name).join(", ")}` : "No DHCP pools" },
+    { label: "DHCP", on: p.dhcpPools.length > 0, tip: p.dhcpPools.length ? `${p.dhcpPools.length} DHCP pool(s): ${p.dhcpPools.map((x) => x.name).join(", ")}` : "No DHCP pools" },
     { label: "SNMP", on: p.snmp.length > 0, tip: p.snmp.length ? `${p.snmp.length} snmp-server line(s)` : "No SNMP config" },
-    { label: "TACACS+", on: p.tacacs.length > 0, tip: p.tacacs.length ? `${p.tacacs.length} TACACS+ / AAA-server line(s)` : "No TACACS+ config" },
+    { label: "TACACS+", on: p.tacacs.length > 0, tip: p.tacacs.length ? `${p.tacacs.length} TACACS+ line(s)` : "No TACACS+ config" },
     { label: "Logging", on: p.logging.length > 0, tip: p.logging.length ? `${p.logging.length} logging line(s)` : "No logging config" },
     { label: "NTP", on: p.ntp.length > 0, tip: p.ntp.length ? `${p.ntp.length} ntp line(s)` : "No NTP config" },
   ];
@@ -992,58 +961,124 @@ function renderUnit(unit, config) {
     .map((f) => `<span class="feat-pill ${f.on ? "on" : "off"}" title="${escapeHtml(f.tip)}">${escapeHtml(f.label)}</span>`)
     .join("");
 
+  const ifaces = (p.interfaces || [])
+    .slice()
+    .sort((a, b) => a.normName.localeCompare(b.normName, undefined, { numeric: true }));
+
+  const COLL = [
+    { path: "routing.defaultGateway", label: "Default gateway → default route", has: !!p.defaultGateway },
+    { path: "routing.allStatic", label: "Static routes", has: p.staticRoutes.length > 0 },
+    { path: "routing.protocols", label: "Routing protocols", has: p.protocols.length > 0 },
+    { path: "vrf", label: "VRFs", has: p.vrfs.length > 0 },
+    { path: "stp", label: "Spanning-tree", has: !!p.spanningTree.mode },
+    { path: "dhcp", label: "DHCP scopes", has: p.dhcpPools.length > 0 },
+    { path: "snmp", label: "SNMP", has: p.snmp.length > 0 },
+    { path: "tacacs", label: "TACACS+", has: p.tacacs.length > 0 },
+    { path: "logging", label: "Logging", has: p.logging.length > 0 },
+    { path: "ntp", label: "NTP", has: p.ntp.length > 0 },
+  ];
+  const collHtml = COLL.map(
+    (c) =>
+      `<label class="checkbox coll-item"><input type="checkbox" class="coll-cb" data-path="${c.path}"${getPath(d, c.path) ? " checked" : ""} />` +
+      `<span>${escapeHtml(c.label)}${c.has ? "" : ' <span class="muted small">(none found)</span>'}</span></label>`
+  ).join("");
+
   const missing = unit.findings.filter((f) => f.status === "missing");
   const pass = unit.findings.filter((f) => f.status === "pass").length;
 
   card.innerHTML =
-    `<div class="unit-head">` +
-    `<button class="unit-title" type="button" title="View full config">` +
+    `<summary class="unit-head">` +
+    `<span class="unit-caret"></span>` +
+    `<span class="unit-titlebar"><span class="unit-site">${escapeHtml(unit.site.path)}</span>` +
     `<span class="unit-host">${escapeHtml(p.hostname || "(no hostname)")}</span>` +
-    `<span class="unit-src muted small"> ← ${escapeHtml(unit.sourceNames.join(", "))}</span>` +
-    `<span class="unit-view-hint">⤢ view config</span></button>` +
-    `<span class="unit-written muted small"></span></div>` +
+    `<span class="unit-src muted small"> ← ${escapeHtml(unit.sourceNames.join(", "))}</span></span>` +
+    `<button class="btn btn-small unit-view" type="button">⤢ view config</button>` +
+    `<span class="unit-written muted small"></span></summary>` +
+    `<div class="unit-body">` +
     `<div class="feat-pills">${pills}</div>` +
-    `<details class="harden-section"><summary class="harden-head"><span class="harden-caret"></span>` +
+    // Interfaces subsection
+    `<details class="unit-sub"${ifaces.length <= 12 ? " open" : ""}><summary class="unit-sub-head">` +
+    `<strong>Interfaces</strong> <span class="muted small">${ifaces.length} found</span>` +
+    `<label class="checkbox if-all-inline"><input type="checkbox" class="d-ifall"${d.interfacesAll.enabled ? " checked" : ""} /><span>All</span></label>` +
+    `<select class="d-ifall-mode"><option value="full"${d.interfacesAll.mode !== "ip" ? " selected" : ""}>All data</option><option value="ip"${d.interfacesAll.mode === "ip" ? " selected" : ""}>IP only</option></select>` +
+    `<button class="btn btn-small btn-ghost d-selectall" type="button">Select all</button></summary>` +
+    `<div class="disc-grid"></div></details>` +
+    // Routing & services subsection
+    `<details class="unit-sub"><summary class="unit-sub-head"><strong>Routing &amp; services</strong></summary>` +
+    `<p class="muted small sub-desc">Pre-ticked with what this device actually has — untick anything you don't want carried across.</p>` +
+    `<div class="coll-grid">${collHtml}</div></details>` +
+    // Hardening subsection
+    `<details class="harden-section"><summary class="harden-head">` +
     `<strong>Hardening</strong> <span class="muted small">${pass} pass · ${missing.length} missing</span>` +
     `<label class="checkbox apply-all"><input type="checkbox" class="apply-all-cb" /><span>Apply all</span></label>` +
     `<button class="btn btn-small ai-btn" type="button">AI review</button></summary>` +
-    `<p class="harden-desc">Best-practice hardening checks for this device — tick the missing items you want injected into its template. Suggestions are tailored to whether it’s a router or a switch.</p>` +
-    `<div class="findings"></div><div class="ai-out"></div></details>`;
+    `<p class="harden-desc">Best-practice hardening checks — tick the missing items to inject into this device's template. Tailored to router vs switch.</p>` +
+    `<div class="findings"></div><div class="ai-out"></div></details>` +
+    `</div>`;
 
+  // --- interfaces ---
+  const grid = card.querySelector(".disc-grid");
+  for (const f of ifaces) grid.appendChild(buildIfaceTile(unit, f));
+  if (d.interfacesAll.enabled) grid.classList.add("inert");
+  const ifAll = card.querySelector(".d-ifall");
+  const ifAllMode = card.querySelector(".d-ifall-mode");
+  const applyIfAll = () => {
+    d.interfacesAll = { enabled: ifAll.checked, mode: ifAllMode.value };
+    grid.classList.toggle("inert", ifAll.checked);
+    refreshTagMap();
+  };
+  ifAll.addEventListener("change", applyIfAll);
+  ifAllMode.addEventListener("change", applyIfAll);
+  const selAll = card.querySelector(".d-selectall");
+  selAll.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const tiles = [...grid.querySelectorAll(".disc-if-cb")];
+    const allOn = tiles.length && tiles.every((c) => c.checked);
+    tiles.forEach((c) => {
+      c.checked = !allOn;
+      c.dispatchEvent(new Event("change"));
+    });
+    selAll.textContent = allOn ? "Select all" : "Clear all";
+  });
+  card.querySelectorAll(".if-all-inline, .d-ifall-mode").forEach((el) =>
+    el.addEventListener("click", (e) => e.stopPropagation())
+  );
+
+  // --- routing & services ---
+  card.querySelectorAll(".coll-cb").forEach((cb) =>
+    cb.addEventListener("change", () => {
+      setPath(d, cb.dataset.path, cb.checked);
+      refreshTagMap();
+    })
+  );
+
+  // --- hardening ---
   const findingsEl = card.querySelector(".findings");
-  for (const f of unit.findings) {
-    findingsEl.appendChild(renderFinding(unit, f));
-  }
+  for (const f of unit.findings) findingsEl.appendChild(renderFinding(unit, f));
   const applyAll = card.querySelector(".apply-all-cb");
-  applyAll.addEventListener("click", (e) => e.stopPropagation()); // don't toggle the section
+  applyAll.addEventListener("click", (e) => e.stopPropagation());
   applyAll.addEventListener("change", (e) => {
-    for (const f of unit.findings) {
-      if (f.status === "missing") f.apply = e.target.checked;
-    }
+    for (const f of unit.findings) if (f.status === "missing") f.apply = e.target.checked;
     card.querySelectorAll(".finding-apply").forEach((cb) => {
       if (!cb.disabled) cb.checked = e.target.checked;
     });
   });
   const aiBtn = card.querySelector(".ai-btn");
   aiBtn.addEventListener("click", (e) => {
-    e.preventDefault(); // don't toggle the <details>
+    e.preventDefault();
     e.stopPropagation();
     card.querySelector(".harden-section").open = true;
     runAiReview(unit, card);
   });
 
-  // Whole card is a clickable tile → opens the full-config modal. Interactive
-  // controls (checkboxes, buttons, selects, the findings list) are excluded.
-  card.classList.add("clickable");
-  const openModal = () => openConfigModal(p.hostname || unit.sourceNames[0], unit.sources);
-  card.querySelector(".unit-title").addEventListener("click", (e) => {
+  // --- view config ---
+  card.querySelector(".unit-view").addEventListener("click", (e) => {
+    e.preventDefault();
     e.stopPropagation();
-    openModal();
+    openConfigModal(p.hostname || unit.sourceNames[0], unit.sources);
   });
-  card.addEventListener("click", (e) => {
-    if (e.target.closest("input, select, button, label, a, .harden-section")) return;
-    openModal();
-  });
+
   return card;
 }
 
@@ -1272,17 +1307,12 @@ function init() {
   });
   $("btn-browse").addEventListener("click", onBrowse);
   $("fallback-input").addEventListener("change", onFallbackPicked);
-  $("btn-add-iface").addEventListener("click", () => addInterfaceRow());
   $("btn-template").addEventListener("click", onChooseTemplateFSA);
   $("template-input").addEventListener("change", onTemplatePicked);
   $("btn-clear-template").addEventListener("click", onClearTemplate);
   $("btn-save").addEventListener("click", onSave);
 
-  // live tag map + conditional UI
-  [
-    "r-default", "r-static", "r-protocols",
-    "c-vrf", "c-stp", "c-dhcp", "c-snmp", "c-tacacs", "c-logging", "c-ntp",
-  ].forEach((id) => $(id).addEventListener("input", refreshTagMap));
+  // Global additions affect every device's template → refresh the tag-map preview.
   $("sec-enable").addEventListener("change", () =>
     $("sec-rows").classList.toggle("hidden", !$("sec-enable").checked)
   );
@@ -1299,11 +1329,6 @@ function init() {
     })
   );
   document.querySelectorAll('input[name="insertion"]').forEach((el) => el.addEventListener("change", refreshTagMap));
-  $("if-all").addEventListener("change", () => {
-    applyIfAllDisabled();
-    refreshTagMap();
-  });
-  $("if-all-mode").addEventListener("input", refreshTagMap);
   $("rename").addEventListener("change", () => $("rename-rows").classList.toggle("hidden", !$("rename").checked));
 
   refreshTagMap();
