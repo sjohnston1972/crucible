@@ -619,11 +619,13 @@ function rebuildUnits() {
     if (chosen.length >= 2) {
       detectStpConflicts(chosen.map((pf) => pf.parsed), site).forEach((w) => warnings.push(w));
       const merged = mergeParsed(chosen.map((pf) => pf.parsed));
-      state.units.push(makeUnit(site, merged, chosen.map((pf) => pf.name)));
+      state.units.push(makeUnit(site, merged, chosen.map((pf) => ({ name: pf.name, text: pf.parsed.text }))));
     } else {
       singles.push(...chosen); // a lone "merge" tick is just a single device
     }
-    for (const pf of singles) state.units.push(makeUnit(site, pf.parsed, [pf.name]));
+    for (const pf of singles) {
+      state.units.push(makeUnit(site, pf.parsed, [{ name: pf.name, text: pf.parsed.text }]));
+    }
   }
   renderWarnings(warnings);
 
@@ -643,19 +645,23 @@ function rebuildUnits() {
   $("btn-save").disabled = false;
 }
 
-/** Step 3: list each site, flag router+switch merge candidates, let the user pick files to merge. */
+/** Step 3: list only merge candidates (sites with both a router and a switch); pick files to merge. */
 function renderSourcesMerge() {
   const box = $("merge-sites");
+  const candidates = state.sites.filter((s) => isMergeCandidate(s.parsedFiles));
   if (!state.sites.length) {
-    box.innerHTML = `<p class="muted small">Scan a folder in Step 1 to list sites here.</p>`;
+    box.innerHTML = `<p class="muted small">Scan a folder in Step 1 to detect merge candidates.</p>`;
+    return;
+  }
+  if (!candidates.length) {
+    box.innerHTML = `<p class="muted small">No merge candidates found — no site contains both a router and a switch. Every device gets its own template.</p>`;
     return;
   }
   box.innerHTML = "";
-  for (const site of state.sites) {
-    const candidate = isMergeCandidate(site.parsedFiles);
+  for (const site of candidates) {
     const sel = state.mergeSel.get(site.path) || new Set();
     const card = document.createElement("div");
-    card.className = "merge-site" + (candidate ? " candidate" : "");
+    card.className = "merge-site candidate";
 
     let rows = "";
     for (const pf of site.parsedFiles || []) {
@@ -663,14 +669,14 @@ function renderSourcesMerge() {
       rows +=
         `<label class="merge-file"><input type="checkbox" class="merge-file-cb" data-site="${escapeHtml(site.path)}" data-file="${escapeHtml(pf.name)}"${sel.has(pf.name) ? " checked" : ""} />` +
         `<span class="merge-file-name">${escapeHtml(pf.name)}</span>` +
-        `<span class="dev-chip dev-${t}">${t}</span>` +
+        `<span class="dev-chip dev-${t}" title="${t === "switch" ? "Has switchports / spanning-tree" : "Routed interfaces, no switching"}">${t}</span>` +
         `<span class="muted small merge-file-host">${escapeHtml(pf.parsed.hostname || "")}</span></label>`;
     }
     card.innerHTML =
       `<div class="merge-site-head"><span class="merge-site-path">${escapeHtml(site.path)}</span>` +
-      (candidate ? `<span class="merge-flag">⚡ merge candidate</span>` : "") +
+      `<span class="merge-flag">⚡ merge candidate</span>` +
       `</div><div class="merge-files">${rows}</div>` +
-      `<p class="muted small merge-hint">Tick the files to <strong>merge into one</strong> template (e.g. router + switch → L3 switch). Unticked files each become their own template.</p>`;
+      `<p class="muted small merge-hint">Tick the files to <strong>merge into one</strong> Layer-3 switch template. Unticked files each become their own template.</p>`;
     box.appendChild(card);
   }
   box.querySelectorAll(".merge-file-cb").forEach((cb) =>
@@ -684,12 +690,14 @@ function renderSourcesMerge() {
   );
 }
 
-function makeUnit(site, parsed, sourceNames) {
+function makeUnit(site, parsed, sources) {
   const findings = audit(parsed);
+  const sourceNames = sources.map((s) => s.name);
   return {
     id: `${site.path}::${parsed.hostname || sourceNames[0]}`,
     site,
     parsed,
+    sources, // [{ name, text }] — individual device configs (for per-device view)
     sourceNames,
     findings,
     output: null,
@@ -968,21 +976,21 @@ function renderUnit(unit, config) {
   card.className = "unit";
   card.dataset.unit = unit.id;
 
-  const counts = [
-    `${p.interfaces.length} interfaces`,
-    `${p.staticRoutes.length} routes`,
-    `${p.vrfs.length} VRFs`,
-    `${p.dhcpPools.length} DHCP pools`,
-    p.spanningTree.mode ? `STP ${p.spanningTree.mode}` : "no STP",
-  ].join(" · ");
-
-  const services = [
-    p.snmp.length ? `SNMP ×${p.snmp.length}` : null,
-    p.tacacs.length ? `TACACS+ ×${p.tacacs.length}` : null,
-    p.logging.length ? `logging ×${p.logging.length}` : null,
-    p.ntp.length ? `NTP ×${p.ntp.length}` : null,
-  ].filter(Boolean);
-  const servicesLine = services.length ? services.join(" · ") : "no SNMP / TACACS+ / logging / NTP found";
+  const routingN = p.staticRoutes.length + p.protocols.length + (p.defaultGateway ? 1 : 0);
+  const feats = [
+    { label: `${p.interfaces.length} interfaces`, on: p.interfaces.length > 0, tip: `${p.interfaces.length} interface block(s) parsed` },
+    { label: "Routing", on: routingN > 0, tip: `${p.staticRoutes.length} static route(s), ${p.protocols.length} routing protocol(s)${p.defaultGateway ? ", default gateway" : ""}` },
+    { label: "VRF", on: p.vrfs.length > 0, tip: p.vrfs.length ? `VRFs: ${p.vrfs.map((v) => v.name).join(", ")}` : "No VRFs configured" },
+    { label: p.spanningTree.mode ? `STP ${p.spanningTree.mode}` : "STP", on: !!p.spanningTree.mode, tip: p.spanningTree.mode ? `Spanning-tree mode ${p.spanningTree.mode}` : "No spanning-tree configured" },
+    { label: "DHCP", on: p.dhcpPools.length > 0, tip: p.dhcpPools.length ? `${p.dhcpPools.length} DHCP pool(s): ${p.dhcpPools.map((d) => d.name).join(", ")}` : "No DHCP pools" },
+    { label: "SNMP", on: p.snmp.length > 0, tip: p.snmp.length ? `${p.snmp.length} snmp-server line(s)` : "No SNMP config" },
+    { label: "TACACS+", on: p.tacacs.length > 0, tip: p.tacacs.length ? `${p.tacacs.length} TACACS+ / AAA-server line(s)` : "No TACACS+ config" },
+    { label: "Logging", on: p.logging.length > 0, tip: p.logging.length ? `${p.logging.length} logging line(s)` : "No logging config" },
+    { label: "NTP", on: p.ntp.length > 0, tip: p.ntp.length ? `${p.ntp.length} ntp line(s)` : "No NTP config" },
+  ];
+  const pills = feats
+    .map((f) => `<span class="feat-pill ${f.on ? "on" : "off"}" title="${escapeHtml(f.tip)}">${escapeHtml(f.label)}</span>`)
+    .join("");
 
   const missing = unit.findings.filter((f) => f.status === "missing");
   const pass = unit.findings.filter((f) => f.status === "pass").length;
@@ -994,8 +1002,7 @@ function renderUnit(unit, config) {
     `<span class="unit-src muted small"> ← ${escapeHtml(unit.sourceNames.join(", "))}</span>` +
     `<span class="unit-view-hint">⤢ view config</span></button>` +
     `<span class="unit-written muted small"></span></div>` +
-    `<p class="muted small">${escapeHtml(counts)}</p>` +
-    `<p class="muted small svc-line">Services: ${escapeHtml(servicesLine)}</p>` +
+    `<div class="feat-pills">${pills}</div>` +
     `<details class="harden-section"><summary class="harden-head"><span class="harden-caret"></span>` +
     `<strong>Hardening</strong> <span class="muted small">${pass} pass · ${missing.length} missing</span>` +
     `<label class="checkbox apply-all"><input type="checkbox" class="apply-all-cb" /><span>Apply all</span></label>` +
@@ -1028,8 +1035,7 @@ function renderUnit(unit, config) {
   // Whole card is a clickable tile → opens the full-config modal. Interactive
   // controls (checkboxes, buttons, selects, the findings list) are excluded.
   card.classList.add("clickable");
-  const openModal = () =>
-    openConfigModal(p.hostname || unit.sourceNames[0], unit.sourceNames.join(", "), unit.parsed.text);
+  const openModal = () => openConfigModal(p.hostname || unit.sourceNames[0], unit.sources);
   card.querySelector(".unit-title").addEventListener("click", (e) => {
     e.stopPropagation();
     openModal();
@@ -1045,17 +1051,39 @@ function renderUnit(unit, config) {
 
 let modalText = "";
 
-function openConfigModal(title, subtitle, text) {
-  modalText = text || "";
+/** Open the config modal. `sources` = [{ name, text }] — multiple gives per-device tabs. */
+function openConfigModal(title, sources) {
+  state.modalSources = sources && sources.length ? sources : [{ name: "", text: "" }];
   $("cfg-modal-title").textContent = title || "Device config";
-  $("cfg-modal-sub").textContent = subtitle ? `source: ${subtitle}` : "";
-  $("cfg-code").textContent = modalText;
+
+  const tabs = $("cfg-tabs");
+  if (state.modalSources.length > 1) {
+    tabs.innerHTML = state.modalSources
+      .map((s, i) => `<button class="cfg-tab${i === 0 ? " active" : ""}" type="button" data-i="${i}">${escapeHtml(s.name)}</button>`)
+      .join("");
+    tabs.classList.remove("hidden");
+  } else {
+    tabs.innerHTML = "";
+    tabs.classList.add("hidden");
+  }
+  showModalSource(0);
+
   const copyBtn = $("cfg-copy");
   copyBtn.textContent = "Copy code";
   copyBtn.classList.remove("copied");
   const modal = $("cfg-modal");
   modal.classList.remove("hidden");
   modal.setAttribute("aria-hidden", "false");
+}
+
+function showModalSource(i) {
+  const s = state.modalSources[i] || { name: "", text: "" };
+  modalText = s.text || "";
+  $("cfg-modal-sub").textContent = s.name ? `source: ${s.name}` : "";
+  $("cfg-code").textContent = modalText;
+  $("cfg-tabs")
+    .querySelectorAll(".cfg-tab")
+    .forEach((b) => b.classList.toggle("active", Number(b.dataset.i) === i));
 }
 
 function closeConfigModal() {
@@ -1130,12 +1158,14 @@ function renderFinding(unit, f) {
     (f.detail ? ` <span class="muted small">— ${escapeHtml(f.detail)}</span>` : "") +
     `</span>`;
 
+  const tip = f.why ? ` title="${escapeHtml(f.why)}"` : "";
+
   // Missing findings expand to show the remediation config they'd inject.
   if (f.status === "missing" && f.remediation.length) {
     const row = document.createElement("details");
     row.className = "finding finding-missing";
     row.innerHTML =
-      `<summary class="finding-sum">` +
+      `<summary class="finding-sum"${tip}>` +
       `<input type="checkbox" class="finding-apply" title="Apply remediation" />` +
       `<span class="status status-missing">missing</span>${sev}${title}` +
       `<span class="finding-caret">▸</span></summary>` +
@@ -1150,6 +1180,7 @@ function renderFinding(unit, f) {
   // Pass / N-A — simple, non-expandable row.
   const row = document.createElement("div");
   row.className = `finding finding-row finding-${f.status}`;
+  if (f.why) row.title = f.why;
   row.innerHTML =
     `<span class="apply-spacer"></span><span class="status status-${f.status}">${f.status}</span>${sev}${title}<span></span>`;
   return row;
@@ -1229,6 +1260,10 @@ function init() {
   $("btn-sample").addEventListener("click", loadSampleData);
   $("btn-clear").addEventListener("click", clearAll);
   $("cfg-copy").addEventListener("click", copyModalConfig);
+  $("cfg-tabs").addEventListener("click", (e) => {
+    const b = e.target.closest(".cfg-tab");
+    if (b) showModalSource(Number(b.dataset.i));
+  });
   $("cfg-modal").addEventListener("click", (e) => {
     if (e.target.hasAttribute("data-close")) closeConfigModal();
   });

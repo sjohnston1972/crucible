@@ -67,16 +67,15 @@
     <!-- Step 3: Sources & merge -->
     <section class="card" id="step-sources">
       <div class="card-head">
-        <h2><span class="step-num">3</span> Source files &amp; merge</h2>
+        <h2><span class="step-num">3</span> Merge candidates</h2>
         <p class="step-desc">
-          Each scanned site and its config files are listed below. Sites that contain both a
-          <strong>router and a switch</strong> are flagged as <strong>merge candidates</strong> and pulse for
-          attention. Tick the files you want to <strong>collapse into one</strong> Layer-3 switch template;
-          everything left unticked becomes its own template.
+          Sites that contain both a <strong>router and a switch</strong> — good candidates to collapse into
+          one Layer-3 switch. Tick the files to <strong>merge into one</strong> template; unticked files (and
+          every non-candidate site) each become their own template.
         </p>
       </div>
       <div id="merge-sites" class="merge-sites">
-        <p class="muted small">Scan a folder in Step 1 to list sites here.</p>
+        <p class="muted small">Scan a folder in Step 1 to detect merge candidates.</p>
       </div>
     </section>
 
@@ -142,7 +141,7 @@
           </div>
         </label>
         <label class="field"><span>Mode</span>
-          <select id="vtp-mode"><option value="transparent" selected>transparent</option><option value="server">server</option><option value="client">client</option><option value="off">off</option></select>
+          <select id="vtp-mode"><option value="transparent" selected>transparent (recommended)</option><option value="server">server</option><option value="client">client</option><option value="off">off</option></select>
         </label>
       </div>
 
@@ -270,6 +269,7 @@
           <button id="cfg-close" class="btn btn-small btn-ghost" type="button" data-close aria-label="Close">✕</button>
         </div>
       </div>
+      <div id="cfg-tabs" class="cfg-tabs hidden"></div>
       <pre class="modal-code"><code id="cfg-code"></code></pre>
     </div>
   </div>

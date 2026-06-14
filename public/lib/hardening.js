@@ -315,6 +315,30 @@ export const RULES = [
   },
 ];
 
+/** Short "why it matters" explanation per rule (used for hover tooltips). */
+export const WHY = {
+  "service-password-encryption": "Encrypts plaintext passwords in the config so they aren't readable at a glance.",
+  "enable-secret": "enable secret stores a strong hash; enable password is weak and reversible.",
+  "plaintext-username": "Local user passwords should be hashed (secret), never stored in plaintext.",
+  "ssh-v2": "SSHv2 is required for secure remote access; SSHv1 is broken.",
+  "vty-telnet": "Telnet is cleartext — VTY lines should accept SSH only.",
+  "exec-timeout": "Idle CLI sessions should time out so an unattended terminal can't be hijacked.",
+  "aaa-new-model": "Enables AAA for centralised authentication, authorisation and accounting.",
+  "ip-http-server": "The built-in HTTP server is an unneeded management attack surface — disable it.",
+  "cdp-run": "CDP advertises device details; disable it on untrusted / edge ports.",
+  "login-throttling": "Rate-limits failed logins to slow down brute-force attempts.",
+  "snmp-default-community": "Default community strings (public/private) are well-known — remove them or move to SNMPv3.",
+  logging: "Central syslog plus buffered logging are needed for audit trails and troubleshooting.",
+  "ntp-auth": "Authenticated NTP stops time spoofing that can corrupt logs and certificate validation.",
+  "login-banner": "A legal login/MOTD banner is commonly required for unauthorised-access notices.",
+  "vty-acl": "Restrict management (VTY) access to known source addresses with an access-class.",
+  "service-hardening": "Disable legacy services (pad, bootp, source-route, service config) that aren't needed.",
+  "password-min-length": "Enforce a minimum length for locally configured passwords.",
+  "bpduguard-default": "BPDU Guard on PortFast edge ports shuts a port if it sees a rogue switch — prevents loops.",
+  "portfast-without-bpduguard": "A PortFast access port without BPDU Guard can introduce a spanning-tree loop.",
+  "udld-aggressive": "UDLD aggressive detects one-way fibre links and err-disables them before they cause loops.",
+};
+
 /** Run all rules against a parsed config. Returns an array of findings. */
 export function audit(parsed) {
   const lines = linesOf(parsed);
@@ -332,6 +356,7 @@ export function audit(parsed) {
       status: out.status,
       remediation: out.remediation || [],
       detail: out.detail || null,
+      why: WHY[rule.id] || "",
       apply: false, // user toggles this in the UI for Missing items
     };
   });
