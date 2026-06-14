@@ -493,6 +493,11 @@ code {
   text-transform: uppercase; color: var(--text);
   border-left: 3px solid var(--accent); padding-left: 0.6rem;
 }
+.merge-tile { border-left-color: var(--steel); }
+.merge-tile .unit-site { color: var(--steel); background: var(--steel-soft); }
+.merge-tile .merge-flag { margin-left: auto; }
+.merge-actions { display: flex; align-items: flex-end; gap: 0.85rem; flex-wrap: wrap; margin-top: 0.8rem; }
+.merge-name-field { flex: 1; min-width: 200px; max-width: 320px; }
 .site-sub { margin-bottom: 0; }
 .site-sub-body, .stp-root-body { padding: 0.7rem 0.85rem; }
 .stp-root-body > p { margin: 0.4rem 0 0; }

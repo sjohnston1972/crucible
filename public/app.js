@@ -43,7 +43,8 @@ const state = {
   mode: null, // 'primary' | 'fallback'
   rootHandle: null,
   sites: [], // { path, name, dirHandle?, files: [...], parsedFiles: [{ name, entry, parsed }] }
-  mergeSel: new Map(), // sitePath -> Set(fileName) chosen to merge into one template
+  mergeSel: new Map(), // sitePath -> Set(fileName) committed to merge into one template
+  mergeName: new Map(), // sitePath -> custom hostname for the merged device
   units: [], // built output units
   deviceCfg: new Map(), // unitId -> per-device collection state (see defaultDeviceCfg)
   rootBySite: new Map(), // sitePath -> unitId elected as that site's spanning-tree root
@@ -426,6 +427,7 @@ function clearAll() {
   state.rootHandle = null;
   state.sites = [];
   state.mergeSel = new Map();
+  state.mergeName = new Map();
   state.units = [];
   state.deviceCfg = new Map();
   state.rootBySite = new Map();
@@ -545,12 +547,8 @@ async function onAnalyze() {
         const text = await readEntryText(entry);
         site.parsedFiles.push({ name: entry.name, entry, parsed: parse(text) });
       }
-      // Default: pre-select all files on a candidate site (suggest merge), else none.
-      if (!state.mergeSel.has(site.path)) {
-        const sel = new Set();
-        if (isMergeCandidate(site.parsedFiles)) site.parsedFiles.forEach((pf) => sel.add(pf.name));
-        state.mergeSel.set(site.path, sel);
-      }
+      // Candidates start UN-merged — the user explicitly merges via the merge tile's button.
+      if (!state.mergeSel.has(site.path)) state.mergeSel.set(site.path, new Set());
     }
   } catch (err) {
     $("run-status").textContent = "";
@@ -571,6 +569,8 @@ function rebuildUnits() {
     if (chosen.length >= 2) {
       detectStpConflicts(chosen.map((pf) => pf.parsed), site).forEach((w) => warnings.push(w));
       const merged = mergeParsed(chosen.map((pf) => pf.parsed));
+      const customName = state.mergeName.get(site.path);
+      if (customName) merged.hostname = customName;
       state.units.push(makeUnit(site, merged, chosen.map((pf) => ({ name: pf.name, text: pf.parsed.text }))));
     } else {
       singles.push(...chosen); // a lone "merge" tick is just a single device
@@ -597,8 +597,14 @@ function rebuildUnits() {
   $("btn-save").disabled = false;
 }
 
-/** Step 3: list only merge candidates (sites with both a router and a switch); pick files to merge. */
-/** A site block: site header + (candidate) merge selection + per-site root election + device cards. */
+/** Default name suggestion for a merged device (keep the switch's hostname). */
+function defaultMergeName(site) {
+  const sw = (site.parsedFiles || []).find((pf) => isSwitchParsed(pf.parsed));
+  const pick = sw || (site.parsedFiles || [])[0];
+  return (pick && pick.parsed.hostname) || site.name || site.path;
+}
+
+/** A site block: site header + device cards + (candidate) merge tile at the bottom. */
 function renderSiteBlock(site, units) {
   const block = document.createElement("section");
   block.className = "site-block";
@@ -608,39 +614,6 @@ function renderSiteBlock(site, units) {
     `<div class="site-block-head"><span class="site-name">${escapeHtml(site.path)}</span>` +
     (candidate ? `<span class="merge-flag">⚡ merge candidate</span>` : "") +
     `</div>`;
-
-  // Merge candidacy — collapsible section (candidate sites only).
-  if (candidate) {
-    const sel = state.mergeSel.get(site.path) || new Set();
-    const merge = document.createElement("details");
-    merge.className = "unit-sub site-sub";
-    merge.innerHTML =
-      `<summary class="unit-sub-head"><strong>Merge candidacy</strong> <span class="muted small">router + switch → one L3 switch</span></summary>` +
-      `<div class="site-sub-body"><p class="muted small">Tick files to <strong>merge into one</strong> Layer-3 switch template:</p>` +
-      `<div class="merge-files">` +
-      (site.parsedFiles || [])
-        .map((pf) => {
-          const t = deviceType(pf.parsed);
-          return (
-            `<label class="merge-file"><input type="checkbox" class="merge-file-cb" data-file="${escapeHtml(pf.name)}"${sel.has(pf.name) ? " checked" : ""} />` +
-            `<span class="merge-file-name">${escapeHtml(pf.name)}</span>` +
-            `<span class="dev-chip dev-${t}">${t}</span>` +
-            `<span class="muted small merge-file-host">${escapeHtml(pf.parsed.hostname || "")}</span></label>`
-          );
-        })
-        .join("") +
-      `</div></div>`;
-    merge.querySelectorAll(".merge-file-cb").forEach((cb) =>
-      cb.addEventListener("change", () => {
-        const set = state.mergeSel.get(site.path) || new Set();
-        if (cb.checked) set.add(cb.dataset.file);
-        else set.delete(cb.dataset.file);
-        state.mergeSel.set(site.path, set);
-        rebuildUnits();
-      })
-    );
-    block.appendChild(merge);
-  }
 
   // Seed the per-site spanning-tree root default (current root if not already chosen);
   // the actual control lives inside each switch's card (see renderUnit).
@@ -655,7 +628,71 @@ function renderSiteBlock(site, units) {
   }
 
   for (const u of units) block.appendChild(renderUnit(u, currentRootId));
+
+  // Merge tile — styled like a device card, at the bottom of the site (candidate sites only).
+  if (candidate) block.appendChild(renderMergeTile(site));
   return block;
+}
+
+/** A device-card-styled tile to select files and merge them into one named device. */
+function renderMergeTile(site) {
+  const committed = state.mergeSel.get(site.path) || new Set();
+  const merged = committed.size >= 2;
+  const tile = document.createElement("details");
+  tile.className = "unit merge-tile";
+  tile.open = true; // stays open while selecting; commit happens on the button
+
+  const files = (site.parsedFiles || [])
+    .map((pf) => {
+      const t = deviceType(pf.parsed);
+      const checked = committed.size ? committed.has(pf.name) : true; // suggest all when not yet merged
+      return (
+        `<label class="merge-file"><input type="checkbox" class="merge-file-cb" data-file="${escapeHtml(pf.name)}"${checked ? " checked" : ""} />` +
+        `<span class="merge-file-name">${escapeHtml(pf.name)}</span>` +
+        `<span class="dev-chip dev-${t}">${t}</span>` +
+        `<span class="muted small merge-file-host">${escapeHtml(pf.parsed.hostname || "")}</span></label>`
+      );
+    })
+    .join("");
+  const nameVal = state.mergeName.get(site.path) || defaultMergeName(site);
+
+  tile.innerHTML =
+    `<summary class="unit-head"><span class="unit-titlebar">` +
+    `<span class="unit-site">merge</span><span class="unit-host">${escapeHtml(site.path)}</span></span>` +
+    `<span class="merge-flag">⚡ router + switch → one L3 switch</span></summary>` +
+    `<div class="unit-body">` +
+    `<p class="muted small">Tick the devices to combine, name the merged Layer-3 switch, then click <strong>Merge</strong>. ${merged ? "Currently merged." : ""}</p>` +
+    `<div class="merge-files">${files}</div>` +
+    `<div class="merge-actions">` +
+    `<label class="field merge-name-field"><span>Merged device name</span><input class="merge-name" type="text" value="${escapeHtml(nameVal)}" autocomplete="off" /></label>` +
+    `<button class="btn btn-primary merge-go" type="button" disabled>⚒ Merge these devices</button>` +
+    (merged ? `<button class="btn btn-ghost merge-undo" type="button">Unmerge</button>` : "") +
+    `</div></div>`;
+
+  const goBtn = tile.querySelector(".merge-go");
+  const cbs = () => [...tile.querySelectorAll(".merge-file-cb")];
+  const syncBtn = () => (goBtn.disabled = cbs().filter((c) => c.checked).length < 2);
+  // selecting does NOT rebuild — the tile stays open until the user commits.
+  cbs().forEach((c) => c.addEventListener("change", syncBtn));
+  syncBtn();
+
+  goBtn.addEventListener("click", () => {
+    const chosen = new Set(cbs().filter((c) => c.checked).map((c) => c.dataset.file));
+    if (chosen.size < 2) return;
+    state.mergeSel.set(site.path, chosen);
+    const name = tile.querySelector(".merge-name").value.trim();
+    if (name) state.mergeName.set(site.path, name);
+    else state.mergeName.delete(site.path);
+    rebuildUnits();
+  });
+  const undo = tile.querySelector(".merge-undo");
+  if (undo)
+    undo.addEventListener("click", () => {
+      state.mergeSel.set(site.path, new Set());
+      rebuildUnits();
+    });
+
+  return tile;
 }
 
 function makeUnit(site, parsed, sources) {
