@@ -59,6 +59,7 @@ export function buildTagMap(config) {
   if (config.tacacs && config.tacacs.enabled) push("tacacs", "Management", "TACACS+");
   if (config.logging && config.logging.enabled) push("logging", "Management", "Logging");
   if (config.ntp && config.ntp.enabled) push("ntp", "Management", "NTP");
+  if (config.dns && config.dns.enabled) push("dns", "Management", "DNS");
 
   // Hardening is a named marker, not lettered (avoids drift).
   slots.push({ tag: "harden", key: "harden", category: "Hardening", label: "Hardening" });
@@ -222,6 +223,10 @@ function fillSlot(slot, config, parsed, opts) {
       return (parsed.ntp || []).length
         ? { lines: parsed.ntp, found: true }
         : { lines: NOT_FOUND("NTP"), found: false };
+    case "dns":
+      return (parsed.dns || []).length
+        ? { lines: parsed.dns, found: true }
+        : { lines: NOT_FOUND("DNS"), found: false };
     case "harden":
       return { lines: opts.hardenLines || [], found: (opts.hardenLines || []).length > 0 };
     default:
@@ -345,6 +350,38 @@ export function buildVtp({ domain, password, mode } = {}) {
   const lines = [`vtp domain ${domain}`, "vtp version 3", `vtp mode ${mode || "transparent"}`];
   if (password) lines.push(`vtp password ${password}`);
   return lines;
+}
+
+/** Clock / timezone block. Returns [] without a timezone name. */
+export function buildClock({ timezone, offset, summerTime } = {}) {
+  if (!timezone) return [];
+  const lines = [`clock timezone ${timezone} ${offset == null || offset === "" ? 0 : offset}`];
+  if (summerTime) lines.push(`clock summer-time ${summerTime}`);
+  return lines;
+}
+
+/** Global spanning-tree hardening (switch-only). */
+export function buildStpHardening() {
+  return [
+    "spanning-tree portfast default",
+    "spanning-tree portfast bpduguard default",
+    "spanning-tree loopguard default",
+  ];
+}
+
+/** Errdisable auto-recovery (switch-only). */
+export function buildErrdisable({ interval } = {}) {
+  const causes = ["udld", "bpduguard", "link-flap", "psecure-violation", "storm-control"];
+  return causes
+    .map((c) => `errdisable recovery cause ${c}`)
+    .concat([`errdisable recovery interval ${interval || 300}`]);
+}
+
+/** Login + MOTD banner from user text (delimited with ^C). Returns [] without text. */
+export function buildBanner({ text } = {}) {
+  if (!text || !text.trim()) return [];
+  const body = text.replace(/\^C/g, "").trimEnd();
+  return [`banner login ^C ${body} ^C`, `banner motd ^C ${body} ^C`];
 }
 
 /** Rewrite (or insert) the in-config hostname line (§12.4: default on with rename). */

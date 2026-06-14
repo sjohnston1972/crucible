@@ -118,6 +118,7 @@ export function parse(text) {
     tacacs: [], // tacacs server / aaa group server tacacs+ blocks + tacacs-server host
     logging: [], // logging ... lines
     ntp: [], // ntp ... lines
+    dns: [], // ip name-server / ip domain name|domain-name / ip domain-list lines
     isL3: false, // `ip routing` present
     lines: normalized ? lines : [],
     text: normalized,
@@ -228,6 +229,10 @@ export function parse(text) {
     }
     if (/^ntp\b/.test(line)) {
       result.ntp.push(line);
+      continue;
+    }
+    if (/^ip name-server\b/.test(line) || /^ip domain[- ](name|list)\b/.test(line)) {
+      result.dns.push(line);
       continue;
     }
     if ((/^tacacs server\b/.test(line) || /^aaa group server tacacs\+/.test(line)) && !isIndented(raw)) {

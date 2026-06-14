@@ -14,6 +14,10 @@ import {
   applyHostname,
   buildSecureAccess,
   buildVtp,
+  buildClock,
+  buildStpHardening,
+  buildErrdisable,
+  buildBanner,
 } from "../public/lib/template.js";
 
 const CFG = {
@@ -207,6 +211,25 @@ test("buildSecureAccess: SHA-256 secrets, AAA local, type-6, SSH/VTY", () => {
   assert.match(lines, /^ip ssh version 2/m);
   assert.match(lines, / transport input ssh/);
   assert.match(lines, / login authentication default/);
+});
+
+test("global generators: clock, STP hardening, errdisable, banner", () => {
+  assert.deepEqual(buildClock({ timezone: "GMT", offset: 0 }), ["clock timezone GMT 0"]);
+  assert.ok(buildClock({ timezone: "GMT", offset: 0, summerTime: "BST recurring" }).includes("clock summer-time BST recurring"));
+  assert.deepEqual(buildClock({}), []);
+
+  assert.ok(buildStpHardening().includes("spanning-tree portfast bpduguard default"));
+  assert.ok(buildStpHardening().includes("spanning-tree loopguard default"));
+
+  const errd = buildErrdisable({ interval: 120 });
+  assert.ok(errd.includes("errdisable recovery cause bpduguard"));
+  assert.ok(errd.includes("errdisable recovery interval 120"));
+  assert.ok(buildErrdisable({}).includes("errdisable recovery interval 300"));
+
+  const ban = buildBanner({ text: "Authorised only" });
+  assert.ok(ban.some((l) => /^banner login \^C Authorised only \^C/.test(l)));
+  assert.ok(ban.some((l) => /^banner motd/.test(l)));
+  assert.deepEqual(buildBanner({ text: "   " }), []);
 });
 
 test("buildVtp: version 3, transparent default, optional password; empty without domain", () => {

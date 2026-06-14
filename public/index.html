@@ -89,6 +89,33 @@
         </label>
       </div>
 
+      <h3 class="sub">Spanning-tree hardening (switches)</h3>
+      <p class="sub-desc">Adds <code>portfast default</code>, <code>portfast bpduguard default</code> and <code>loopguard default</code> to switch templates.</p>
+      <label class="checkbox"><input id="stph-enable" type="checkbox" /><span>Apply global spanning-tree hardening</span></label>
+
+      <h3 class="sub">Errdisable recovery (switches)</h3>
+      <p class="sub-desc">Auto-recover err-disabled ports (udld, bpduguard, link-flap, port-security, storm-control).</p>
+      <label class="checkbox"><input id="errd-enable" type="checkbox" /><span>Enable errdisable recovery</span></label>
+      <div id="errd-rows" class="grid3 hidden" style="margin-top:0.5rem">
+        <label class="field"><span>Recovery interval (seconds)</span><input id="errd-interval" type="number" min="30" value="300" /></label>
+      </div>
+
+      <h3 class="sub">Clock &amp; timezone</h3>
+      <p class="sub-desc">Set a consistent timezone and clock on every device (router and switch).</p>
+      <label class="checkbox"><input id="clock-enable" type="checkbox" /><span>Set clock / timezone</span></label>
+      <div id="clock-rows" class="grid3 hidden" style="margin-top:0.75rem">
+        <label class="field"><span>Timezone name</span><input id="clock-tz" type="text" placeholder="GMT" autocomplete="off" /></label>
+        <label class="field"><span>UTC offset (hours)</span><input id="clock-offset" type="number" value="0" /></label>
+        <label class="field"><span>Summer-time <span class="muted small">(optional, full command)</span></span><input id="clock-summer" type="text" placeholder="BST recurring last Sun Mar 1:00 last Sun Oct 2:00" autocomplete="off" /></label>
+      </div>
+
+      <h3 class="sub">Login / MOTD banner</h3>
+      <p class="sub-desc">Inject the same login and MOTD banner on every device.</p>
+      <label class="checkbox"><input id="banner-enable" type="checkbox" /><span>Set login / MOTD banner</span></label>
+      <div id="banner-rows" class="hidden" style="margin-top:0.6rem">
+        <label class="field"><span>Banner text</span><textarea id="banner-text" rows="3" placeholder="Authorised access only. Disconnect immediately if you are not an authorised user."></textarea></label>
+      </div>
+
       <h3 class="sub">Secure access</h3>
       <p class="sub-desc">Inject a hardened local admin and SSH login into every output. Generates SHA-256 user &amp; enable secrets, AAA local login, optional type-6 password encryption, and the SSH/VTY commands that make the login work.</p>
       <label class="checkbox"><input id="sec-enable" type="checkbox" /><span>Set a secure username &amp; password</span></label>

@@ -314,6 +314,11 @@ code {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
+.field textarea {
+  font-family: var(--font-mono); font-size: 0.84rem; padding: 0.5rem 0.65rem; border-radius: 8px;
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); resize: vertical;
+}
+.field textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .checkbox { display: flex; align-items: flex-start; gap: 0.55rem; font-size: 0.9rem; cursor: pointer; }
 .checkbox input { margin-top: 0.18rem; accent-color: var(--accent); width: 1rem; height: 1rem; }
 .checks { display: flex; flex-direction: column; gap: 0.55rem; }
@@ -488,13 +493,10 @@ code {
   text-transform: uppercase; color: var(--text);
   border-left: 3px solid var(--accent); padding-left: 0.6rem;
 }
-.site-merge, .site-root {
-  border: 1px dashed var(--border-strong); border-radius: 10px; background: var(--steel-soft);
-  padding: 0.7rem 0.85rem;
-}
-.site-root { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 35%, transparent); max-width: 560px; }
-.site-root .field span { font-weight: 600; }
-.site-merge > p { margin: 0 0 0.5rem; }
+.site-sub { margin-bottom: 0; }
+.site-sub-body { padding: 0.7rem 0.85rem; }
+.site-sub-body > p { margin: 0 0 0.5rem; }
+.site-sub-body .field { max-width: 420px; }
 .unit {
   border: 1px solid var(--border); border-left: 3px solid var(--accent);
   border-radius: 11px; background: var(--surface-2); overflow: hidden;

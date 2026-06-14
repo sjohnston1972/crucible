@@ -233,11 +233,14 @@ test("management services scanned: SNMP / TACACS+ / NTP", () => {
 
 test("management capture from inline sample", () => {
   const p = parse(
-    "snmp-server community ro RO\nlogging host 10.0.0.1\nntp server 10.0.0.2\ntacacs server X\n address ipv4 10.0.0.3\n!\n"
+    "snmp-server community ro RO\nlogging host 10.0.0.1\nntp server 10.0.0.2\nip name-server 10.0.0.10\nip domain-name corp.local\ntacacs server X\n address ipv4 10.0.0.3\n!\n"
   );
   assert.equal(p.snmp.length, 1);
   assert.equal(p.logging.length, 1);
   assert.equal(p.ntp.length, 1);
+  assert.equal(p.dns.length, 2);
+  assert.ok(p.dns.some((l) => /ip name-server/.test(l)));
+  assert.ok(p.dns.some((l) => /ip domain-name/.test(l)));
   assert.ok(p.tacacs.some((l) => /tacacs server X/.test(l)));
   assert.ok(p.tacacs.some((l) => /address ipv4 10\.0\.0\.3/.test(l)));
 });

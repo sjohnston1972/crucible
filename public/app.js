@@ -18,6 +18,10 @@ import {
   applyHostname,
   buildSecureAccess,
   buildVtp,
+  buildClock,
+  buildStpHardening,
+  buildErrdisable,
+  buildBanner,
 } from "./lib/template.js";
 import { redactForAI } from "./lib/redact.js";
 import { buildZip } from "./lib/zip.js";
@@ -197,6 +201,15 @@ function readGlobalConfig() {
       password: $("vtp-password").value.trim(),
       mode: $("vtp-mode").value,
     },
+    clock: {
+      enabled: $("clock-enable").checked,
+      timezone: $("clock-tz").value.trim(),
+      offset: $("clock-offset").value.trim(),
+      summerTime: $("clock-summer").value.trim(),
+    },
+    stpHardening: { enabled: $("stph-enable").checked },
+    errdisable: { enabled: $("errd-enable").checked, interval: $("errd-interval").value.trim() },
+    banner: { enabled: $("banner-enable").checked, text: $("banner-text").value },
     insertion: document.querySelector('input[name="insertion"]:checked').value,
     naming: {
       rename: $("rename").checked,
@@ -224,6 +237,7 @@ function defaultDeviceCfg(p) {
     tacacs: p.tacacs.length > 0,
     logging: p.logging.length > 0,
     ntp: p.ntp.length > 0,
+    dns: p.dns.length > 0,
   };
 }
 function deviceCfg(unit) {
@@ -248,6 +262,7 @@ function unitConfig(unit, global) {
     tacacs: { enabled: d.tacacs },
     logging: { enabled: d.logging },
     ntp: { enabled: d.ntp },
+    dns: { enabled: d.dns },
     insertion: global.insertion,
     naming: global.naming,
   };
@@ -594,13 +609,14 @@ function renderSiteBlock(site, units) {
     (candidate ? `<span class="merge-flag">⚡ merge candidate</span>` : "") +
     `</div>`;
 
-  // Merge selection (candidate sites only).
+  // Merge candidacy — collapsible section (candidate sites only).
   if (candidate) {
     const sel = state.mergeSel.get(site.path) || new Set();
-    const merge = document.createElement("div");
-    merge.className = "site-merge";
+    const merge = document.createElement("details");
+    merge.className = "unit-sub site-sub";
     merge.innerHTML =
-      `<p class="muted small">Tick files to <strong>merge into one</strong> Layer-3 switch template:</p>` +
+      `<summary class="unit-sub-head"><strong>Merge candidacy</strong> <span class="muted small">router + switch → one L3 switch</span></summary>` +
+      `<div class="site-sub-body"><p class="muted small">Tick files to <strong>merge into one</strong> Layer-3 switch template:</p>` +
       `<div class="merge-files">` +
       (site.parsedFiles || [])
         .map((pf) => {
@@ -613,7 +629,7 @@ function renderSiteBlock(site, units) {
           );
         })
         .join("") +
-      `</div>`;
+      `</div></div>`;
     merge.querySelectorAll(".merge-file-cb").forEach((cb) =>
       cb.addEventListener("change", () => {
         const set = state.mergeSel.get(site.path) || new Set();
@@ -626,7 +642,7 @@ function renderSiteBlock(site, units) {
     block.appendChild(merge);
   }
 
-  // Per-site spanning-tree root election (sites that contain a switch).
+  // Spanning-tree root election — collapsible section (sites with a switch).
   const stpUnits = units.filter((u) => u.parsed.spanningTree.mode);
   if (stpUnits.length) {
     const current = detectCurrentRoot(stpUnits);
@@ -634,16 +650,17 @@ function renderSiteBlock(site, units) {
     const selectedId = stored && stpUnits.some((u) => u.id === stored) ? stored : current ? current.id : "";
     state.rootBySite.set(site.path, selectedId);
 
-    const rootDiv = document.createElement("div");
-    rootDiv.className = "site-root";
+    const rootDiv = document.createElement("details");
+    rootDiv.className = "unit-sub site-sub";
     rootDiv.innerHTML =
-      `<label class="field"><span>Spanning-tree root for this site` +
-      (current ? ` <span class="muted small">(currently ${escapeHtml(current.parsed.hostname || current.sourceNames[0])})</span>` : "") +
-      `</span><select class="site-root-sel"><option value="">— leave spanning-tree unchanged —</option>` +
+      `<summary class="unit-sub-head"><strong>Spanning-tree root</strong>` +
+      (current ? ` <span class="muted small">currently ${escapeHtml(current.parsed.hostname || current.sourceNames[0])}</span>` : "") +
+      `</summary><div class="site-sub-body"><label class="field"><span>Root switch for this site</span>` +
+      `<select class="site-root-sel"><option value="">— leave spanning-tree unchanged —</option>` +
       stpUnits
         .map((u) => `<option value="${escapeHtml(u.id)}"${u.id === selectedId ? " selected" : ""}>${escapeHtml(u.parsed.hostname || u.sourceNames[0])}</option>`)
         .join("") +
-      `</select></label>`;
+      `</select></label></div>`;
     const selEl = rootDiv.querySelector(".site-root-sel");
     selEl.addEventListener("change", () => state.rootBySite.set(site.path, selEl.value || ""));
     block.appendChild(rootDiv);
@@ -813,6 +830,16 @@ async function onSave() {
         : renderTagBased(templateText, slots);
 
     let content = rendered.content;
+    const isSwitch = isSwitchParsed(unit.parsed);
+    const appendBlock = (title, lines) => {
+      if (lines && lines.length) content = content.replace(/\n*$/, "") + `\n!\n! ==== ${title} ====\n${lines.join("\n")}\n`;
+    };
+
+    // Global additions injected into every output (switch-only ones gated).
+    if (global.clock.enabled) appendBlock("Clock & timezone", buildClock(global.clock));
+    if (global.banner.enabled) appendBlock("Banner", buildBanner(global.banner));
+    if (global.stpHardening.enabled && isSwitch) appendBlock("Spanning-tree hardening", buildStpHardening());
+    if (global.errdisable.enabled && isSwitch) appendBlock("Errdisable recovery", buildErrdisable(global.errdisable));
 
     // VTP v3 block — switch templates only (routers don't run VTP).
     if (global.vtp && global.vtp.enabled && isSwitchParsed(unit.parsed)) {
@@ -932,7 +959,6 @@ function renderUnit(unit) {
   const d = deviceCfg(unit);
   const card = document.createElement("details");
   card.className = "unit";
-  card.open = true;
   card.dataset.unit = unit.id;
 
   const routingN = p.staticRoutes.length + p.protocols.length + (p.defaultGateway ? 1 : 0);
@@ -979,6 +1005,7 @@ function renderUnit(unit) {
         { path: "tacacs", label: "TACACS+", has: p.tacacs.length > 0 },
         { path: "logging", label: "Logging", has: p.logging.length > 0 },
         { path: "ntp", label: "NTP", has: p.ntp.length > 0 },
+        { path: "dns", label: "DNS (name-server / domain)", has: p.dns.length > 0 },
       ],
     },
   ];
@@ -1009,7 +1036,7 @@ function renderUnit(unit) {
     `<div class="unit-body">` +
     `<div class="feat-pills">${pills}</div>` +
     // Interfaces subsection
-    `<details class="unit-sub"${ifaces.length <= 12 ? " open" : ""}><summary class="unit-sub-head">` +
+    `<details class="unit-sub"><summary class="unit-sub-head">` +
     `<strong>Interfaces</strong> <span class="muted small">${ifaces.length} found</span>` +
     `<label class="checkbox if-all-inline"><input type="checkbox" class="d-ifall"${d.interfacesAll.enabled ? " checked" : ""} /><span>All</span></label>` +
     `<select class="d-ifall-mode"><option value="full"${d.interfacesAll.mode !== "ip" ? " selected" : ""}>All data</option><option value="ip"${d.interfacesAll.mode === "ip" ? " selected" : ""}>IP only</option></select>` +
@@ -1330,6 +1357,15 @@ function init() {
   );
   $("vtp-enable").addEventListener("change", () =>
     $("vtp-rows").classList.toggle("hidden", !$("vtp-enable").checked)
+  );
+  $("errd-enable").addEventListener("change", () =>
+    $("errd-rows").classList.toggle("hidden", !$("errd-enable").checked)
+  );
+  $("clock-enable").addEventListener("change", () =>
+    $("clock-rows").classList.toggle("hidden", !$("clock-enable").checked)
+  );
+  $("banner-enable").addEventListener("change", () =>
+    $("banner-rows").classList.toggle("hidden", !$("banner-enable").checked)
   );
   document.querySelectorAll(".secret-toggle").forEach((btn) =>
     btn.addEventListener("click", () => {
