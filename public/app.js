@@ -42,6 +42,7 @@ const state = {
   mergeSel: new Map(), // sitePath -> Set(fileName) chosen to merge into one template
   units: [], // built output units
   deviceCfg: new Map(), // unitId -> per-device collection state (see defaultDeviceCfg)
+  rootBySite: new Map(), // sitePath -> unitId elected as that site's spanning-tree root
   poColor: new Map(), // port-channel number -> colour (computed per scan)
   stpVlans: null,
 };
@@ -137,25 +138,13 @@ function discoverSitesFromFileList(files) {
 }
 
 function renderSites() {
-  const list = $("sites-list");
-  list.innerHTML = "";
   if (!state.sites.length) {
     $("sites-summary").textContent = "No sites found — no folder directly contains a .txt/.cfg file.";
     return;
   }
   const fileTotal = state.sites.reduce((n, s) => n + s.files.length, 0);
   $("sites-summary").textContent =
-    `${state.sites.length} site${state.sites.length === 1 ? "" : "s"} · ${fileTotal} config file${fileTotal === 1 ? "" : "s"}.`;
-  for (const site of state.sites) {
-    const wrap = document.createElement("div");
-    wrap.className = "site";
-    const names = site.files.map((f) => `<li>${escapeHtml(f.name)}</li>`).join("");
-    wrap.innerHTML =
-      `<div class="site-head"><span class="site-path">${escapeHtml(site.path)}</span>` +
-      `<span class="site-count">${site.files.length} file${site.files.length === 1 ? "" : "s"}</span></div>` +
-      `<ul class="site-files">${names}</ul>`;
-    list.appendChild(wrap);
-  }
+    `${state.sites.length} site${state.sites.length === 1 ? "" : "s"} · ${fileTotal} config file${fileTotal === 1 ? "" : "s"} — analysed below.`;
   // Run analysis automatically as soon as a folder is scanned (results render here in Step 2).
   onAnalyze().catch(reportError);
 }
@@ -424,22 +413,18 @@ function clearAll() {
   state.mergeSel = new Map();
   state.units = [];
   state.deviceCfg = new Map();
+  state.rootBySite = new Map();
   state.template = null;
   state.ifaceConfigs = new Map();
   state.stpVlans = null;
   $("folder-name").textContent = "";
   $("sites-summary").textContent = "No folder selected yet.";
-  $("sites-list").innerHTML = "";
-  $("merge-sites").innerHTML = `<p class="muted small">Scan a folder in Step 1 to detect merge candidates.</p>`;
   $("results").innerHTML = "";
   $("template-name").textContent = "Using auto-generated template";
   $("template-input").value = "";
   $("btn-clear-template").classList.add("hidden");
-  $("stp-root-wrap").classList.add("hidden");
   $("warnings").innerHTML = "";
   $("run-status").textContent = "";
-  $("stp-root-none").classList.add("hidden");
-  state.currentRootId = null;
   $("btn-save").disabled = true;
   refreshTagMap();
 }
@@ -556,7 +541,6 @@ async function onAnalyze() {
     $("run-status").textContent = "";
     return reportError(err);
   }
-  renderSourcesMerge();
   rebuildUnits();
 }
 
@@ -592,7 +576,6 @@ function rebuildUnits() {
   state.stpVlans = [...vlanSet].filter(Boolean).join(",") || null;
 
   computePoColors();
-  populateStpRoot();
   renderResults();
   refreshTagMap();
   $("run-status").textContent = `Built ${state.units.length} device template${state.units.length === 1 ? "" : "s"}.`;
@@ -600,48 +583,74 @@ function rebuildUnits() {
 }
 
 /** Step 3: list only merge candidates (sites with both a router and a switch); pick files to merge. */
-function renderSourcesMerge() {
-  const box = $("merge-sites");
-  const candidates = state.sites.filter((s) => isMergeCandidate(s.parsedFiles));
-  if (!state.sites.length) {
-    box.innerHTML = `<p class="muted small">Scan a folder in Step 1 to detect merge candidates.</p>`;
-    return;
-  }
-  if (!candidates.length) {
-    box.innerHTML = `<p class="muted small">No merge candidates found — no site contains both a router and a switch. Every device gets its own template.</p>`;
-    return;
-  }
-  box.innerHTML = "";
-  for (const site of candidates) {
-    const sel = state.mergeSel.get(site.path) || new Set();
-    const card = document.createElement("div");
-    card.className = "merge-site candidate";
+/** A site block: site header + (candidate) merge selection + per-site root election + device cards. */
+function renderSiteBlock(site, units) {
+  const block = document.createElement("section");
+  block.className = "site-block";
+  const candidate = isMergeCandidate(site.parsedFiles);
 
-    let rows = "";
-    for (const pf of site.parsedFiles || []) {
-      const t = deviceType(pf.parsed);
-      rows +=
-        `<label class="merge-file"><input type="checkbox" class="merge-file-cb" data-site="${escapeHtml(site.path)}" data-file="${escapeHtml(pf.name)}"${sel.has(pf.name) ? " checked" : ""} />` +
-        `<span class="merge-file-name">${escapeHtml(pf.name)}</span>` +
-        `<span class="dev-chip dev-${t}" title="${t === "switch" ? "Has switchports / spanning-tree" : "Routed interfaces, no switching"}">${t}</span>` +
-        `<span class="muted small merge-file-host">${escapeHtml(pf.parsed.hostname || "")}</span></label>`;
-    }
-    card.innerHTML =
-      `<div class="merge-site-head"><span class="merge-site-path">${escapeHtml(site.path)}</span>` +
-      `<span class="merge-flag">⚡ merge candidate</span>` +
-      `</div><div class="merge-files">${rows}</div>` +
-      `<p class="muted small merge-hint">Tick the files to <strong>merge into one</strong> Layer-3 switch template. Unticked files each become their own template.</p>`;
-    box.appendChild(card);
+  block.innerHTML =
+    `<div class="site-block-head"><span class="site-name">${escapeHtml(site.path)}</span>` +
+    (candidate ? `<span class="merge-flag">⚡ merge candidate</span>` : "") +
+    `</div>`;
+
+  // Merge selection (candidate sites only).
+  if (candidate) {
+    const sel = state.mergeSel.get(site.path) || new Set();
+    const merge = document.createElement("div");
+    merge.className = "site-merge";
+    merge.innerHTML =
+      `<p class="muted small">Tick files to <strong>merge into one</strong> Layer-3 switch template:</p>` +
+      `<div class="merge-files">` +
+      (site.parsedFiles || [])
+        .map((pf) => {
+          const t = deviceType(pf.parsed);
+          return (
+            `<label class="merge-file"><input type="checkbox" class="merge-file-cb" data-file="${escapeHtml(pf.name)}"${sel.has(pf.name) ? " checked" : ""} />` +
+            `<span class="merge-file-name">${escapeHtml(pf.name)}</span>` +
+            `<span class="dev-chip dev-${t}">${t}</span>` +
+            `<span class="muted small merge-file-host">${escapeHtml(pf.parsed.hostname || "")}</span></label>`
+          );
+        })
+        .join("") +
+      `</div>`;
+    merge.querySelectorAll(".merge-file-cb").forEach((cb) =>
+      cb.addEventListener("change", () => {
+        const set = state.mergeSel.get(site.path) || new Set();
+        if (cb.checked) set.add(cb.dataset.file);
+        else set.delete(cb.dataset.file);
+        state.mergeSel.set(site.path, set);
+        rebuildUnits();
+      })
+    );
+    block.appendChild(merge);
   }
-  box.querySelectorAll(".merge-file-cb").forEach((cb) =>
-    cb.addEventListener("change", () => {
-      const set = state.mergeSel.get(cb.dataset.site) || new Set();
-      if (cb.checked) set.add(cb.dataset.file);
-      else set.delete(cb.dataset.file);
-      state.mergeSel.set(cb.dataset.site, set);
-      rebuildUnits();
-    })
-  );
+
+  // Per-site spanning-tree root election (sites that contain a switch).
+  const stpUnits = units.filter((u) => u.parsed.spanningTree.mode);
+  if (stpUnits.length) {
+    const current = detectCurrentRoot(stpUnits);
+    const stored = state.rootBySite.get(site.path);
+    const selectedId = stored && stpUnits.some((u) => u.id === stored) ? stored : current ? current.id : "";
+    state.rootBySite.set(site.path, selectedId);
+
+    const rootDiv = document.createElement("div");
+    rootDiv.className = "site-root";
+    rootDiv.innerHTML =
+      `<label class="field"><span>Spanning-tree root for this site` +
+      (current ? ` <span class="muted small">(currently ${escapeHtml(current.parsed.hostname || current.sourceNames[0])})</span>` : "") +
+      `</span><select class="site-root-sel"><option value="">— leave spanning-tree unchanged —</option>` +
+      stpUnits
+        .map((u) => `<option value="${escapeHtml(u.id)}"${u.id === selectedId ? " selected" : ""}>${escapeHtml(u.parsed.hostname || u.sourceNames[0])}</option>`)
+        .join("") +
+      `</select></label>`;
+    const selEl = rootDiv.querySelector(".site-root-sel");
+    selEl.addEventListener("change", () => state.rootBySite.set(site.path, selEl.value || ""));
+    block.appendChild(rootDiv);
+  }
+
+  for (const u of units) block.appendChild(renderUnit(u));
+  return block;
 }
 
 function makeUnit(site, parsed, sources) {
@@ -687,42 +696,6 @@ function detectCurrentRoot(stpUnits) {
   return signal ? best : null;
 }
 
-function populateStpRoot() {
-  const wrap = $("stp-root-wrap");
-  const none = $("stp-root-none");
-  const sel = $("stp-root");
-  // Show the root picker whenever a scanned device runs spanning-tree, regardless of
-  // whether the STP collection checkbox is ticked — electing a root implies emitting it.
-  const stpUnits = state.units.filter((u) => u.parsed.spanningTree.mode);
-  if (stpUnits.length < 1) {
-    wrap.classList.add("hidden");
-    none.classList.remove("hidden");
-    state.currentRootId = null;
-    return;
-  }
-  wrap.classList.remove("hidden");
-  none.classList.add("hidden");
-
-  const current = detectCurrentRoot(stpUnits);
-  state.currentRootId = current ? current.id : null;
-  const msg = $("stp-root-current");
-  if (current) {
-    msg.innerHTML =
-      `The current spanning-tree root is <strong>${escapeHtml(current.parsed.hostname || current.sourceNames[0])}</strong>. ` +
-      `Leave the selection on it to keep that, or choose a different switch to make it the new sole root.`;
-  } else {
-    msg.textContent =
-      "No explicit spanning-tree root was detected among the scanned switches — choose one to elect, or leave unchanged.";
-  }
-
-  sel.innerHTML = `<option value="">— leave spanning-tree unchanged —</option>`;
-  for (const u of stpUnits) {
-    const label = `${u.parsed.hostname || u.sourceNames[0]} (${u.site.path})`;
-    const selected = current && u.id === current.id ? " selected" : "";
-    sel.innerHTML += `<option value="${escapeHtml(u.id)}"${selected}>${escapeHtml(label)}</option>`;
-  }
-}
-
 // ----------------------------------------------------------------- save
 
 /**
@@ -754,7 +727,7 @@ function unitCollectsNothing(unit) {
   return !anyIface && !anyRouting && !anyOther && !anyHarden;
 }
 
-function saveSanityWarnings(global, electedRoot) {
+function saveSanityWarnings(global, anyElectedRoot) {
   const w = [];
   const empties = state.units.filter((u) => unitCollectsNothing(u));
   if (empties.length === state.units.length) {
@@ -762,7 +735,7 @@ function saveSanityWarnings(global, electedRoot) {
   } else if (empties.length) {
     w.push(`${empties.length} device(s) have nothing selected: ${empties.map((u) => u.parsed.hostname || u.sourceNames[0]).join(", ")}`);
   }
-  if (!global.secureAccess.enabled && !global.vtp.enabled && !electedRoot) {
+  if (!global.secureAccess.enabled && !global.vtp.enabled && !anyElectedRoot) {
     w.push("no global additions (VTP / secure access / root election)");
   }
   return w;
@@ -772,10 +745,10 @@ async function onSave() {
   const global = readGlobalConfig();
   if (!state.units.length) return reportError(new Error("Scan a folder first (Step 1)."));
 
-  const electedRoot = $("stp-root").value || null;
+  const anyElectedRoot = [...state.rootBySite.values()].some(Boolean);
 
   // Pre-generation sanity check: if no device collects much, confirm intent.
-  const sanity = saveSanityWarnings(global, electedRoot);
+  const sanity = saveSanityWarnings(global, anyElectedRoot);
   if (sanity.length >= 2) {
     const ok = await styledConfirm({
       title: "Your templates will be sparse",
@@ -791,19 +764,31 @@ async function onSave() {
   }
 
   $("run-status").textContent = "Building & saving…";
-  // Only a switch *different* from the current root triggers a root rewrite.
-  const changingRoot = !!electedRoot && electedRoot !== state.currentRootId;
+
+  // Per-site current root (to tell "leave as-is" from "change root").
+  const siteCurrentRoot = new Map();
+  for (const u of state.units) {
+    if (!u.parsed.spanningTree.mode) continue;
+    if (!siteCurrentRoot.has(u.site.path)) {
+      const us = state.units.filter((x) => x.site.path === u.site.path && x.parsed.spanningTree.mode);
+      const c = detectCurrentRoot(us);
+      siteCurrentRoot.set(u.site.path, c ? c.id : null);
+    }
+  }
+
   const zipFiles = [];
   const allWarnings = [];
 
   for (const unit of state.units) {
     const ucfg = unitConfig(unit, global);
-    // Electing a root implies STP must be emitted for that scan's switches.
-    if (electedRoot && unit.parsed.spanningTree.mode) ucfg.stp.enabled = true;
+    const elected = state.rootBySite.get(unit.site.path) || null;
+    const changingRoot = !!elected && elected !== siteCurrentRoot.get(unit.site.path);
+    // Electing a root implies STP must be emitted for that site's switches.
+    if (elected && unit.parsed.spanningTree.mode) ucfg.stp.enabled = true;
     const stpRole = !ucfg.stp.enabled
       ? "asis"
       : changingRoot
-      ? unit.id === electedRoot
+      ? unit.id === elected
         ? "root"
         : "nonroot"
       : "asis";
@@ -924,7 +909,12 @@ function renderResults() {
   state.ifaceConfigs = new Map();
   const root = $("results");
   root.innerHTML = "";
-  for (const unit of state.units) root.appendChild(renderUnit(unit));
+  const bySite = new Map();
+  for (const u of state.units) {
+    if (!bySite.has(u.site.path)) bySite.set(u.site.path, { site: u.site, units: [] });
+    bySite.get(u.site.path).units.push(u);
+  }
+  for (const { site, units } of bySite.values()) root.appendChild(renderSiteBlock(site, units));
 }
 
 const getPath = (o, path) => path.split(".").reduce((a, k) => (a == null ? a : a[k]), o);

@@ -474,7 +474,21 @@ code {
 .warnings ul { margin: 0; padding-left: 1.2rem; color: var(--text-muted); }
 
 /* ---- results ---- */
-.results { display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem; }
+.results { display: flex; flex-direction: column; gap: 1.4rem; margin-top: 1rem; }
+.site-block { display: flex; flex-direction: column; gap: 0.7rem; }
+.site-block-head { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
+.site-name {
+  font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; letter-spacing: 0.02em;
+  text-transform: uppercase; color: var(--text);
+  border-left: 3px solid var(--accent); padding-left: 0.6rem;
+}
+.site-merge, .site-root {
+  border: 1px dashed var(--border-strong); border-radius: 10px; background: var(--steel-soft);
+  padding: 0.7rem 0.85rem;
+}
+.site-root { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 35%, transparent); max-width: 560px; }
+.site-root .field span { font-weight: 600; }
+.site-merge > p { margin: 0 0 0.5rem; }
 .unit {
   border: 1px solid var(--border); border-left: 3px solid var(--accent);
   border-radius: 11px; background: var(--surface-2); overflow: hidden;

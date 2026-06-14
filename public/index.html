@@ -53,36 +53,21 @@
     <!-- Step 2: Discovered sites + analysis -->
     <section class="card" id="step-sites">
       <div class="card-head">
-        <h2><span class="step-num">2</span> Discovered sites &amp; analysis</h2>
+        <h2><span class="step-num">2</span> Sites &amp; devices</h2>
         <p class="step-desc">
-          The sites and devices Crucible found. Each config is parsed and audited automatically the
-          moment you scan — review what was extracted and the hardening findings per device below.
+          Everything Crucible found, grouped by <strong>site</strong>. Each site shows its merge options (where a
+          router and switch can collapse into one L3 switch), a per-site spanning-tree root picker, and a
+          collapsible card per device — interfaces, routing/services and hardening, all chosen per device.
         </p>
         <p class="muted small" id="sites-summary">No folder selected yet.</p>
       </div>
-      <div id="sites-list" class="sites-list"></div>
       <div id="results" class="results"></div>
-    </section>
-
-    <!-- Step 3: Sources & merge -->
-    <section class="card" id="step-sources">
-      <div class="card-head">
-        <h2><span class="step-num">3</span> Merge candidates</h2>
-        <p class="step-desc">
-          Sites that contain both a <strong>router and a switch</strong> — good candidates to collapse into
-          one Layer-3 switch. Tick the files to <strong>merge into one</strong> template; unticked files (and
-          every non-candidate site) each become their own template.
-        </p>
-      </div>
-      <div id="merge-sites" class="merge-sites">
-        <p class="muted small">Scan a folder in Step 1 to detect merge candidates.</p>
-      </div>
     </section>
 
     <!-- Step 4: Global additions (per-device collection lives in each device card, Step 2) -->
     <section class="card" id="step-collection">
       <div class="card-head">
-        <h2><span class="step-num">4</span> Global additions</h2>
+        <h2><span class="step-num">3</span> Global additions</h2>
         <p class="step-desc">
           What to <strong>collect</strong> from each device — interfaces, routing, VRF, DHCP, management — is
           chosen <strong>per device</strong> in its card up in Step 2 (pre-ticked with what it already has).
@@ -135,7 +120,7 @@
     <!-- Step 5: Template & insertion -->
     <section class="card" id="step-template">
       <div class="card-head">
-        <h2><span class="step-num">5</span> Template &amp; insertion</h2>
+        <h2><span class="step-num">4</span> Template &amp; insertion</h2>
         <p class="step-desc">
           By default Crucible writes its own template that matches your selections — you don’t need to
           supply one. Provide a file only if you want a specific base config.
@@ -156,7 +141,7 @@
     <!-- Step 6: Output naming -->
     <section class="card" id="step-naming">
       <div class="card-head">
-        <h2><span class="step-num">6</span> Output naming</h2>
+        <h2><span class="step-num">5</span> Output naming</h2>
         <p class="step-desc">
           Each output is named from the device’s <code>hostname</code> with a fixed <code>.txt</code>
           extension. Optionally rename — this updates both the filename and the in-config hostname.
@@ -175,32 +160,13 @@
     <!-- Step 7: Tag map -->
     <section class="card" id="step-tagmap">
       <div class="card-head">
-        <h2><span class="step-num">7</span> Computed tag map</h2>
+        <h2><span class="step-num">6</span> Computed tag map</h2>
         <p class="step-desc">
           A live preview of which marker maps to which block. If you bring your own tag-based template,
           lay the markers out to match this.
         </p>
       </div>
       <div id="tagmap" class="tagmap"></div>
-    </section>
-
-    <!-- Step 8: Root election -->
-    <section class="card" id="step-run">
-      <div class="card-head">
-        <h2><span class="step-num">8</span> Root election</h2>
-        <p class="step-desc">
-          Set which switch is the spanning-tree root for this scan. The chosen switch is configured as
-          the <strong>sole root</strong>; the others stand down (root secondary). Electing a root
-          automatically includes each switch’s spanning-tree config in its template.
-        </p>
-      </div>
-      <div id="stp-root-wrap" class="stp-root hidden">
-        <p id="stp-root-current" class="muted small"></p>
-        <label class="field"><span>Spanning-tree root for this scan</span>
-          <select id="stp-root"></select>
-        </label>
-      </div>
-      <p id="stp-root-none" class="muted small hidden">No spanning-tree was found in the scanned devices — nothing to elect.</p>
     </section>
   </main>
 
