@@ -121,22 +121,24 @@ code {
   top: 0;
   z-index: 20;
 }
-.brand { display: flex; align-items: baseline; gap: 0.85rem; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 0.85rem; flex-wrap: wrap; }
 .brand h1 {
   margin: 0;
   font-family: var(--font-display);
   font-size: 2.1rem;
   font-weight: 800;
   letter-spacing: -0.03em;
-  line-height: 1;
+  line-height: 1.05;
   background: var(--accent-grad);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  text-shadow: 0 1px 0 color-mix(in srgb, var(--accent) 12%, transparent);
 }
 .tagline {
   margin: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
   font-size: 0.86rem;
   font-style: italic;
   color: var(--text-muted);
