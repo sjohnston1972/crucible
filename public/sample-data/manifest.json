@@ -1,0 +1,69 @@
+[
+  {
+    "path": "aspatria",
+    "files": [
+      {
+        "name": "Aspatria Router.txt",
+        "url": "aspatria/Aspatria Router.txt"
+      }
+    ]
+  },
+  {
+    "path": "bourdon",
+    "files": [
+      {
+        "name": "BourdonSW1.txt",
+        "url": "bourdon/BourdonSW1.txt"
+      }
+    ]
+  },
+  {
+    "path": "cmb",
+    "files": [
+      {
+        "name": "CMB-TUK-SWT02#sh run.txt",
+        "url": "cmb/CMB-TUK-SWT02_sh run.txt"
+      }
+    ]
+  },
+  {
+    "path": "haverford",
+    "files": [
+      {
+        "name": "Haverford Router.txt",
+        "url": "haverford/Haverford Router.txt"
+      }
+    ]
+  },
+  {
+    "path": "paisley",
+    "files": [
+      {
+        "name": "Paisley L3 Switch.txt",
+        "url": "paisley/Paisley L3 Switch.txt"
+      },
+      {
+        "name": "Paisley Router.txt",
+        "url": "paisley/Paisley Router.txt"
+      }
+    ]
+  },
+  {
+    "path": "rch",
+    "files": [
+      {
+        "name": "6509-vss-outputs.txt",
+        "url": "rch/6509-vss-outputs.txt"
+      }
+    ]
+  },
+  {
+    "path": "reid",
+    "files": [
+      {
+        "name": "ReidCore.txt",
+        "url": "reid/ReidCore.txt"
+      }
+    ]
+  }
+]

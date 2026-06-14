@@ -7,7 +7,7 @@ import { dirname, join } from "node:path";
 import { parse, normalizeInterfaceName, extractBlock } from "../public/lib/parser.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const bourdon = readFileSync(join(__dirname, "..", "BourdonSW1.txt"), "utf8");
+const bourdon = readFileSync(join(__dirname, "..", "public", "sample-data", "bourdon", "BourdonSW1.txt"), "utf8");
 
 // --------------------------------------------------------- name normalisation
 

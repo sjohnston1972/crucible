@@ -9,7 +9,7 @@ import { audit, remediationLines } from "../public/lib/hardening.js";
 import { buildBlocks, renderTagBased, renderDirect, computeOutput, applyHostname } from "../public/lib/template.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const bourdon = readFileSync(join(__dirname, "..", "BourdonSW1.txt"), "utf8");
+const bourdon = readFileSync(join(__dirname, "..", "public", "sample-data", "bourdon", "BourdonSW1.txt"), "utf8");
 
 // Mirrors the app's onSave() pipeline for a single device unit.
 const CONFIG = {

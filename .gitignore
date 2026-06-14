@@ -4,3 +4,6 @@ node_modules/
 .wrangler/
 dist/
 *.log
+
+# local scan-source configs (served copies live in public/sample-data/)
+sites/

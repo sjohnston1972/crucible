@@ -8,7 +8,7 @@ import { parse } from "../public/lib/parser.js";
 import { audit, remediationLines, RULES } from "../public/lib/hardening.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const bourdon = readFileSync(join(__dirname, "..", "BourdonSW1.txt"), "utf8");
+const bourdon = readFileSync(join(__dirname, "..", "public", "sample-data", "bourdon", "BourdonSW1.txt"), "utf8");
 
 const find = (findings, id) => findings.find((f) => f.id === id);
 

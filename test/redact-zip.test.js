@@ -10,7 +10,7 @@ import { redactForAI, maskSecrets, buildSummary } from "../public/lib/redact.js"
 import { buildZip } from "../public/lib/zip.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const bourdon = readFileSync(join(__dirname, "..", "BourdonSW1.txt"), "utf8");
+const bourdon = readFileSync(join(__dirname, "..", "public", "sample-data", "bourdon", "BourdonSW1.txt"), "utf8");
 
 // ------------------------------------------------------------------ redaction
 

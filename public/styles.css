@@ -392,14 +392,24 @@ code {
   padding: 0.75rem; margin-bottom: 0.85rem;
   display: flex; flex-direction: column; gap: 0.5rem;
 }
-.dev-group { display: flex; flex-direction: column; gap: 0.5rem; }
-.dev-group + .dev-group { border-top: 1px solid var(--border); padding-top: 0.7rem; margin-top: 0.2rem; }
-.dev-group-head { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+.dev-group { border: 1px solid var(--border); border-radius: 9px; background: var(--surface); }
+.dev-group + .dev-group { margin-top: 0.2rem; }
+.dev-group-head {
+  display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+  padding: 0.55rem 0.7rem; cursor: pointer; list-style: none; border-radius: 9px;
+}
+.dev-group-head::-webkit-details-marker { display: none; }
+.dev-group-head::before {
+  content: "▸"; color: var(--accent); font-size: 0.75rem; transition: transform 0.15s; display: inline-block;
+}
+.dev-group[open] > .dev-group-head::before { transform: rotate(90deg); }
+.dev-group[open] > .dev-group-head { border-bottom: 1px solid var(--border); border-radius: 9px 9px 0 0; }
+.dev-group:hover { border-color: var(--border-strong); }
 .dev-name {
   font-family: var(--font-mono); font-weight: 600; font-size: 0.9rem; color: var(--accent);
 }
 .dev-select-all { margin-left: auto; }
-.disc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(195px, 1fr)); gap: 0.5rem; }
+.disc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(195px, 1fr)); gap: 0.5rem; padding: 0.6rem 0.7rem; }
 .disc-if {
   display: flex; flex-direction: column; gap: 0.4rem;
   border: 1px solid var(--border); border-radius: 9px; background: var(--surface);
@@ -472,13 +482,37 @@ code {
 .unit-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
 .unit-host { font-family: var(--font-mono); font-size: 1rem; font-weight: 600; }
 .unit-written { color: var(--good); font-weight: 600; }
-.harden-head { display: flex; align-items: center; gap: 0.85rem; margin: 0.85rem 0 0.2rem; flex-wrap: wrap; }
+.harden-section { margin-top: 0.85rem; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); }
+.harden-head {
+  display: flex; align-items: center; gap: 0.85rem; flex-wrap: wrap;
+  padding: 0.6rem 0.8rem; cursor: pointer; list-style: none; border-radius: 9px;
+}
+.harden-head::-webkit-details-marker { display: none; }
+.harden-head::before {
+  content: "▸"; color: var(--accent); font-size: 0.75rem; transition: transform 0.15s; display: inline-block;
+}
+.harden-section[open] > .harden-head::before { transform: rotate(90deg); }
+.harden-section[open] > .harden-head { border-bottom: 1px solid var(--border); border-radius: 9px 9px 0 0; }
 .harden-head strong { font-family: var(--font-display); }
-.harden-desc { margin: 0 0 0.5rem; font-size: 0.8rem; color: var(--text-muted); }
+.harden-caret { display: none; }
+.harden-desc { margin: 0.6rem 0.8rem 0.4rem; font-size: 0.8rem; color: var(--text-muted); }
 .apply-all { margin-left: auto; }
-.findings { display: flex; flex-direction: column; gap: 0.2rem; }
-.finding { display: grid; grid-template-columns: 22px 70px 64px 1fr; align-items: center; gap: 0.5rem; font-size: 0.84rem; padding: 0.18rem 0; border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+.findings { display: flex; flex-direction: column; gap: 0.1rem; padding: 0 0.8rem 0.6rem; }
+.finding { border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
 .finding:last-child { border-bottom: none; }
+.finding-row, .finding-sum {
+  display: grid; grid-template-columns: 22px 68px 62px 1fr auto; align-items: center; gap: 0.5rem;
+  font-size: 0.84rem; padding: 0.22rem 0;
+}
+.finding-sum { cursor: pointer; list-style: none; }
+.finding-sum::-webkit-details-marker { display: none; }
+.finding-missing .finding-caret { color: var(--text-muted); font-size: 0.7rem; transition: transform 0.15s; }
+.finding-missing[open] .finding-caret { transform: rotate(90deg); }
+.finding-rem {
+  margin: 0 0 0.5rem 22px; padding: 0.55rem 0.7rem; border-radius: 7px;
+  background: var(--term-bg); color: var(--term-text);
+  font-family: var(--font-mono); font-size: 0.76rem; line-height: 1.5; white-space: pre; overflow-x: auto;
+}
 .finding-pass { opacity: 0.55; }
 .finding input { accent-color: var(--accent); }
 .apply-spacer { display: inline-block; }

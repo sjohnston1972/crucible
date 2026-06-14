@@ -304,12 +304,13 @@ function renderDiscoveredInterfaces() {
       .sort((a, b) => a.normName.localeCompare(b.normName, undefined, { numeric: true }));
     const host = u.parsed.hostname || u.sourceNames[0];
 
-    const group = document.createElement("div");
+    const group = document.createElement("details");
     group.className = "dev-group";
+    if (ifaces.length <= 12) group.open = true; // small lists start expanded
     group.innerHTML =
-      `<div class="dev-group-head"><span class="dev-name">${escapeHtml(host)}</span>` +
+      `<summary class="dev-group-head"><span class="dev-name">${escapeHtml(host)}</span>` +
       `<span class="muted small">${escapeHtml(u.site.path)} · ${ifaces.length} interface${ifaces.length === 1 ? "" : "s"}</span>` +
-      `<button class="btn btn-small btn-ghost dev-select-all" type="button">Select all</button></div>`;
+      `<button class="btn btn-small btn-ghost dev-select-all" type="button">Select all</button></summary>`;
     const grid = document.createElement("div");
     grid.className = "disc-grid";
 
@@ -356,7 +357,9 @@ function renderDiscoveredInterfaces() {
       const list = cbs();
       selAll.textContent = list.length && list.every((c) => c.checked) ? "Clear all" : "Select all";
     };
-    selAll.addEventListener("click", () => {
+    selAll.addEventListener("click", (e) => {
+      e.preventDefault(); // don't toggle the <details>
+      e.stopPropagation();
       const list = cbs();
       const target = !(list.length && list.every((c) => c.checked));
       list.forEach((c) => (c.checked = target));
@@ -433,18 +436,25 @@ async function readEntryText(entry) {
 // ----------------------------------------------------------------- sample / clear
 
 async function loadSampleData() {
-  const names = ["Paisley Router.txt", "Paisley L3 Switch.txt"];
   $("sites-summary").textContent = "Loading sample data…";
   try {
-    const files = [];
-    for (const name of names) {
-      const res = await fetch(`/sample-data/${encodeURIComponent(name)}`);
-      if (!res.ok) throw new Error(`could not load ${name} (${res.status})`);
-      files.push({ name, text: await res.text() });
+    const res = await fetch("/sample-data/manifest.json");
+    if (!res.ok) throw new Error(`could not load sample manifest (${res.status})`);
+    const manifest = await res.json();
+    const sites = [];
+    for (const site of manifest) {
+      const files = [];
+      for (const f of site.files) {
+        const r = await fetch(`/sample-data/${encodeURI(f.url)}`);
+        if (!r.ok) throw new Error(`could not load ${f.name} (${r.status})`);
+        files.push({ name: f.name, text: await r.text() });
+      }
+      sites.push({ path: site.path, name: site.path, files });
     }
     state.rootHandle = null;
-    state.sites = [{ path: "Paisley (sample)", name: "Paisley", files }];
-    $("folder-name").textContent = "Paisley (sample data)";
+    state.mergeSel = new Map();
+    state.sites = sites;
+    $("folder-name").textContent = `Sample data · ${sites.length} sites`;
     renderSites(); // auto-analyzes
   } catch (err) {
     reportError(err);
@@ -986,17 +996,20 @@ function renderUnit(unit, config) {
     `<span class="unit-written muted small"></span></div>` +
     `<p class="muted small">${escapeHtml(counts)}</p>` +
     `<p class="muted small svc-line">Services: ${escapeHtml(servicesLine)}</p>` +
-    `<div class="harden-head"><strong>Hardening</strong> <span class="muted small">${pass} pass · ${missing.length} missing</span>` +
+    `<details class="harden-section"><summary class="harden-head"><span class="harden-caret"></span>` +
+    `<strong>Hardening</strong> <span class="muted small">${pass} pass · ${missing.length} missing</span>` +
     `<label class="checkbox apply-all"><input type="checkbox" class="apply-all-cb" /><span>Apply all</span></label>` +
-    `<button class="btn btn-small ai-btn" type="button">AI review</button></div>` +
+    `<button class="btn btn-small ai-btn" type="button">AI review</button></summary>` +
     `<p class="harden-desc">Best-practice hardening checks for this device — tick the missing items you want injected into its template. Suggestions are tailored to whether it’s a router or a switch.</p>` +
-    `<div class="findings"></div><div class="ai-out"></div>`;
+    `<div class="findings"></div><div class="ai-out"></div></details>`;
 
   const findingsEl = card.querySelector(".findings");
   for (const f of unit.findings) {
     findingsEl.appendChild(renderFinding(unit, f));
   }
-  card.querySelector(".apply-all-cb").addEventListener("change", (e) => {
+  const applyAll = card.querySelector(".apply-all-cb");
+  applyAll.addEventListener("click", (e) => e.stopPropagation()); // don't toggle the section
+  applyAll.addEventListener("change", (e) => {
     for (const f of unit.findings) {
       if (f.status === "missing") f.apply = e.target.checked;
     }
@@ -1004,7 +1017,13 @@ function renderUnit(unit, config) {
       if (!cb.disabled) cb.checked = e.target.checked;
     });
   });
-  card.querySelector(".ai-btn").addEventListener("click", () => runAiReview(unit, card));
+  const aiBtn = card.querySelector(".ai-btn");
+  aiBtn.addEventListener("click", (e) => {
+    e.preventDefault(); // don't toggle the <details>
+    e.stopPropagation();
+    card.querySelector(".harden-section").open = true;
+    runAiReview(unit, card);
+  });
 
   // Whole card is a clickable tile → opens the full-config modal. Interactive
   // controls (checkboxes, buttons, selects, the findings list) are excluded.
@@ -1016,7 +1035,7 @@ function renderUnit(unit, config) {
     openModal();
   });
   card.addEventListener("click", (e) => {
-    if (e.target.closest("input, select, button, label, a, .findings, .ai-out")) return;
+    if (e.target.closest("input, select, button, label, a, .harden-section")) return;
     openModal();
   });
   return card;
@@ -1105,18 +1124,34 @@ async function copyModalConfig() {
 }
 
 function renderFinding(unit, f) {
-  const row = document.createElement("div");
-  row.className = `finding finding-${f.status}`;
   const sev = `<span class="sev sev-${f.severity.toLowerCase()}">${f.severity}</span>`;
-  const apply =
-    f.status === "missing"
-      ? `<input type="checkbox" class="finding-apply" title="Apply remediation" />`
-      : `<span class="apply-spacer"></span>`;
+  const title =
+    `<span class="finding-title">${escapeHtml(f.title)}` +
+    (f.detail ? ` <span class="muted small">— ${escapeHtml(f.detail)}</span>` : "") +
+    `</span>`;
+
+  // Missing findings expand to show the remediation config they'd inject.
+  if (f.status === "missing" && f.remediation.length) {
+    const row = document.createElement("details");
+    row.className = "finding finding-missing";
+    row.innerHTML =
+      `<summary class="finding-sum">` +
+      `<input type="checkbox" class="finding-apply" title="Apply remediation" />` +
+      `<span class="status status-missing">missing</span>${sev}${title}` +
+      `<span class="finding-caret">▸</span></summary>` +
+      `<pre class="finding-rem">${escapeHtml(f.remediation.join("\n"))}</pre>`;
+    const cb = row.querySelector(".finding-apply");
+    cb.checked = !!f.apply;
+    cb.addEventListener("click", (e) => e.stopPropagation()); // checkbox shouldn't toggle the row
+    cb.addEventListener("change", (e) => (f.apply = e.target.checked));
+    return row;
+  }
+
+  // Pass / N-A — simple, non-expandable row.
+  const row = document.createElement("div");
+  row.className = `finding finding-row finding-${f.status}`;
   row.innerHTML =
-    `${apply}<span class="status status-${f.status}">${f.status}</span>${sev}` +
-    `<span class="finding-title">${escapeHtml(f.title)}${f.detail ? ` <span class="muted small">— ${escapeHtml(f.detail)}</span>` : ""}</span>`;
-  const cb = row.querySelector(".finding-apply");
-  if (cb) cb.addEventListener("change", (e) => (f.apply = e.target.checked));
+    `<span class="apply-spacer"></span><span class="status status-${f.status}">${f.status}</span>${sev}${title}<span></span>`;
   return row;
 }
 
