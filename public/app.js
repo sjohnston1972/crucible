@@ -955,22 +955,44 @@ function renderUnit(unit) {
     .slice()
     .sort((a, b) => a.normName.localeCompare(b.normName, undefined, { numeric: true }));
 
-  const COLL = [
-    { path: "routing.defaultGateway", label: "Default gateway → default route", has: !!p.defaultGateway },
-    { path: "routing.allStatic", label: "Static routes", has: p.staticRoutes.length > 0 },
-    { path: "routing.protocols", label: "Routing protocols", has: p.protocols.length > 0 },
-    { path: "vrf", label: "VRFs", has: p.vrfs.length > 0 },
-    { path: "stp", label: "Spanning-tree", has: !!p.spanningTree.mode },
-    { path: "dhcp", label: "DHCP scopes", has: p.dhcpPools.length > 0 },
-    { path: "snmp", label: "SNMP", has: p.snmp.length > 0 },
-    { path: "tacacs", label: "TACACS+", has: p.tacacs.length > 0 },
-    { path: "logging", label: "Logging", has: p.logging.length > 0 },
-    { path: "ntp", label: "NTP", has: p.ntp.length > 0 },
+  const COLL_GROUPS = [
+    {
+      name: "Routing",
+      items: [
+        { path: "routing.defaultGateway", label: "Default gateway → default route", has: !!p.defaultGateway },
+        { path: "routing.allStatic", label: "Static routes", has: p.staticRoutes.length > 0 },
+        { path: "routing.protocols", label: "Routing protocols", has: p.protocols.length > 0 },
+        { path: "vrf", label: "VRFs", has: p.vrfs.length > 0 },
+      ],
+    },
+    {
+      name: "Switching",
+      items: [
+        { path: "stp", label: "Spanning-tree", has: !!p.spanningTree.mode },
+        { path: "dhcp", label: "DHCP scopes", has: p.dhcpPools.length > 0 },
+      ],
+    },
+    {
+      name: "Management",
+      items: [
+        { path: "snmp", label: "SNMP", has: p.snmp.length > 0 },
+        { path: "tacacs", label: "TACACS+", has: p.tacacs.length > 0 },
+        { path: "logging", label: "Logging", has: p.logging.length > 0 },
+        { path: "ntp", label: "NTP", has: p.ntp.length > 0 },
+      ],
+    },
   ];
-  const collHtml = COLL.map(
-    (c) =>
-      `<label class="checkbox coll-item"><input type="checkbox" class="coll-cb" data-path="${c.path}"${getPath(d, c.path) ? " checked" : ""} />` +
-      `<span>${escapeHtml(c.label)}${c.has ? "" : ' <span class="muted small">(none found)</span>'}</span></label>`
+  const collHtml = COLL_GROUPS.map(
+    (g) =>
+      `<div class="coll-group"><h4 class="coll-group-head">${g.name}</h4><div class="coll-grid">` +
+      g.items
+        .map(
+          (c) =>
+            `<label class="checkbox coll-item"><input type="checkbox" class="coll-cb" data-path="${c.path}"${getPath(d, c.path) ? " checked" : ""} />` +
+            `<span>${escapeHtml(c.label)}${c.has ? "" : ' <span class="muted small">(none found)</span>'}</span></label>`
+        )
+        .join("") +
+      `</div></div>`
   ).join("");
 
   const missing = unit.findings.filter((f) => f.status === "missing");
@@ -996,7 +1018,7 @@ function renderUnit(unit) {
     // Routing & services subsection
     `<details class="unit-sub"><summary class="unit-sub-head"><strong>Routing &amp; services</strong></summary>` +
     `<p class="muted small sub-desc">Pre-ticked with what this device actually has — untick anything you don't want carried across.</p>` +
-    `<div class="coll-grid">${collHtml}</div></details>` +
+    `<div class="coll-groups">${collHtml}</div></details>` +
     // Hardening subsection
     `<details class="harden-section"><summary class="harden-head">` +
     `<strong>Hardening</strong> <span class="muted small">${pass} pass · ${missing.length} missing</span>` +
