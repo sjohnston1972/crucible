@@ -22,6 +22,8 @@ import {
   buildStpHardening,
   buildErrdisable,
   buildBanner,
+  applyInterfaceMap,
+  detectInterfaceMapConflicts,
 } from "./lib/template.js";
 import { redactForAI } from "./lib/redact.js";
 import { buildZip } from "./lib/zip.js";
@@ -226,6 +228,7 @@ function defaultDeviceCfg(p) {
   return {
     interfacesAll: { enabled: false, mode: "full" },
     ifaceSel: new Map(), // normName -> { checked, mode }
+    ifaceMap: new Map(), // normName -> { target, transform: "routed"|"svi", vlan }
     routing: {
       defaultGateway: !!p.defaultGateway,
       allStatic: p.staticRoutes.length > 0,
@@ -246,12 +249,41 @@ function deviceCfg(unit) {
   return state.deviceCfg.get(unit.id);
 }
 
+/** Translate per-interface selections through the device's ifaceMap so the slot
+ * lookup matches the transformed parsed; SVI selections fan out to the access
+ * port + the synthesized Vlan SVI. */
+function mappedSelections(selected, ifaceMap) {
+  if (!ifaceMap || ifaceMap.size === 0) return selected;
+  const out = [];
+  const seen = new Set();
+  const push = (name, mode) => {
+    const k = name + "::" + mode;
+    if (!seen.has(k)) { seen.add(k); out.push({ name, mode }); }
+  };
+  for (const sel of selected) {
+    const m = ifaceMap.get(sel.name);
+    if (!m || !m.target || !m.target.trim()) { push(sel.name, sel.mode); continue; }
+    const target = normalizeInterfaceName(m.target.trim());
+    if (target === sel.name) { push(sel.name, sel.mode); continue; }
+    if (m.transform === "svi" && m.vlan) {
+      push(target, "full");
+      push(normalizeInterfaceName("Vlan" + m.vlan), "full");
+    } else {
+      push(target, sel.mode);
+    }
+  }
+  return out;
+}
+
 /** Build a buildBlocks/buildTagMap config for one device from its per-device state + globals. */
 function unitConfig(unit, global) {
   const d = deviceCfg(unit);
   const interfaces = d.interfacesAll.enabled
     ? []
-    : [...d.ifaceSel.entries()].filter(([, v]) => v.checked).map(([name, v]) => ({ name, mode: v.mode }));
+    : mappedSelections(
+        [...d.ifaceSel.entries()].filter(([, v]) => v.checked).map(([name, v]) => ({ name, mode: v.mode })),
+        d.ifaceMap
+      );
   return {
     interfacesAll: d.interfacesAll,
     interfaces,
@@ -581,6 +613,15 @@ function rebuildUnits() {
       state.units.push(makeUnit(site, pf.parsed, [{ name: pf.name, text: pf.parsed.text }]));
     }
   }
+
+  // Interface-map conflicts for any device whose mapping persisted from a prior build.
+  for (const unit of state.units) {
+    const d = deviceCfg(unit);
+    if (!d.ifaceMap.size) continue;
+    const selTargets = new Set([...d.ifaceSel.entries()].filter(([, v]) => v.checked).map(([n]) => n));
+    detectInterfaceMapConflicts(unit.parsed, d.ifaceMap, { label: unit.id, selectedTargets: selTargets })
+      .forEach((w) => warnings.push(w.message));
+  }
   renderWarnings(warnings);
 
   // STP vlan union across the scan (for root election rewrites)
@@ -852,6 +893,19 @@ async function onSave() {
 
   for (const unit of state.units) {
     const ucfg = unitConfig(unit, global);
+    const dcfg = deviceCfg(unit);
+
+    // Interface-map conflicts: hard ones block this unit, soft ones just warn.
+    const selTargets = new Set(
+      [...dcfg.ifaceSel.entries()].filter(([, v]) => v.checked).map(([n]) => n)
+    );
+    const mapConflicts = detectInterfaceMapConflicts(unit.parsed, dcfg.ifaceMap, {
+      label: unit.id,
+      selectedTargets: selTargets,
+    });
+    mapConflicts.forEach((w) => allWarnings.push(w.message));
+    if (mapConflicts.some((w) => w.hard)) continue; // skip writing this unit
+
     const elected = state.rootBySite.get(unit.site.path) || null;
     const changingRoot = !!elected && elected !== siteCurrentRoot.get(unit.site.path);
     // Electing a root implies STP must be emitted for that site's switches.
@@ -867,7 +921,8 @@ async function onSave() {
     const applied = unit.findings.filter((f) => f.apply);
     const hardenLines = remediationLines(applied);
 
-    const slots = buildBlocks(ucfg, unit.parsed, {
+    const tparsed = applyInterfaceMap(unit.parsed, dcfg.ifaceMap);
+    const slots = buildBlocks(ucfg, tparsed, {
       stpRole,
       stpVlans: state.stpVlans,
       hardenLines,
@@ -1076,6 +1131,49 @@ function renderUnit(unit, currentRootId = null) {
       `</div></div>`
   ).join("");
 
+  // Interface mapping subsection markup (between Interfaces and Routing & services).
+  const siblingPorts = [
+    ...new Set(
+      state.units
+        .filter((u) => u.site.path === unit.site.path && u.id !== unit.id)
+        .flatMap((u) => (u.parsed.interfaces || []).map((f) => f.normName))
+    ),
+  ].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const knownVlans = [
+    ...new Set((p.interfaces || []).map((f) => (f.normName.match(/^Vlan(\d+)$/i) || [])[1]).filter(Boolean)),
+  ];
+  const dlId = `ports-${unit.id}`;
+  const vlId = `vlans-${unit.id}`;
+  const mappedCount = ifaces.filter((f) => (d.ifaceMap.get(f.normName)?.target || "").trim()).length;
+  const ifmapRows = ifaces
+    .map((f) => {
+      const m = d.ifaceMap.get(f.normName) || { target: "", transform: "routed", vlan: "" };
+      const isSvi = m.transform === "svi";
+      const grp = `ifmode-${unit.id}-${f.normName}`;
+      return (
+        `<div class="ifmap-row" data-name="${escapeHtml(f.normName)}">` +
+        `<span class="ifmap-src">${escapeHtml(f.normName)}</span><span class="ifmap-arrow">→</span>` +
+        `<input class="ifmap-target" list="${dlId}" placeholder="(keep name)" value="${escapeHtml(m.target || "")}" />` +
+        `<label class="ifmap-mode"><input type="radio" name="${escapeHtml(grp)}" value="routed"${isSvi ? "" : " checked"} /> routed</label>` +
+        `<label class="ifmap-mode"><input type="radio" name="${escapeHtml(grp)}" value="svi"${isSvi ? " checked" : ""} /> SVI</label>` +
+        `<input class="ifmap-vlan${isSvi ? "" : " hidden"}" placeholder="VLAN" list="${vlId}" value="${escapeHtml(m.vlan || "")}" />` +
+        `</div>`
+      );
+    })
+    .join("");
+  const ifmapHtml =
+    `<details class="unit-sub"><summary class="unit-sub-head"><strong>Interface mapping</strong> ` +
+    `<span class="muted small">${mappedCount} remapped</span></summary>` +
+    `<p class="muted small sub-desc">Remap each source interface to target hardware. Leave the target blank to keep the interface unchanged. Hover a source interface name to view its current config.</p>` +
+    `<ul class="ifmap-help muted small">` +
+    `<li><strong>Routed</strong> — the target box is the interface's new name. The interface is renamed to that port and its config is carried across <em>verbatim</em>; any existing port of that name on this device is <em>replaced</em> by it.</li>` +
+    `<li><strong>SVI</strong> — the target box is the physical port to convert. That port becomes a <code>switchport access vlan&nbsp;X</code> member, and the interface's IP config is moved onto <code>interface Vlan&nbsp;X</code> (X = the VLAN ID you enter).</li>` +
+    `</ul>` +
+    `<div class="ifmap-rows">${ifmapRows}</div>` +
+    `<datalist id="${dlId}">${siblingPorts.map((n) => `<option value="${escapeHtml(n)}">`).join("")}</datalist>` +
+    `<datalist id="${vlId}">${knownVlans.map((n) => `<option value="${escapeHtml(n)}">`).join("")}</datalist>` +
+    `</details>`;
+
   const missing = unit.findings.filter((f) => f.status === "missing");
   const pass = unit.findings.filter((f) => f.status === "pass").length;
 
@@ -1096,6 +1194,8 @@ function renderUnit(unit, currentRootId = null) {
     `<select class="d-ifall-mode"><option value="full"${d.interfacesAll.mode !== "ip" ? " selected" : ""}>All data</option><option value="ip"${d.interfacesAll.mode === "ip" ? " selected" : ""}>IP only</option></select>` +
     `<button class="btn btn-small btn-ghost d-selectall" type="button">Select all</button></summary>` +
     `<div class="disc-grid"></div></details>` +
+    // Interface mapping subsection
+    ifmapHtml +
     // Routing & services subsection
     `<details class="unit-sub"><summary class="unit-sub-head"><strong>Routing &amp; services</strong></summary>` +
     `<p class="muted small sub-desc">Pre-ticked with what this device actually has — untick anything you don't want carried across.</p>` +
@@ -1147,6 +1247,39 @@ function renderUnit(unit, currentRootId = null) {
   card.querySelectorAll(".if-all-inline, .d-ifall-mode").forEach((el) =>
     el.addEventListener("click", (e) => e.stopPropagation())
   );
+
+  // --- interface mapping ---
+  const ifmapCount = card.querySelector(".unit-sub .ifmap-rows")?.closest(".unit-sub")?.querySelector(".unit-sub-head .muted");
+  const refreshMapCount = () => {
+    if (!ifmapCount) return;
+    const n = [...d.ifaceMap.values()].filter((m) => (m.target || "").trim()).length;
+    ifmapCount.textContent = `${n} remapped`;
+  };
+  card.querySelectorAll(".ifmap-row").forEach((row) => {
+    const name = row.dataset.name;
+    // Rich hover: reuse the interface-config tooltip (populated by buildIfaceTile).
+    const tipKey = `${unit.id}::${name}`;
+    const srcEl = row.querySelector(".ifmap-src");
+    srcEl.addEventListener("mouseenter", () => showIfaceTip(tipKey, srcEl));
+    srcEl.addEventListener("mouseleave", hideIfaceTip);
+    const get = () => d.ifaceMap.get(name) || { target: "", transform: "routed", vlan: "" };
+    const set = (patch) => {
+      d.ifaceMap.set(name, { ...get(), ...patch });
+      refreshMapCount();
+      refreshTagMap();
+    };
+    const targetIn = row.querySelector(".ifmap-target");
+    const vlanIn = row.querySelector(".ifmap-vlan");
+    targetIn.addEventListener("input", () => set({ target: targetIn.value }));
+    vlanIn.addEventListener("input", () => set({ vlan: vlanIn.value }));
+    row.querySelectorAll("input[type=radio]").forEach((r) =>
+      r.addEventListener("change", () => {
+        const svi = row.querySelector("input[value=svi]").checked;
+        vlanIn.classList.toggle("hidden", !svi);
+        set({ transform: svi ? "svi" : "routed" });
+      })
+    );
+  });
 
   // --- routing & services ---
   card.querySelectorAll(".coll-cb").forEach((cb) =>
