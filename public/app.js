@@ -1253,6 +1253,11 @@ function renderUnit(unit, currentRootId = null) {
   };
   card.querySelectorAll(".ifmap-row").forEach((row) => {
     const name = row.dataset.name;
+    // Rich hover: reuse the interface-config tooltip (populated by buildIfaceTile).
+    const tipKey = `${unit.id}::${name}`;
+    const srcEl = row.querySelector(".ifmap-src");
+    srcEl.addEventListener("mouseenter", () => showIfaceTip(tipKey, srcEl));
+    srcEl.addEventListener("mouseleave", hideIfaceTip);
     const get = () => d.ifaceMap.get(name) || { target: "", transform: "routed", vlan: "" };
     const set = (patch) => {
       d.ifaceMap.set(name, { ...get(), ...patch });

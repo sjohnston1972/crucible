@@ -569,7 +569,11 @@ code {
   display: grid; grid-template-columns: minmax(120px, 1fr) auto minmax(140px, 1.4fr) auto auto auto;
   gap: 0.5rem; align-items: center; font-size: 0.86rem;
 }
-.ifmap-src { font-family: var(--font-mono, monospace); }
+.ifmap-src {
+  font-family: var(--font-mono, monospace); cursor: help;
+  text-decoration: underline dotted; text-underline-offset: 3px; text-decoration-color: var(--border);
+}
+.ifmap-src:hover { text-decoration-color: var(--accent); }
 .ifmap-arrow { opacity: 0.55; }
 .ifmap-target, .ifmap-vlan { font: inherit; padding: 0.15rem 0.35rem; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: inherit; }
 .ifmap-vlan { max-width: 5.5rem; }
