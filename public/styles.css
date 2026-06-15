@@ -564,6 +564,16 @@ code {
 .coll-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.35rem 1rem; }
 .coll-item { font-size: 0.86rem; }
 .unit-sub .sub-desc { margin: 0.6rem 0.85rem 0; }
+.ifmap-rows { padding: 0.2rem 0.85rem 0.7rem; display: flex; flex-direction: column; gap: 0.3rem; }
+.ifmap-row {
+  display: grid; grid-template-columns: minmax(120px, 1fr) auto minmax(140px, 1.4fr) auto auto auto;
+  gap: 0.5rem; align-items: center; font-size: 0.86rem;
+}
+.ifmap-src { font-family: var(--font-mono, monospace); }
+.ifmap-arrow { opacity: 0.55; }
+.ifmap-target, .ifmap-vlan { font: inherit; padding: 0.15rem 0.35rem; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: inherit; }
+.ifmap-vlan { max-width: 5.5rem; }
+.ifmap-mode { font-size: 0.78rem; white-space: nowrap; }
 .feat-pills { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.5rem 0 0.2rem; }
 .feat-pill {
   font-size: 0.68rem; font-weight: 600; padding: 0.12rem 0.5rem; border-radius: 999px;

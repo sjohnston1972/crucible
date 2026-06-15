@@ -1131,6 +1131,45 @@ function renderUnit(unit, currentRootId = null) {
       `</div></div>`
   ).join("");
 
+  // Interface mapping subsection markup (between Interfaces and Routing & services).
+  const siblingPorts = [
+    ...new Set(
+      state.units
+        .filter((u) => u.site.path === unit.site.path && u.id !== unit.id)
+        .flatMap((u) => (u.parsed.interfaces || []).map((f) => f.normName))
+    ),
+  ].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const knownVlans = [
+    ...new Set((p.interfaces || []).map((f) => (f.normName.match(/^Vlan(\d+)$/i) || [])[1]).filter(Boolean)),
+  ];
+  const dlId = `ports-${unit.id}`;
+  const vlId = `vlans-${unit.id}`;
+  const mappedCount = ifaces.filter((f) => (d.ifaceMap.get(f.normName)?.target || "").trim()).length;
+  const ifmapRows = ifaces
+    .map((f) => {
+      const m = d.ifaceMap.get(f.normName) || { target: "", transform: "routed", vlan: "" };
+      const isSvi = m.transform === "svi";
+      const grp = `ifmode-${unit.id}-${f.normName}`;
+      return (
+        `<div class="ifmap-row" data-name="${escapeHtml(f.normName)}">` +
+        `<span class="ifmap-src">${escapeHtml(f.normName)}</span><span class="ifmap-arrow">→</span>` +
+        `<input class="ifmap-target" list="${dlId}" placeholder="(keep name)" value="${escapeHtml(m.target || "")}" />` +
+        `<label class="ifmap-mode"><input type="radio" name="${escapeHtml(grp)}" value="routed"${isSvi ? "" : " checked"} /> routed</label>` +
+        `<label class="ifmap-mode"><input type="radio" name="${escapeHtml(grp)}" value="svi"${isSvi ? " checked" : ""} /> SVI</label>` +
+        `<input class="ifmap-vlan${isSvi ? "" : " hidden"}" placeholder="VLAN" list="${vlId}" value="${escapeHtml(m.vlan || "")}" />` +
+        `</div>`
+      );
+    })
+    .join("");
+  const ifmapHtml =
+    `<details class="unit-sub"><summary class="unit-sub-head"><strong>Interface mapping</strong> ` +
+    `<span class="muted small">${mappedCount} remapped</span></summary>` +
+    `<p class="muted small sub-desc">Remap a source interface to a target hardware port. Blank = keep. A mapped target replaces any colliding port on this device.</p>` +
+    `<div class="ifmap-rows">${ifmapRows}</div>` +
+    `<datalist id="${dlId}">${siblingPorts.map((n) => `<option value="${escapeHtml(n)}">`).join("")}</datalist>` +
+    `<datalist id="${vlId}">${knownVlans.map((n) => `<option value="${escapeHtml(n)}">`).join("")}</datalist>` +
+    `</details>`;
+
   const missing = unit.findings.filter((f) => f.status === "missing");
   const pass = unit.findings.filter((f) => f.status === "pass").length;
 
@@ -1151,6 +1190,8 @@ function renderUnit(unit, currentRootId = null) {
     `<select class="d-ifall-mode"><option value="full"${d.interfacesAll.mode !== "ip" ? " selected" : ""}>All data</option><option value="ip"${d.interfacesAll.mode === "ip" ? " selected" : ""}>IP only</option></select>` +
     `<button class="btn btn-small btn-ghost d-selectall" type="button">Select all</button></summary>` +
     `<div class="disc-grid"></div></details>` +
+    // Interface mapping subsection
+    ifmapHtml +
     // Routing & services subsection
     `<details class="unit-sub"><summary class="unit-sub-head"><strong>Routing &amp; services</strong></summary>` +
     `<p class="muted small sub-desc">Pre-ticked with what this device actually has — untick anything you don't want carried across.</p>` +
@@ -1202,6 +1243,34 @@ function renderUnit(unit, currentRootId = null) {
   card.querySelectorAll(".if-all-inline, .d-ifall-mode").forEach((el) =>
     el.addEventListener("click", (e) => e.stopPropagation())
   );
+
+  // --- interface mapping ---
+  const ifmapCount = card.querySelector(".unit-sub .ifmap-rows")?.closest(".unit-sub")?.querySelector(".unit-sub-head .muted");
+  const refreshMapCount = () => {
+    if (!ifmapCount) return;
+    const n = [...d.ifaceMap.values()].filter((m) => (m.target || "").trim()).length;
+    ifmapCount.textContent = `${n} remapped`;
+  };
+  card.querySelectorAll(".ifmap-row").forEach((row) => {
+    const name = row.dataset.name;
+    const get = () => d.ifaceMap.get(name) || { target: "", transform: "routed", vlan: "" };
+    const set = (patch) => {
+      d.ifaceMap.set(name, { ...get(), ...patch });
+      refreshMapCount();
+      refreshTagMap();
+    };
+    const targetIn = row.querySelector(".ifmap-target");
+    const vlanIn = row.querySelector(".ifmap-vlan");
+    targetIn.addEventListener("input", () => set({ target: targetIn.value }));
+    vlanIn.addEventListener("input", () => set({ vlan: vlanIn.value }));
+    row.querySelectorAll("input[type=radio]").forEach((r) =>
+      r.addEventListener("change", () => {
+        const svi = row.querySelector("input[value=svi]").checked;
+        vlanIn.classList.toggle("hidden", !svi);
+        set({ transform: svi ? "svi" : "routed" });
+      })
+    );
+  });
 
   // --- routing & services ---
   card.querySelectorAll(".coll-cb").forEach((cb) =>
