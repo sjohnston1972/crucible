@@ -395,3 +395,120 @@ export function applyHostname(content, hostname) {
 function escapeRegex(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+
+// --------------------------------------------------------- interface remap
+
+function renameIface(f, target) {
+  const block = f.block.slice();
+  if (block.length) block[0] = "interface " + target;
+  return { ...f, name: target, normName: target, block, text: block.join("\n") };
+}
+
+function makeSyntheticIface(name, block) {
+  const ipAddresses = block.filter((l) => /^\s*ip address\s/.test(l)).map((l) => l.trim());
+  return {
+    name, normName: name, block, text: block.join("\n"),
+    description: null, shutdown: false, vrf: null,
+    ipAddresses, hasIp: ipAddresses.length > 0,
+    switchportLines: block.filter((l) => /^\s*switchport\b/.test(l)).map((l) => l.trim()),
+    stpLines: [], helperAddresses: [], channelGroup: null,
+  };
+}
+
+/**
+ * Apply a per-device interface remap, returning a transformed CLONE of parsed.
+ * map: Map(srcNormName -> { target, transform: "routed"|"svi", vlan }).
+ * Empty target / self-map entries are no-ops. The input parsed is never mutated.
+ */
+export function applyInterfaceMap(parsed, map) {
+  if (!map || map.size === 0) return parsed;
+
+  const remap = new Map(); // srcNormName -> { target, transform, vlan }
+  for (const [normName, m] of map) {
+    if (!m || !m.target || !m.target.trim()) continue;
+    const target = normalizeInterfaceName(m.target.trim());
+    if (target === normName) continue;
+    remap.set(normName, { transform: m.transform || "routed", vlan: m.vlan, target });
+  }
+  if (remap.size === 0) return parsed;
+
+  const suppressed = new Set([...remap.values()].map((m) => m.target));
+  // VLAN interface names that SVI transforms will populate.
+  const sviVlanNames = new Set(
+    [...remap.values()]
+      .filter((m) => m.transform === "svi" && m.vlan)
+      .map((m) => normalizeInterfaceName("Vlan" + m.vlan))
+  );
+
+  const out = [];
+  const svis = new Map(); // vlanName -> SVI iface (cloned existing or synthesized)
+
+  // Seed SVI bases from existing Vlan interfaces so we merge into them rather than duplicate.
+  for (const f of parsed.interfaces || []) {
+    if (sviVlanNames.has(f.normName) && !remap.has(f.normName)) {
+      svis.set(f.normName, { ...f, block: f.block.slice(), ipAddresses: f.ipAddresses.slice() });
+    }
+  }
+
+  for (const f of parsed.interfaces || []) {
+    if (sviVlanNames.has(f.normName) && !remap.has(f.normName)) continue; // consumed as an SVI base
+    const m = remap.get(f.normName);
+    if (!m) {
+      if (!suppressed.has(f.normName)) out.push(f); // dropped if replaced by a mapped source
+      continue;
+    }
+    if (m.transform === "svi" && m.vlan) {
+      const vlanName = normalizeInterfaceName("Vlan" + m.vlan);
+      const l3 = f.ipAddresses.slice();
+      const svi = svis.get(vlanName);
+      if (svi) {
+        svi.block.push(...l3.map((l) => " " + l));
+        svi.ipAddresses.push(...l3);
+        svi.hasIp = svi.hasIp || l3.length > 0;
+        svi.text = svi.block.join("\n");
+      } else {
+        svis.set(vlanName, makeSyntheticIface(vlanName, ["interface " + vlanName, ...l3.map((l) => " " + l)]));
+      }
+      out.push(makeSyntheticIface(m.target, [
+        "interface " + m.target, " switchport mode access", " switchport access vlan " + m.vlan,
+      ]));
+    } else {
+      out.push(renameIface(f, m.target));
+    }
+  }
+  return { ...parsed, interfaces: [...out, ...svis.values()] };
+}
+
+/**
+ * Validate an interface remap. Returns [{ hard, message }].
+ * hard = blocks generation; soft = informational warning.
+ * opts.label: device label for messages.
+ * opts.selectedTargets: Set of target normNames the user ticked for collection.
+ */
+export function detectInterfaceMapConflicts(parsed, map, opts = {}) {
+  const warnings = [];
+  if (!map || map.size === 0) return warnings;
+  const label = opts.label || "device";
+  const selected = opts.selectedTargets instanceof Set ? opts.selectedTargets : new Set();
+
+  const byTarget = new Map(); // target -> [srcNormName]
+  for (const [normName, m] of map) {
+    if (!m || !m.target || !m.target.trim()) continue;
+    const target = normalizeInterfaceName(m.target.trim());
+    if (target === normName) continue;
+    if (m.transform === "svi" && (m.vlan == null || !String(m.vlan).trim())) {
+      warnings.push({ hard: true, message: `${label}: ${normName} mapped as SVI but no VLAN given — set a VLAN.` });
+    }
+    if (!byTarget.has(target)) byTarget.set(target, []);
+    byTarget.get(target).push(normName);
+  }
+
+  for (const [target, sources] of byTarget) {
+    if (sources.length > 1) {
+      warnings.push({ hard: true, message: `${label}: ${sources.join(" and ")} both map to ${target} — pick distinct targets.` });
+    } else if (selected.has(target) && (parsed.interfaces || []).some((f) => f.normName === target)) {
+      warnings.push({ hard: false, message: `${label}: ${target} config replaced by mapped ${sources[0]}.` });
+    }
+  }
+  return warnings;
+}

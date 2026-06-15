@@ -18,6 +18,8 @@ import {
   buildStpHardening,
   buildErrdisable,
   buildBanner,
+  applyInterfaceMap,
+  detectInterfaceMapConflicts,
 } from "../public/lib/template.js";
 
 const CFG = {
@@ -271,4 +273,92 @@ test("computeOutput: no rename → hostname.txt", () => {
 test("applyHostname rewrites the hostname line", () => {
   const c = applyHostname("hostname OLD\ninterface Vlan1\n", "NEW");
   assert.ok(c.startsWith("hostname NEW"));
+});
+
+// ----------------------------------------------------------- interface remap
+
+const TWO_IFACES = parse(`hostname X
+interface GigabitEthernet0/0/1
+ ip address 10.0.0.1 255.255.255.0
+!
+interface GigabitEthernet1/0/24
+ description LAN
+ switchport mode trunk`);
+
+test("applyInterfaceMap renames a routed interface verbatim", () => {
+  const map = new Map([["GigabitEthernet0/0/1", { target: "Gi1/0/24", transform: "routed", vlan: null }]]);
+  const out = applyInterfaceMap(TWO_IFACES, map);
+  const names = out.interfaces.map((f) => f.normName);
+  assert.deepEqual(names, ["GigabitEthernet1/0/24"]);
+  const renamed = out.interfaces.find((f) => f.normName === "GigabitEthernet1/0/24");
+  assert.equal(renamed.block[0], "interface GigabitEthernet1/0/24");
+  assert.ok(renamed.ipAddresses.some((l) => l.includes("10.0.0.1")));
+});
+
+test("applyInterfaceMap is a no-op for empty/self/blank maps and never mutates input", () => {
+  const before = TWO_IFACES.interfaces.length;
+  assert.equal(applyInterfaceMap(TWO_IFACES, new Map()), TWO_IFACES);
+  const selfMap = new Map([["GigabitEthernet0/0/1", { target: "Gi0/0/1", transform: "routed", vlan: null }]]);
+  assert.equal(applyInterfaceMap(TWO_IFACES, selfMap), TWO_IFACES);
+  assert.equal(TWO_IFACES.interfaces.length, before);
+});
+
+test("applyInterfaceMap SVI moves L3 onto a synthesized Vlan SVI and switchports the port", () => {
+  const map = new Map([["GigabitEthernet0/0/1", { target: "Gi1/0/24", transform: "svi", vlan: "60" }]]);
+  const out = applyInterfaceMap(TWO_IFACES, map);
+  const svi = out.interfaces.find((f) => f.normName === "Vlan60");
+  assert.ok(svi, "SVI created");
+  assert.ok(svi.ipAddresses.some((l) => l.includes("10.0.0.1")));
+  const port = out.interfaces.find((f) => f.normName === "GigabitEthernet1/0/24");
+  assert.ok(port.block.some((l) => l.includes("switchport access vlan 60")));
+});
+
+test("applyInterfaceMap SVI merges into an existing Vlan interface", () => {
+  const src = parse(`hostname X
+interface GigabitEthernet0/0/1
+ ip address 10.0.0.1 255.255.255.0
+!
+interface Vlan60
+ ip address 10.0.60.1 255.255.255.0`);
+  const map = new Map([["GigabitEthernet0/0/1", { target: "Gi1/0/24", transform: "svi", vlan: "60" }]]);
+  const out = applyInterfaceMap(src, map);
+  const svis = out.interfaces.filter((f) => f.normName === "Vlan60");
+  assert.equal(svis.length, 1, "merged, not duplicated");
+  assert.ok(svis[0].ipAddresses.some((l) => l.includes("10.0.0.1")));
+  assert.ok(svis[0].ipAddresses.some((l) => l.includes("10.0.60.1")));
+});
+
+test("detectInterfaceMapConflicts flags duplicate targets and missing SVI vlan", () => {
+  const parsed = parse("hostname X");
+  const map = new Map([
+    ["GigabitEthernet0/0/1", { target: "Gi1/0/24", transform: "routed", vlan: null }],
+    ["GigabitEthernet0/0/2", { target: "Gi1/0/24", transform: "routed", vlan: null }],
+    ["GigabitEthernet0/0/3", { target: "Gi1/0/48", transform: "svi", vlan: "" }],
+  ]);
+  const w = detectInterfaceMapConflicts(parsed, map, { label: "R1" });
+  assert.ok(w.some((x) => x.hard && /both map to GigabitEthernet1\/0\/24/.test(x.message)));
+  assert.ok(w.some((x) => x.hard && /SVI but no VLAN/.test(x.message)));
+});
+
+test("detectInterfaceMapConflicts soft-warns when a mapped target overwrites a selected sibling", () => {
+  const parsed = parse(`hostname X
+interface GigabitEthernet1/0/24
+ switchport mode trunk`);
+  const map = new Map([["GigabitEthernet0/0/1", { target: "Gi1/0/24", transform: "routed", vlan: null }]]);
+  const sel = new Set(["GigabitEthernet1/0/24"]);
+  const w = detectInterfaceMapConflicts(parsed, map, { label: "R1", selectedTargets: sel });
+  assert.ok(w.some((x) => !x.hard && /replaced by mapped GigabitEthernet0\/0\/1/.test(x.message)));
+});
+
+test("buildBlocks emits the renamed interface from a transformed parsed", () => {
+  const src = parse(`hostname X
+interface GigabitEthernet0/0/1
+ ip address 10.0.0.1 255.255.255.0`);
+  const map = new Map([["GigabitEthernet0/0/1", { target: "Gi1/0/24", transform: "routed", vlan: null }]]);
+  const tp = applyInterfaceMap(src, map);
+  const cfg = { interfacesAll: { enabled: true, mode: "full" } };
+  const slots = buildBlocks(cfg, tp);
+  const all = slots.flatMap((s) => s.lines).join("\n");
+  assert.ok(all.includes("interface GigabitEthernet1/0/24"));
+  assert.ok(!all.includes("interface GigabitEthernet0/0/1"));
 });
