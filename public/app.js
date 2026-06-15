@@ -1164,7 +1164,11 @@ function renderUnit(unit, currentRootId = null) {
   const ifmapHtml =
     `<details class="unit-sub"><summary class="unit-sub-head"><strong>Interface mapping</strong> ` +
     `<span class="muted small">${mappedCount} remapped</span></summary>` +
-    `<p class="muted small sub-desc">Remap a source interface to a target hardware port. Blank = keep. A mapped target replaces any colliding port on this device.</p>` +
+    `<p class="muted small sub-desc">Remap each source interface to target hardware. Leave the target blank to keep the interface unchanged. Hover a source interface name to view its current config.</p>` +
+    `<ul class="ifmap-help muted small">` +
+    `<li><strong>Routed</strong> — the target box is the interface's new name. The interface is renamed to that port and its config is carried across <em>verbatim</em>; any existing port of that name on this device is <em>replaced</em> by it.</li>` +
+    `<li><strong>SVI</strong> — the target box is the physical port to convert. That port becomes a <code>switchport access vlan&nbsp;X</code> member, and the interface's IP config is moved onto <code>interface Vlan&nbsp;X</code> (X = the VLAN ID you enter).</li>` +
+    `</ul>` +
     `<div class="ifmap-rows">${ifmapRows}</div>` +
     `<datalist id="${dlId}">${siblingPorts.map((n) => `<option value="${escapeHtml(n)}">`).join("")}</datalist>` +
     `<datalist id="${vlId}">${knownVlans.map((n) => `<option value="${escapeHtml(n)}">`).join("")}</datalist>` +
