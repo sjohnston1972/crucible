@@ -22,6 +22,8 @@ import {
   buildStpHardening,
   buildErrdisable,
   buildBanner,
+  applyInterfaceMap,
+  detectInterfaceMapConflicts,
 } from "./lib/template.js";
 import { redactForAI } from "./lib/redact.js";
 import { buildZip } from "./lib/zip.js";
@@ -226,6 +228,7 @@ function defaultDeviceCfg(p) {
   return {
     interfacesAll: { enabled: false, mode: "full" },
     ifaceSel: new Map(), // normName -> { checked, mode }
+    ifaceMap: new Map(), // normName -> { target, transform: "routed"|"svi", vlan }
     routing: {
       defaultGateway: !!p.defaultGateway,
       allStatic: p.staticRoutes.length > 0,
@@ -246,12 +249,41 @@ function deviceCfg(unit) {
   return state.deviceCfg.get(unit.id);
 }
 
+/** Translate per-interface selections through the device's ifaceMap so the slot
+ * lookup matches the transformed parsed; SVI selections fan out to the access
+ * port + the synthesized Vlan SVI. */
+function mappedSelections(selected, ifaceMap) {
+  if (!ifaceMap || ifaceMap.size === 0) return selected;
+  const out = [];
+  const seen = new Set();
+  const push = (name, mode) => {
+    const k = name + "::" + mode;
+    if (!seen.has(k)) { seen.add(k); out.push({ name, mode }); }
+  };
+  for (const sel of selected) {
+    const m = ifaceMap.get(sel.name);
+    if (!m || !m.target || !m.target.trim()) { push(sel.name, sel.mode); continue; }
+    const target = normalizeInterfaceName(m.target.trim());
+    if (target === sel.name) { push(sel.name, sel.mode); continue; }
+    if (m.transform === "svi" && m.vlan) {
+      push(target, "full");
+      push(normalizeInterfaceName("Vlan" + m.vlan), "full");
+    } else {
+      push(target, sel.mode);
+    }
+  }
+  return out;
+}
+
 /** Build a buildBlocks/buildTagMap config for one device from its per-device state + globals. */
 function unitConfig(unit, global) {
   const d = deviceCfg(unit);
   const interfaces = d.interfacesAll.enabled
     ? []
-    : [...d.ifaceSel.entries()].filter(([, v]) => v.checked).map(([name, v]) => ({ name, mode: v.mode }));
+    : mappedSelections(
+        [...d.ifaceSel.entries()].filter(([, v]) => v.checked).map(([name, v]) => ({ name, mode: v.mode })),
+        d.ifaceMap
+      );
   return {
     interfacesAll: d.interfacesAll,
     interfaces,
@@ -581,6 +613,15 @@ function rebuildUnits() {
       state.units.push(makeUnit(site, pf.parsed, [{ name: pf.name, text: pf.parsed.text }]));
     }
   }
+
+  // Interface-map conflicts for any device whose mapping persisted from a prior build.
+  for (const unit of state.units) {
+    const d = deviceCfg(unit);
+    if (!d.ifaceMap.size) continue;
+    const selTargets = new Set([...d.ifaceSel.entries()].filter(([, v]) => v.checked).map(([n]) => n));
+    detectInterfaceMapConflicts(unit.parsed, d.ifaceMap, { label: unit.id, selectedTargets: selTargets })
+      .forEach((w) => warnings.push(w.message));
+  }
   renderWarnings(warnings);
 
   // STP vlan union across the scan (for root election rewrites)
@@ -852,6 +893,19 @@ async function onSave() {
 
   for (const unit of state.units) {
     const ucfg = unitConfig(unit, global);
+    const dcfg = deviceCfg(unit);
+
+    // Interface-map conflicts: hard ones block this unit, soft ones just warn.
+    const selTargets = new Set(
+      [...dcfg.ifaceSel.entries()].filter(([, v]) => v.checked).map(([n]) => n)
+    );
+    const mapConflicts = detectInterfaceMapConflicts(unit.parsed, dcfg.ifaceMap, {
+      label: unit.id,
+      selectedTargets: selTargets,
+    });
+    mapConflicts.forEach((w) => allWarnings.push(w.message));
+    if (mapConflicts.some((w) => w.hard)) continue; // skip writing this unit
+
     const elected = state.rootBySite.get(unit.site.path) || null;
     const changingRoot = !!elected && elected !== siteCurrentRoot.get(unit.site.path);
     // Electing a root implies STP must be emitted for that site's switches.
@@ -867,7 +921,8 @@ async function onSave() {
     const applied = unit.findings.filter((f) => f.apply);
     const hardenLines = remediationLines(applied);
 
-    const slots = buildBlocks(ucfg, unit.parsed, {
+    const tparsed = applyInterfaceMap(unit.parsed, dcfg.ifaceMap);
+    const slots = buildBlocks(ucfg, tparsed, {
       stpRole,
       stpVlans: state.stpVlans,
       hardenLines,
