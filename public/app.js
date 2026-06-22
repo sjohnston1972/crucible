@@ -64,6 +64,9 @@ function detectMode() {
   if (state.mode === "primary") {
     badge.dataset.mode = "primary";
     badge.textContent = "Read/Write mode";
+    // Chrome's File System Access API silently omits some extensions (e.g. .cfg)
+    // from directory enumeration. Offer the classic uploader as an escape hatch.
+    $("btn-browse-compat").classList.remove("hidden");
   } else {
     badge.dataset.mode = "fallback";
     badge.textContent = "Read-only (fallback)";
@@ -1557,6 +1560,7 @@ function init() {
     if (e.key === "Escape" && !$("cfg-modal").classList.contains("hidden")) closeConfigModal();
   });
   $("btn-browse").addEventListener("click", onBrowse);
+  $("btn-browse-compat").addEventListener("click", () => $("fallback-input").click());
   $("fallback-input").addEventListener("change", onFallbackPicked);
   $("btn-template").addEventListener("click", onChooseTemplateFSA);
   $("template-input").addEventListener("change", onTemplatePicked);
