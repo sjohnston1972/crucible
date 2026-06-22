@@ -59,82 +59,29 @@ const $ = (id) => document.getElementById(id);
 // ----------------------------------------------------------------- mode detect
 
 function detectMode() {
-  // state.mode stays "primary" when the File System Access API exists so the
-  // opt-in in-place-save path can still write via handles. But the DEFAULT
-  // browse action uses the classic uploader, because Chrome's File System
-  // Access API silently omits some extensions (e.g. .cfg) from enumeration.
-  state.mode = "showDirectoryPicker" in window ? "primary" : "fallback";
+  // One mode for every browser: read the chosen folder via the classic uploader
+  // and deliver generated configs as a .zip download. We deliberately avoid the
+  // File System Access API (showDirectoryPicker) because Chrome silently omits
+  // some extensions (e.g. .cfg) from its directory enumeration.
+  state.mode = "fallback";
   const badge = $("mode-badge");
   badge.dataset.mode = "fallback";
   badge.textContent = "Read-only · saves .zip";
   $("fallback-note").classList.remove("hidden");
-  // Only browsers with the File System Access API can offer in-place save.
-  if (state.mode === "primary") $("btn-browse-rw").classList.remove("hidden");
 }
 
 // ----------------------------------------------------------------- discovery
 
-async function onBrowse() {
-  // Default for every browser: the classic uploader, which (unlike Chrome's
-  // File System Access API) surfaces .cfg files. In-place save is opt-in below.
+function onBrowse() {
   $("fallback-input").click();
-}
-
-async function browsePrimary() {
-  let handle;
-  try {
-    handle = await window.showDirectoryPicker({ mode: "readwrite" });
-  } catch (err) {
-    if (err && err.name === "AbortError") return;
-    return reportError(err);
-  }
-  state.rootHandle = handle;
-  // In-place save chosen: reflect read/write capability for this session.
-  $("mode-badge").dataset.mode = "primary";
-  $("mode-badge").textContent = "Read/Write mode";
-  $("fallback-note").classList.add("hidden");
-  $("folder-name").textContent = handle.name;
-  $("sites-summary").textContent = "Scanning folders…";
-  try {
-    state.sites = await discoverSitesFSA(handle, handle.name);
-    renderSites();
-  } catch (err) {
-    reportError(err);
-  }
 }
 
 function onFallbackPicked(event) {
   const files = Array.from(event.target.files || []);
   if (!files.length) return;
-  // Compatibility path: no write handle, so outputs are zipped. Reset the badge
-  // in case in-place save was used earlier this session.
-  state.rootHandle = null;
-  $("mode-badge").dataset.mode = "fallback";
-  $("mode-badge").textContent = "Read-only · saves .zip";
-  $("fallback-note").classList.remove("hidden");
   $("folder-name").textContent = files[0].webkitRelativePath.split("/")[0] || "(folder)";
   state.sites = discoverSitesFromFileList(files);
   renderSites();
-}
-
-async function discoverSitesFSA(dirHandle, path) {
-  const sites = [];
-  const files = [];
-  const subdirs = [];
-  for await (const [name, child] of dirHandle.entries()) {
-    if (child.kind === "file") {
-      if (isConfigFile(name)) files.push({ name, handle: child });
-    } else if (child.kind === "directory") subdirs.push([name, child]);
-  }
-  if (files.length) {
-    files.sort((a, b) => a.name.localeCompare(b.name));
-    sites.push({ path, name: dirHandle.name, dirHandle, files });
-  }
-  subdirs.sort((a, b) => a[0].localeCompare(b[0]));
-  for (const [name, child] of subdirs) {
-    sites.push(...(await discoverSitesFSA(child, `${path}/${name}`)));
-  }
-  return sites;
 }
 
 function discoverSitesFromFileList(files) {
@@ -1005,38 +952,11 @@ async function onSave() {
   $("run-status").textContent = `Saved ${state.units.filter((u) => u.output).length} file(s).`;
 }
 
-async function writeOutput(unit, filename, content, zipFiles) {
-  if (state.mode === "primary" && unit.site.dirHandle) {
-    const dir = unit.site.dirHandle;
-    const finalName = await uniqueName(dir, filename);
-    const fh = await dir.getFileHandle(finalName, { create: true });
-    const writable = await fh.createWritable();
-    await writable.write(content);
-    await writable.close();
-    return finalName;
-  }
-  // fallback: queue for the zip, mirroring the site sub-folder
+function writeOutput(unit, filename, content, zipFiles) {
+  // Queue for the zip, mirroring the site sub-folder.
   const path = `${unit.site.path}/${filename}`.replace(/^[^/]*\//, ""); // drop master root segment
   zipFiles.push({ path, content });
   return filename;
-}
-
-async function uniqueName(dir, filename) {
-  const dot = filename.lastIndexOf(".");
-  const base = dot > 0 ? filename.slice(0, dot) : filename;
-  const ext = dot > 0 ? filename.slice(dot) : "";
-  let candidate = filename;
-  let n = 1;
-  // getFileHandle without create throws NotFoundError when the name is free.
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    try {
-      await dir.getFileHandle(candidate, { create: false });
-      candidate = `${base}_${n++}${ext}`; // taken → try next
-    } catch {
-      return candidate; // free
-    }
-  }
 }
 
 function downloadZip(bytes, name) {
@@ -1569,7 +1489,6 @@ function init() {
     if (e.key === "Escape" && !$("cfg-modal").classList.contains("hidden")) closeConfigModal();
   });
   $("btn-browse").addEventListener("click", onBrowse);
-  $("btn-browse-rw").addEventListener("click", browsePrimary);
   $("fallback-input").addEventListener("change", onFallbackPicked);
   $("btn-template").addEventListener("click", onChooseTemplateFSA);
   $("template-input").addEventListener("change", onTemplatePicked);
