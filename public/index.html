@@ -37,15 +37,16 @@
       </div>
       <div class="actions">
         <button id="btn-browse" class="btn btn-primary" type="button">Browse folder…</button>
-        <button id="btn-browse-compat" class="btn hidden" type="button" title="Use this if some files (e.g. .cfg) are missing — reads the folder via the classic uploader, which isn’t affected by Chrome’s File System Access filtering.">Browse (compatibility)</button>
+        <button id="btn-browse-rw" class="btn btn-ghost hidden" type="button" title="In-place save: writes generated configs back into your folder using Chrome's File System Access API. Note: that API can silently skip .cfg files — use the main “Browse folder…” button if your configs are .cfg.">Browse for in‑place save…</button>
         <button id="btn-sample" class="btn" type="button">Load sample data</button>
         <button id="btn-clear" class="btn btn-ghost" type="button">Clear all</button>
         <input id="fallback-input" type="file" webkitdirectory directory multiple hidden />
         <span id="folder-name" class="folder-name muted"></span>
       </div>
       <p id="fallback-note" class="fallback-note hidden">
-        Read-only mode: this browser can’t write files in place, so outputs are delivered as a
-        downloadable <code>.zip</code> instead.
+        Crucible reads your folder without modifying it — generated configs are delivered as a
+        downloadable <code>.zip</code>. (This is the default because Chrome’s File System Access
+        API silently skips some file types, including <code>.cfg</code>.)
       </p>
     </section>
 

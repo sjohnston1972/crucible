@@ -59,26 +59,25 @@ const $ = (id) => document.getElementById(id);
 // ----------------------------------------------------------------- mode detect
 
 function detectMode() {
+  // state.mode stays "primary" when the File System Access API exists so the
+  // opt-in in-place-save path can still write via handles. But the DEFAULT
+  // browse action uses the classic uploader, because Chrome's File System
+  // Access API silently omits some extensions (e.g. .cfg) from enumeration.
   state.mode = "showDirectoryPicker" in window ? "primary" : "fallback";
   const badge = $("mode-badge");
-  if (state.mode === "primary") {
-    badge.dataset.mode = "primary";
-    badge.textContent = "Read/Write mode";
-    // Chrome's File System Access API silently omits some extensions (e.g. .cfg)
-    // from directory enumeration. Offer the classic uploader as an escape hatch.
-    $("btn-browse-compat").classList.remove("hidden");
-  } else {
-    badge.dataset.mode = "fallback";
-    badge.textContent = "Read-only (fallback)";
-    $("fallback-note").classList.remove("hidden");
-  }
+  badge.dataset.mode = "fallback";
+  badge.textContent = "Read-only · saves .zip";
+  $("fallback-note").classList.remove("hidden");
+  // Only browsers with the File System Access API can offer in-place save.
+  if (state.mode === "primary") $("btn-browse-rw").classList.remove("hidden");
 }
 
 // ----------------------------------------------------------------- discovery
 
 async function onBrowse() {
-  if (state.mode === "primary") await browsePrimary();
-  else $("fallback-input").click();
+  // Default for every browser: the classic uploader, which (unlike Chrome's
+  // File System Access API) surfaces .cfg files. In-place save is opt-in below.
+  $("fallback-input").click();
 }
 
 async function browsePrimary() {
@@ -90,6 +89,10 @@ async function browsePrimary() {
     return reportError(err);
   }
   state.rootHandle = handle;
+  // In-place save chosen: reflect read/write capability for this session.
+  $("mode-badge").dataset.mode = "primary";
+  $("mode-badge").textContent = "Read/Write mode";
+  $("fallback-note").classList.add("hidden");
   $("folder-name").textContent = handle.name;
   $("sites-summary").textContent = "Scanning folders…";
   try {
@@ -103,6 +106,12 @@ async function browsePrimary() {
 function onFallbackPicked(event) {
   const files = Array.from(event.target.files || []);
   if (!files.length) return;
+  // Compatibility path: no write handle, so outputs are zipped. Reset the badge
+  // in case in-place save was used earlier this session.
+  state.rootHandle = null;
+  $("mode-badge").dataset.mode = "fallback";
+  $("mode-badge").textContent = "Read-only · saves .zip";
+  $("fallback-note").classList.remove("hidden");
   $("folder-name").textContent = files[0].webkitRelativePath.split("/")[0] || "(folder)";
   state.sites = discoverSitesFromFileList(files);
   renderSites();
@@ -1560,7 +1569,7 @@ function init() {
     if (e.key === "Escape" && !$("cfg-modal").classList.contains("hidden")) closeConfigModal();
   });
   $("btn-browse").addEventListener("click", onBrowse);
-  $("btn-browse-compat").addEventListener("click", () => $("fallback-input").click());
+  $("btn-browse-rw").addEventListener("click", browsePrimary);
   $("fallback-input").addEventListener("change", onFallbackPicked);
   $("btn-template").addEventListener("click", onChooseTemplateFSA);
   $("template-input").addEventListener("change", onTemplatePicked);
