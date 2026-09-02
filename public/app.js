@@ -1,7 +1,7 @@
 /* Crucible — client orchestration.
  *
  * Discovery → collection form → live tag map → analyze (parse + audit) →
- * STP root election + hardening review → save (build template + write-back/zip).
+ * STP root election + hardening review → save (build template + .zip download).
  *
  * Local files never leave the browser. Only a redacted digest is sent to
  * /api/harden for advisory AI review.
@@ -42,9 +42,7 @@ function interfacePo(f) {
 }
 
 const state = {
-  mode: null, // 'primary' | 'fallback'
-  rootHandle: null,
-  sites: [], // { path, name, dirHandle?, files: [...], parsedFiles: [{ name, entry, parsed }] }
+  sites: [], // { path, name, files: [...], parsedFiles: [{ name, entry, parsed }] }
   mergeSel: new Map(), // sitePath -> Set(fileName) committed to merge into one template
   mergeName: new Map(), // sitePath -> custom hostname for the merged device
   units: [], // built output units
@@ -56,14 +54,14 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 
-// ----------------------------------------------------------------- mode detect
+// ----------------------------------------------------------------- mode badge
 
-function detectMode() {
+function initModeBadge() {
   // One mode for every browser: read the chosen folder via the classic uploader
   // and deliver generated configs as a .zip download. We deliberately avoid the
   // File System Access API (showDirectoryPicker) because Chrome silently omits
-  // some extensions (e.g. .cfg) from its directory enumeration.
-  state.mode = "fallback";
+  // some extensions (e.g. .cfg) from its directory enumeration, so there is no
+  // read/write "primary" mode — this is the only mode.
   const badge = $("mode-badge");
   badge.dataset.mode = "fallback";
   badge.textContent = "Read-only · saves .zip";
@@ -404,7 +402,6 @@ async function loadSampleData() {
       }
       sites.push({ path: site.path, name: site.path, files });
     }
-    state.rootHandle = null;
     state.mergeSel = new Map();
     state.sites = sites;
     $("folder-name").textContent = `Sample data · ${sites.length} sites`;
@@ -415,7 +412,6 @@ async function loadSampleData() {
 }
 
 function clearAll() {
-  state.rootHandle = null;
   state.sites = [];
   state.mergeSel = new Map();
   state.mergeName = new Map();
@@ -1468,7 +1464,7 @@ function reportError(err) {
 // ----------------------------------------------------------------- init
 
 function init() {
-  detectMode();
+  initModeBadge();
   try {
     applyTheme(localStorage.getItem("crucible-theme") || "light");
   } catch {
