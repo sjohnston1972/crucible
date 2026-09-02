@@ -79,8 +79,8 @@ const HARDEN_TOOL = {
 
 // --------------------------------------------------------------------------
 // Abuse controls for /api/harden. This is the Worker's only dynamic route —
-// every accepted POST bills the project owner's Anthropic account — so the
-// checks below run and can reject BEFORE we ever touch the network or
+// every accepted POST bills the project owner's Anthropic account — so all
+// four checks below run and can reject BEFORE we ever touch the network or
 // construct an Anthropic client. Every check fails CLOSED: missing/malformed
 // input is rejected, never silently allowed through.
 //
@@ -91,6 +91,15 @@ const HARDEN_TOOL = {
 // hosting, so it is intentionally left open to anonymous traffic; there is
 // nothing there to rate-limit or gate behind an origin check.
 // --------------------------------------------------------------------------
+
+// Reject request bodies above this size before we even look at them.
+const MAX_BODY_BYTES = 32 * 1024; // 32 KB
+
+// Independent cap on the JSON-stringified `summary` field itself, so a
+// payload that squeaks under MAX_BODY_BYTES on the wire (e.g. thanks to a
+// spoofed/absent Content-Length) still can't inflate the prompt token count
+// once re-serialized into the Anthropic request.
+const MAX_SUMMARY_JSON_BYTES = 16 * 1024; // 16 KB
 
 // Per-IP fixed-window rate limit.
 //
@@ -154,6 +163,14 @@ function isAllowedOrigin(request, url, env) {
   return allowed.has(origin);
 }
 
+function isPlainObject(value) {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function byteLength(str) {
+  return new TextEncoder().encode(str).length;
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -163,8 +180,9 @@ export default {
         return json({ error: "Method not allowed" }, 405);
       }
 
-      // Origin check and rate limit both run here — before handleHarden
-      // ever reads the body or constructs an Anthropic client.
+      // Origin check, rate limit, and a cheap Content-Length pre-check all
+      // run here — before handleHarden ever reads the body or constructs an
+      // Anthropic client.
       if (!isAllowedOrigin(request, url, env)) {
         return json({ error: "Forbidden" }, 403);
       }
@@ -172,6 +190,11 @@ export default {
       const ip = request.headers.get("cf-connecting-ip") || "unknown";
       if (!checkRateLimit(ip)) {
         return json({ error: "Too many requests" }, 429);
+      }
+
+      const declaredLength = Number(request.headers.get("content-length") || "0");
+      if (Number.isFinite(declaredLength) && declaredLength > MAX_BODY_BYTES) {
+        return json({ error: "Payload too large" }, 413);
       }
 
       return handleHarden(request, env);
@@ -186,17 +209,44 @@ export default {
  * POST /api/harden
  * Request:  { hostname, summary }   (summary is a redacted structural digest)
  * Response: { findings: [{ title, severity, rationale, suggestedConfig }], notes }
+ *
+ * `deps.AnthropicCtor` lets tests inject a fake Anthropic client to assert
+ * whether (and how many times) messages.create was invoked, without making
+ * a real network call. Production code (the default export above) never
+ * passes it, so the real @anthropic-ai/sdk is used as-is.
  */
-async function handleHarden(request, env) {
+export async function handleHarden(request, env, deps = {}) {
+  const AnthropicCtor = deps.AnthropicCtor || Anthropic;
+
+  // Content-Length can be absent or wrong (chunked transfer, a lying
+  // client), so re-check the size of what we actually received — this is
+  // defence-in-depth alongside the Content-Length pre-check in fetch().
+  let rawText;
+  try {
+    rawText = await request.text();
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400);
+  }
+  if (byteLength(rawText) > MAX_BODY_BYTES) {
+    return json({ error: "Payload too large" }, 413);
+  }
+
   let body;
   try {
-    body = await request.json();
+    body = JSON.parse(rawText);
   } catch {
     return json({ error: "Invalid JSON body" }, 400);
   }
 
   if (!body || typeof body.hostname !== "string") {
     return json({ error: "Expected { hostname, summary }" }, 400);
+  }
+
+  if (!isPlainObject(body.summary)) {
+    return json({ error: "Expected summary to be an object" }, 400);
+  }
+  if (byteLength(JSON.stringify(body.summary)) > MAX_SUMMARY_JSON_BYTES) {
+    return json({ error: "summary too large" }, 400);
   }
 
   // Degrade gracefully when the AI is not configured — the rule-based audit
@@ -210,7 +260,7 @@ async function handleHarden(request, env) {
     });
   }
 
-  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  const client = new AnthropicCtor({ apiKey: env.ANTHROPIC_API_KEY });
 
   try {
     const message = await client.messages.create({

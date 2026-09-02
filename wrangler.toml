@@ -34,3 +34,7 @@ binding = "ASSETS"
 #   That is a best-effort approximation PER WORKER ISOLATE, not a global
 #   limit across edge locations — see the comment above checkRateLimit() in
 #   src/index.js. Add a Rate Limiting binding here for a real global limit.
+# - Body-size cap + summary validation: MAX_BODY_BYTES (32 KB request body)
+#   and MAX_SUMMARY_JSON_BYTES (16 KB re-serialized `summary`) in
+#   src/index.js reject oversized/malformed payloads with 413/400 before
+#   any Anthropic call.
