@@ -61,6 +61,22 @@ const RESPONSE_SCHEMA = {
   required: ["findings", "notes"],
 };
 
+// Structured output via `output_config.format` (JSON-schema-constrained response) is only
+// supported on Claude Fable 5, Fable 5.1, Mythos 5/5.1, Opus 5, Opus 4.8, Sonnet 5, Haiku 4.5,
+// and legacy Opus 4.5/4.1 — NOT on claude-sonnet-4-6 (the model used here). Forced tool use is
+// supported on every current tool-use-capable model, including claude-sonnet-4-6, so we get a
+// schema-shaped result by defining a single tool with `RESPONSE_SCHEMA` as its `input_schema`,
+// marking it `strict: true` (schema-valid arguments guaranteed), and forcing `tool_choice` to
+// call it. This sidesteps the model/feature mismatch entirely rather than requiring a specific
+// model.
+const HARDEN_TOOL_NAME = "report_hardening_findings";
+const HARDEN_TOOL = {
+  name: HARDEN_TOOL_NAME,
+  description: "Report the advisory hardening findings for the reviewed Cisco IOS device config.",
+  input_schema: RESPONSE_SCHEMA,
+  strict: true,
+};
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -112,7 +128,8 @@ async function handleHarden(request, env) {
       model: MODEL,
       max_tokens: 2000,
       system: SYSTEM_PROMPT,
-      output_config: { format: { type: "json_schema", schema: RESPONSE_SCHEMA } },
+      tools: [HARDEN_TOOL],
+      tool_choice: { type: "tool", name: HARDEN_TOOL_NAME },
       messages: [
         {
           role: "user",
@@ -125,6 +142,7 @@ async function handleHarden(request, env) {
 
     const parsed = parseModelJson(message);
     if (!parsed) {
+      console.error("harden: model response had no usable tool_use/parsed_output/text JSON", JSON.stringify(message?.content));
       return json({
         findings: [],
         notes: "AI returned an unparseable response; rule-based audit is unaffected.",
@@ -132,7 +150,9 @@ async function handleHarden(request, env) {
     }
     return json(normalizeResult(parsed));
   } catch (err) {
-    // Never fail the request — the client falls back to the rule-based audit.
+    // Log the real cause server-side so a broken request shape is visible in Worker logs —
+    // the client-facing response below stays a graceful "unavailable" note either way.
+    console.error("harden: Anthropic API call failed:", err && err.message ? err.message : err);
     return json({
       findings: [],
       notes: `AI review unavailable (${err && err.message ? err.message : "error"}). Rule-based audit is unaffected.`,
@@ -140,9 +160,19 @@ async function handleHarden(request, env) {
   }
 }
 
-/** Pull text out of the message content and JSON.parse defensively. */
+/**
+ * Extract the findings/notes object from the model response. Tries, in order:
+ * 1. The forced tool_use block's `input` (the normal path — already a parsed object).
+ * 2. `message.parsed_output`, populated only by the `messages.parse()` helper (not `create()`);
+ *    kept as defence in depth in case a future call path uses structured outputs instead.
+ * 3. A JSON object extracted from the response text, tolerating stray prose around it.
+ */
 function parseModelJson(message) {
-  if (message && message.parsed_output) return message.parsed_output; // structured-output fast path
+  const toolUse = (message?.content || []).find((b) => b.type === "tool_use" && b.name === HARDEN_TOOL_NAME);
+  if (toolUse && toolUse.input && typeof toolUse.input === "object") return toolUse.input;
+
+  if (message && message.parsed_output) return message.parsed_output;
+
   const text = (message?.content || [])
     .filter((b) => b.type === "text")
     .map((b) => b.text)
@@ -184,3 +214,7 @@ function json(data, status = 200) {
     headers: { "content-type": "application/json; charset=utf-8" },
   });
 }
+
+// Exported for unit tests (test/harden.test.js) — both functions are pure and don't need a
+// live Worker/API to exercise.
+export { parseModelJson, normalizeResult, HARDEN_TOOL_NAME, RESPONSE_SCHEMA };
