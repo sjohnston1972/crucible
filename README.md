@@ -3,8 +3,8 @@
 A form-driven web tool that migrates Cisco IOS site configs (e.g. router + switch → Layer 3
 switch) into target-device templates. It discovers source configs in a chosen folder, extracts
 selected interface / routing / VRF / spanning-tree / DHCP data, inserts it into a template,
-audits the source against a hardening baseline, and writes the populated template back beside the
-source.
+audits the source against a hardening baseline, and delivers the populated templates as a
+downloadable `.zip` (mirroring the source site folders).
 
 See [`spec.md`](./spec.md) for the full specification and the confirmed design decisions (§12).
 
@@ -16,7 +16,7 @@ I/O and config parsing happen **in the browser**.
 | Layer | Responsibility |
 |---|---|
 | **Worker** (`src/index.js`) | Serves `./public` static assets; hosts `POST /api/harden` which calls the Anthropic API (`claude-sonnet-4-6`) for advisory hardening commentary. Holds `ANTHROPIC_API_KEY` as a secret. |
-| **Browser** (`public/`) | Folder picking (File System Access API, with a Firefox/Safari upload+zip fallback), Cisco IOS parsing, rule-based hardening, template building, write-back. |
+| **Browser** (`public/`) | Folder picking (read-only `<input webkitdirectory>` upload), Cisco IOS parsing, rule-based hardening, template building, `.zip` output. |
 
 ### Client modules (`public/lib/`)
 - `parser.js` — indentation-aware Cisco IOS parser (interfaces, routing, VRF, STP, DHCP, hostname).
@@ -33,8 +33,10 @@ npm run dev      # wrangler dev — open the printed localhost URL in Chrome/Edg
 npm test         # node --test — parser, hardening, template, redaction, zip, end-to-end
 ```
 
-The folder picker (read/write mode) needs Chromium-based Chrome or Edge. Other browsers fall back
-to read-only upload + `.zip` download automatically.
+Folder picking works the same way in every browser: a read-only `<input webkitdirectory>` upload.
+Crucible deliberately does not use the File System Access API (`showDirectoryPicker`) — Chrome
+silently omits some extensions (e.g. `.cfg`) from its directory enumeration, which would make
+discovery unreliable. Generated configs always download as a `.zip`.
 
 ### Local AI review (optional)
 Create `.dev.vars` (git-ignored) with `ANTHROPIC_API_KEY=sk-ant-...` to exercise `/api/harden`
@@ -62,7 +64,7 @@ npm run deploy
 3. **Analyze sites** → per-site results: parsed counts, hardening findings (tick to apply), AI
    review button. Pick the **spanning-tree root** for the scan if STP is collected.
 4. **Save outputs** → builds each template (applying ticked hardening + the elected STP root) and
-   writes it back beside the source (or into a downloaded `.zip` in fallback mode).
+   downloads a `.zip` containing them, mirroring the source site folders.
 
 ## Source control — read before committing
 

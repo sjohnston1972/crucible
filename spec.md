@@ -27,13 +27,26 @@ A Cloudflare Worker runs on Cloudflare's edge and **cannot read or write the use
 | Layer | Responsibility |
 |---|---|
 | **Cloudflare Worker** | Serves the static GUI (HTML/JS/CSS). Hosts a single backend endpoint (`/api/harden`) that calls the Anthropic API for AI-assisted hardening commentary. Holds the Anthropic API key as a Worker **secret** (`ANTHROPIC_API_KEY`) so it is never exposed to the browser. |
-| **Browser (client)** | All local file I/O via the **File System Access API** (`showDirectoryPicker`, directory traversal, read, write-back). All config parsing. All rule-based hardening checks. Renders the form and results. |
+| **Browser (client)** | All local file I/O via a **read-only folder upload** (`<input type="file" webkitdirectory>`), read, in-memory template build, `.zip` output. All config parsing. All rule-based hardening checks. Renders the form and results. |
 
-### Browser support / fallback
+### Browser support (implemented — one mode for every browser)
+Crucible uses a single, read-only folder-upload mode (`<input type="file" webkitdirectory>`) in
+every browser, processes everything in memory, and lets the user **download a `.zip`** containing
+the populated templates (a dependency-free client-side zip writer — see `public/lib/zip.js`).
+There is deliberately **no** File System Access API (`showDirectoryPicker` / write-back) mode: an
+earlier design considered it (see the original draft below and §12.7), but Chrome silently omits
+some extensions (e.g. `.cfg`) from its directory enumeration under that API, which would make
+discovery unreliable. No in-place write is possible; this is made visible in the UI via the mode
+badge and save-bar hint.
+
+<details>
+<summary>Original draft (superseded — kept for history; see §12.7)</summary>
+
 - **Primary mode (Chrome / Edge):** File System Access API. User picks the master folder once, grants read/write, tool reads subfolders and writes outputs in place.
 - **Fallback mode (Firefox / Safari / unsupported):** Read-only folder upload via `<input type="file" webkitdirectory>`, process in memory, and let the user **download a `.zip`** containing the populated templates (built client-side with JSZip). No in-place write is possible in this mode — make this clearly visible in the UI.
 
 Detect support at load with `'showDirectoryPicker' in window` and switch modes automatically.
+</details>
 
 ### Tech stack
 - Frontend: plain HTML + vanilla JS (or a light framework if Claude Code prefers; keep it a single deployable bundle). Tailwind optional.
@@ -49,7 +62,7 @@ Detect support at load with `'showDirectoryPicker' in window` and switch modes a
 3. User configures the collection form (sections 4.2–4.7 below) once; it applies to every site.
 4. User browses to / selects the **template file**.
 5. User picks **insertion mode** (tag-based or direct) and **output naming** rules.
-6. User clicks **Run**. For each site the tool: parses source(s) → extracts tagged data → runs hardening audit → builds the populated template → writes/saves it back to that subfolder (or queues it for the zip).
+6. User clicks **Run**. For each site the tool: parses source(s) → extracts tagged data → runs hardening audit → builds the populated template → queues it into the `.zip`, under a path mirroring that subfolder.
 7. A per-site results panel shows: hostname found, items extracted, hardening findings, and the output filename written.
 
 ---
@@ -57,7 +70,7 @@ Detect support at load with `'showDirectoryPicker' in window` and switch modes a
 ## 4. GUI specification (form, top to bottom)
 
 ### 4.1 Master folder
-- **Browse** button → `showDirectoryPicker({ mode: 'readwrite' })` (primary) or folder upload (fallback).
+- **Browse** button → folder upload (`<input type="file" webkitdirectory>`), read-only.
 - After selection, list discovered sites (subfolders) and the config files found in each.
 - Recurse all levels; a subfolder qualifies if it directly contains ≥1 `.cfg`/`.txt` file.
 - **File types:** sources are always plain text — only `.txt` and `.cfg` are discovered and parsed (§12.1). No `.doc`/`.docx` handling.
@@ -136,7 +149,7 @@ Checkboxes (any combination):
   - **Find / replace** (e.g. find `RT1`, replace `sw1` → `abccorp_RT1` becomes `abccorp_sw1`), or
   - **Suffix swap** (e.g. role token `RT` → `SW`).
 - The chosen name is used for **both** the output **filename** and the template's own `hostname` line by default (§12.4). A checkbox can decouple them if needed, but both are the default.
-- Output is written into the **same subfolder** as the source (primary mode) or added to the zip (fallback).
+- Output is added to the `.zip` under a path mirroring the source subfolder.
 - Collision handling: if the filename already exists, append a numeric suffix and warn.
 
 ---
@@ -218,7 +231,7 @@ Keep this list in a single data structure so it is easy to extend. The AI endpoi
 2. Apply ticked hardening snippets.
 3. Optionally rewrite the `hostname` line.
 4. Determine filename from hostname (+ rename transform) and extension.
-5. **Primary:** get/create the file handle in the source subfolder's directory handle and write via `createWritable()`. **Fallback:** add the file to the zip under a path mirroring the subfolder.
+5. Add the file to the `.zip` under a path mirroring the source subfolder.
 6. Record result in the per-site panel.
 
 ---
@@ -227,12 +240,12 @@ Keep this list in a single data structure so it is easy to extend. The AI endpoi
 
 ```
 Site {
-  dirHandle, name,
+  name,
   sourceFiles: [{ name, role, text, parsed }],
   parsed: { hostname, interfaces[], staticRoutes[], defaultGateway,
             protocols[], vrfs[], spanningTree, dhcpPools[], excludedAddresses[] },
   hardening: [{ id, status, severity, remediation, apply: bool }],
-  output: { filename, content, written: bool }
+  output: { filename, content, zipped: bool }
 }
 spanningTree {
   mode,                      // pvst | rapid-pvst | mst
@@ -260,7 +273,7 @@ CollectionConfig {
 - Site file count mismatch → flag and allow skip/proceed.
 - STP root: user elects the root switch for the scan; tool amends templates so the chosen switch is the sole root and others stand down (§4.6, §12.6). Conflicting/overlapping MST instance-to-VLAN mappings across merged sources → flag for manual decision, do not auto-merge.
 - Tag in template with no data → remove line + warn (default).
-- File write denied (permission revoked) → re-prompt `requestPermission`.
+- Per-file build failure → record a warning for that unit and continue with the rest of the run (§12.7 — there is no filesystem permission model to re-prompt, since output is a `.zip` download, not an in-place write).
 - Worker/AI failure → degrade gracefully; rule-based audit still works offline.
 - Never transmit secrets/hashes to the Worker.
 
@@ -272,7 +285,7 @@ CollectionConfig {
 2. **Parser:** Cisco IOS interface/routing/VRF/spanning-tree/DHCP/hostname extraction with unit tests on sample configs.
 3. **Form + tag map:** all collection sections, live tag-map preview.
 4. **Template engine:** tag-based and direct insertion; output naming + rename.
-5. **Write-back:** in-place write (primary) + zip fallback.
+5. **Write-back:** `.zip` output (see §12.7 — in-place write-back was considered and dropped).
 6. **Hardening:** rule-based checks + results UI + apply-to-template.
 7. **AI endpoint:** Worker `/api/harden`, redaction, JSON parsing, UI wiring.
 8. **Polish:** mismatch handling, warnings, per-site results, fallback-mode messaging.
@@ -287,4 +300,5 @@ Recommend a few realistic sample configs (a router, a switch with spanning-tree/
 3. **Output extension: `.txt`** (fixed, regardless of template extension).
 4. **Rename rewrites both.** When the rename transform is applied, update **both** the output filename **and** the in-config `hostname` line by default.
 5. **Cisco IOS only** for now. No NX-OS / IOS-XE handling.
+6. **No in-place write-back.** The File System Access API (`showDirectoryPicker` read/write "primary" mode) described earlier in this document was considered but **dropped**: Chrome silently omits some extensions (e.g. `.cfg`) from its directory enumeration under that API, which would make site/file discovery unreliable. Crucible uses a single read-only folder-upload mode (`<input type="file" webkitdirectory>`) in every browser and always delivers output as a downloadable `.zip` (see §2 "Browser support"). Treat every "primary mode" / "write-back" reference elsewhere in this document as historical context, superseded by this decision.
 6. **User-elected spanning-tree root.** Rather than only flagging conflicts: let the user choose **which switch in the current scan is the spanning-tree root**. The tool then amends the templates so that the chosen switch has the correct config to become the **sole root** for that network (set its priority/root-primary appropriately) and the non-root switches are adjusted so they do not contest the root role. Overlapping/conflicting MST instance-to-VLAN mappings across sources are still surfaced for manual decision.
