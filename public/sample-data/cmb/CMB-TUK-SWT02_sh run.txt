@@ -19,15 +19,15 @@ boot-start-marker
 boot-end-marker
 !
 logging buffered 8192
-enable secret 5 $1$TUZb$7ZcETtqzMcPLWDAGVs6ZA1
+enable secret 5 <redacted>
 !
-username douglasj privilege 15 secret 5 $1$Hv2U$C7ulVMJaqOtssXF/EZRHR0
-username gibbs privilege 15 secret 5 $1$rPpa$jU02URoz2MpntEfvsBLCN1
-username cattools privilege 15 secret 5 $1$GVVR$mpbWmVtJpnle/oFxY8mEm/
-username cityadmin secret 5 $1$qckG$oe7U2QrZC0yhJmkR812Am1
-username ping privilege 15 secret 5 $1$.f/M$LPC.BJcwoSib8rQi8fO7L/
-username crosbiet privilege 15 secret 5 $1$fINk$asoV2vaMtQ1rIUoU6KtV5.
-username svc_nessus privilege 15 secret 5 $1$AsdG$DJfiNbDakA0GG5pMKAu2G.
+username douglasj privilege 15 secret 5 <redacted>
+username gibbs privilege 15 secret 5 <redacted>
+username cattools privilege 15 secret 5 <redacted>
+username cityadmin secret 5 <redacted>
+username ping privilege 15 secret 5 <redacted>
+username crosbiet privilege 15 secret 5 <redacted>
+username svc_nessus privilege 15 secret 5 <redacted>
 no aaa new-model
 clock summer-time GMT+1 recurring last Sun Mar 1:00 last Sun Oct 2:00
 switch 1 provision ws-c3750x-24p
@@ -143,25 +143,7 @@ crypto pki trustpoint TP-self-signed-1969151744
 !
 crypto pki certificate chain TP-self-signed-1969151744
  certificate self-signed 01
-  30820246 308201AF A0030201 02020101 300D0609 2A864886 F70D0101 04050030
-  31312F30 2D060355 04031326 494F532D 53656C66 2D536967 6E65642D 43657274
-  69666963 6174652D 31393639 31353137 3434301E 170D3130 31303139 31343430
-  33385A17 0D323030 31303130 30303030 305A3031 312F302D 06035504 03132649
-  4F532D53 656C662D 5369676E 65642D43 65727469 66696361 74652D31 39363931
-  35313734 3430819F 300D0609 2A864886 F70D0101 01050003 818D0030 81890281
-  8100B9EA 15F6BDBA 7156D373 2459125E CB884231 D84FE12D 49B3E62A 213541EE
-  3BA4C870 0F478139 4B178693 64108818 203A9206 40D64273 D654BE2C 6DF9C3F7
-  BA67626B 2542F7A9 536FFECA 57F51AE6 D761CA0F D44D2AFB 2B881F46 372D4D98
-  801C5BE3 9D03173A 6218CC57 E852AD58 E15A01C4 0B2C7317 7DD55DE6 21BE6980
-  752D0203 010001A3 6E306C30 0F060355 1D130101 FF040530 030101FF 30190603
-  551D1104 12301082 0E434D42 2D54554B 2D535754 30322E30 1F060355 1D230418
-  30168014 2940F0F1 2CB87E5F 7A9F467B 888B08E8 DE20D698 301D0603 551D0E04
-  16041429 40F0F12C B87E5F7A 9F467B88 8B08E8DE 20D69830 0D06092A 864886F7
-  0D010104 05000381 810053BD FCFCD276 DF6A4818 D77296DA 71019E5E F579DFFA
-  3CB94E2F 8DBBDEC7 66A1F147 1F85050D 703FC1D2 A59B5C33 0A0DDE16 28BF1C3E
-  CA6EFD3C 30282C1A B4157053 D385CDE0 DF005C9F 599E8FDE 8DF5AA6F 2DD0B5FF
-  AB2E53E7 8C3BEB9E CD3280F4 BBAE540F 32C32FD0 B84E50A9 18A941B7 0B2BB423
-  E8AC7E7C E3203CC3 2B77
+  <redacted-cert-data>
         quit
 license boot level ipbase switch 2
 license boot level ipbase switch 1
@@ -2002,32 +1984,32 @@ ip sla schedule 1 life forever start-time now
 ip sla enable reaction-alerts
 logging host 10.11.1.92
 !
-snmp-server community c1tyn3tw0rks RO
-snmp-server community p0ll1ng@c1ty RO
+snmp-server community <redacted> RO
+snmp-server community <redacted> RO
 snmp-server trap link ietf
 snmp-server trap-source Loopback0
 snmp-server location CTEC in Clydesmill Industrial Estate
 snmp-server enable traps snmp authentication linkdown linkup coldstart warmstart
 snmp-server enable traps tty
 snmp-server enable traps cpu threshold
-snmp-server host 10.11.3.21 c1tyn3tw0rks
+snmp-server host 10.11.3.21 <redacted>
 !
 line con 0
  exec-timeout 15 0
- password 7 111A0C0B041A5A0257
+ password 7 <redacted>
  logging synchronous
  login local
 line vty 0 4
  exec-timeout 15 0
  privilege level 15
- password 7 111A0C0B041A5A0257
+ password 7 <redacted>
  logging synchronous
  login local
  transport input ssh
 line vty 5 15
  exec-timeout 15 0
  privilege level 15
- password 7 111A0C0B041A5A0257
+ password 7 <redacted>
  logging synchronous
  login local
  transport input ssh

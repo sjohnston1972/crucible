@@ -63,7 +63,7 @@ boot-end-marker
 !
 card type e1 0 0
 logging buffered 4096
-enable secret 5 $1$jGe/$SovXrl0gKq2ccZL5jOx/b.
+enable secret 5 <redacted>
 !
 no aaa new-model
 clock timezone GMT 0 0
@@ -148,32 +148,14 @@ crypto pki trustpoint TP-self-signed-3651232407
 !
 crypto pki certificate chain TP-self-signed-3651232407
  certificate self-signed 01
-  30820244 308201AD A0030201 02020101 300D0609 2A864886 F70D0101 04050030
-  31312F30 2D060355 04031326 494F532D 53656C66 2D536967 6E65642D 43657274
-  69666963 6174652D 33363531 32333234 3037301E 170D3036 30333331 31323434
-  30385A17 0D323030 31303130 30303030 305A3031 312F302D 06035504 03132649
-  4F532D53 656C662D 5369676E 65642D43 65727469 66696361 74652D33 36353132
-  33323430 3730819F 300D0609 2A864886 F70D0101 01050003 818D0030 81890281
-  8100CDFC 9609899B 05F0908D 36891BDB 0D5409F1 454A2320 B46E57E3 C0274582
-  A431E138 8C361AA2 9970FBBD D1793B89 C37018D8 38540DFF EC7EA605 C9E22FF3
-  8BD4A328 C71B515C C5A974F6 23B231A4 9DBCB9DB E7FB73A1 74C318EE 4AB8DB6A
-  6AFAB0D8 A3186E70 6BAF91AA 17CCBFAE A5587EF2 8F619E92 37E1F2CB 4B228D0A
-  DE3D0203 010001A3 6C306A30 0F060355 1D130101 FF040530 030101FF 30170603
-  551D1104 10300E82 0C506169 736C6579 2D525452 2E301F06 03551D23 04183016
-  8014C274 9178C8E8 28863C09 157C14D6 DF45714F 413C301D 0603551D 0E041604
-  14C27491 78C8E828 863C0915 7C14D6DF 45714F41 3C300D06 092A8648 86F70D01
-  01040500 03818100 C75A8F79 912382ED C10EEC4D 1AA82B2A 562808AE C4CEB646
-  158407A6 F9A58785 C755C743 189659EE 1015AE46 4AD5CE77 E763EE20 2A603C9C
-  3BB88567 DB3D07E8 0006ECBB 0B90E264 686A7AFD BF46C7BA 5280C571 F33C5198
-  BA870D1B E3046F05 01E03320 691BC13C 2A7EC21D BD497DFE 1C05F44F 9F0C4C87
-  05C4B88A 234BFE88
+  <redacted-cert-data>
         quit
 !
 !
 license udi pid CISCO2851 sn FCZ0942734U
-username admin privilege 15 password 7 095C6E1A0A1247000F
-username administrator privilege 15 password 7 095C6E1A0A1247000F
-username pingnms privilege 15 password 7 00144208030A5E5F58741F
+username admin privilege 15 password 7 <redacted>
+username administrator privilege 15 password 7 <redacted>
+username pingnms privilege 15 password 7 <redacted>
 !
 !
 controller E1 0/0/0
@@ -240,16 +222,16 @@ logging trap errors
 logging 192.168.1.59
 logging 9.254.254.254
 !
-snmp-server community FML-public RO SNMP_ACCESS
-snmp-server community FML-private RW
+snmp-server community <redacted> RO SNMP_ACCESS
+snmp-server community <redacted> RW
 snmp-server enable traps snmp coldstart warmstart
 snmp-server enable traps flash insertion removal
 snmp-server enable traps envmon fan shutdown supply temperature
 snmp-server enable traps entity
 snmp-server enable traps ipsla
-snmp-server host 9.254.254.254 FML-private
-snmp-server host 192.168.1.59 FML-public
-snmp-server host 80.194.195.72 FML-public
+snmp-server host 9.254.254.254 <redacted>
+snmp-server host 192.168.1.59 <redacted>
+snmp-server host 80.194.195.72 <redacted>
 !
 !
 control-plane
@@ -345,11 +327,11 @@ line aux 0
 line vty 0 4
  access-class VTY_ACCESS in
  exec-timeout 0 0
- password 7 00143315174C5B140B
+ password 7 <redacted>
  login local
  transport input telnet ssh
 line vty 5 15
- password 7 12092504011C5C162E
+ password 7 <redacted>
  login local
  transport input telnet ssh
 !

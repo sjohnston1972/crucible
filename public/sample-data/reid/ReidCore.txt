@@ -32,10 +32,10 @@ logging buffered 16386
 logging rate-limit 100 except warnings
 no logging console
 no logging monitor
-enable secret 4 01bb/w4xNfvXHETVpGcdM2qnfTv67iG.ppOYNvgsdlI
+enable secret 4 <redacted>
 !
-username J.Sanderson privilege 15 password 0 Esox!Lucius44
-username pingnms privilege 15 password 0 B4Ten!897525
+username J.Sanderson privilege 15 password 0 <redacted>
+username pingnms privilege 15 password 0 <redacted>
 aaa new-model
 !
 !
@@ -2149,11 +2149,11 @@ logging trap debugging
 logging source-interface Vlan1
 logging host 192.168.8.195 transport udp port 8514
 !
-snmp-server community gsa!read RO
-snmp-server community gsa!write RW
-snmp-server community pingnms!read RO
-snmp-server community GSAsnmpRead RO
-snmp-server community p1ngS0lar RO
+snmp-server community <redacted> RO
+snmp-server community <redacted> RW
+snmp-server community <redacted> RO
+snmp-server community <redacted> RO
+snmp-server community <redacted> RO
 snmp-server trap-source Vlan1
 snmp-server location GSA
 snmp-server contact Sid Meldrum
@@ -2166,14 +2166,14 @@ snmp-server enable traps vlandelete
 snmp-server enable traps envmon fan shutdown supply temperature status
 snmp-server enable traps bridge newroot topologychange
 snmp-server enable traps stpx inconsistency root-inconsistency loop-inconsistency
-snmp-server host 192.168.1.241 GSAsnmpRead
-snmp-server host 192.168.1.241 gsa!read
-snmp-server host 193.35.28.202 version 2c p1ngS0lar
-snmp-server host 9.254.254.254 version 2c p1ngS0lar
+snmp-server host 192.168.1.241 <redacted>
+snmp-server host 192.168.1.241 <redacted>
+snmp-server host 193.35.28.202 version 2c <redacted>
+snmp-server host 9.254.254.254 version 2c <redacted>
 tacacs server DSA-ISE
 tacacs server GSA-ISE
  address ipv4 10.1.100.7
- key N2gc65dTrWm*8G
+ key <redacted>
 !
 !
 !

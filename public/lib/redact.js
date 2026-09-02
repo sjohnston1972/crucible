@@ -5,13 +5,31 @@
  * community strings, keys/PSKs, or certificate material.
  */
 
-const SECRET_PATTERNS = [
-  /(\bsecret\s+\d+\s+)\S+/gi, // enable/username secret 5 <hash>
-  /(\bpassword\s+\d+\s+)\S+/gi, // password 7 <hash>
-  /(\bsnmp-server community\s+)\S+/gi, // community strings
-  /(\bkey\s+\d+\s+)\S+/gi, // tacacs/ntp key 7 <hash>
-  /(\bpre-shared-key\b.*?\s)\S+$/gim,
-  /(\bmd5\s+)\S+/gi,
+// NOTE: all "whitespace between keyword and value" gaps below use [ \t]+ (not
+// \s+) deliberately. \s matches newlines too, and a greedy \s+ can jump past
+// end-of-line and swallow the *next* line's first token as if it were the
+// secret value (this bit us with the "key chain" / "key-string 7 <hash>"
+// block, where a bare "key 1" sub-line let \s+ walk onto "key-string" on the
+// following line). Keeping the gap horizontal-only confines every match to
+// a single line.
+export const SECRET_PATTERNS = [
+  /(\bsecret[ \t]+\d+[ \t]+)\S+/gi, // enable/username secret 5 <hash>
+  /(\bpassword[ \t]+\d+[ \t]+)\S+/gi, // password 7 <hash> (incl. type-0 plaintext)
+  /(\bsnmp-server community[ \t]+)\S+/gi, // community strings
+  /(\bsnmp-server host[ \t]+\S+[ \t]+(?:version[ \t]+\S+[ \t]+)?)\S+/gi, // community on "snmp-server host <ip> [version N] <community>"
+  /(\bkey-string[ \t]+\d+[ \t]+)\S+/gi, // key chain key-string 7 <hash>
+  /(\b(?:tacacs-server|radius-server)[ \t]+key[ \t]+\d+[ \t]+)\S+/gi, // old single-line "tacacs-server key 7 <hash>"
+  /(\b(?:tacacs-server|radius-server)[ \t]+key[ \t]+)(?!\d+[ \t])\S+/gi, // old single-line bare "tacacs-server key <secret>"
+  // Generic "key <digit> <value>" is intentionally anchored to a WHOLE line
+  // (not "\bkey ..." anywhere in a line): tacacs/radius sub-lines and
+  // key-chain entries always put "key <id> <secret>" on their own line, but
+  // *unrelated* commands can legitimately end in "key <id> <keyword>" — e.g.
+  // "ntp server 1.2.3.4 key 0 prefer", where "prefer" is a flag, not a
+  // secret. A non-anchored match would misfire on those.
+  /(^[ \t]*key[ \t]+\d+[ \t]+)\S+[ \t]*$/gim, // standalone tacacs/ntp "key 7 <hash>" line
+  /(^[ \t]*key[ \t]+)(?!chain\b)(?!\d+[ \t]*$)\S+[ \t]*$/gim, // bare tacacs/radius "key <secret>" sub-line (no type digit, whole line is just "key <value>")
+  /(\bpre-shared-key\b.*?[ \t])\S+$/gim,
+  /(\bmd5[ \t]+)\S+/gi,
 ];
 
 /** Mask secrets in raw config text (defence-in-depth if raw text is ever sent). */

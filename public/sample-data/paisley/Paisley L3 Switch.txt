@@ -80,10 +80,10 @@ service sequence-numbers
 !
 hostname Paisley-48G-SW2
 !
-enable password 7 071F015F5D1E491713
+enable password 7 <redacted>
 !
-username administrator privilege 15 password 7 08316C5D1A0E550516
-username pingnms privilege 15 password 7 021655550C575A781B1B5A
+username administrator privilege 15 password 7 <redacted>
+username pingnms privilege 15 password 7 <redacted>
 no aaa new-model
 clock timezone GMT 0
 clock summer-time GMT recurring last Sun Mar 1:00 last Sun Oct 2:00
@@ -623,8 +623,8 @@ ip access-list extended AutoQoS-VoIP-RTCP
 logging trap errors
 logging 192.168.1.59
 logging 9.254.254.254
-snmp-server community FML-public RO SNMP_ACCESS
-snmp-server community FML-private RW
+snmp-server community <redacted> RO SNMP_ACCESS
+snmp-server community <redacted> RW
 snmp-server enable traps snmp coldstart warmstart
 snmp-server enable traps cluster
 snmp-server enable traps vtp
@@ -634,18 +634,18 @@ snmp-server enable traps envmon
 snmp-server enable traps hsrp
 snmp-server enable traps bridge newroot topologychange
 snmp-server enable traps stpx inconsistency root-inconsistency loop-inconsistency
-snmp-server host 9.254.254.254 FML-public
+snmp-server host 9.254.254.254 <redacted>
 !
 control-plane
 !
 !
 line con 0
 line vty 0 4
- password 7 00143315174C5B140B
+ password 7 <redacted>
  login local
  length 0
 line vty 5 15
- password 7 08316C5D1A0E550516
+ password 7 <redacted>
  login local
 !
 ntp clock-period 36028774
