@@ -21,3 +21,16 @@ binding = "ASSETS"
 
 # The Anthropic API key is NOT stored here. Set it as a secret:
 #   npx wrangler secret put ANTHROPIC_API_KEY
+
+# /api/harden abuse controls (src/index.js):
+# - Origin allowlist: the app's own origin (derived from the request URL) is
+#   always allowed. Optionally extend it with a comma-separated list here if
+#   the Worker is ever fronted under an additional origin, e.g.:
+#   [vars]
+#   ALLOWED_ORIGIN = "https://crucible.clydeford.net,https://staging.example.com"
+# - Rate limiting: no Cloudflare Rate Limiting binding
+#   ([[unsafe.bindings]] type = "ratelimit") or KV namespace is configured,
+#   so /api/harden falls back to an in-isolate, per-IP in-memory limiter.
+#   That is a best-effort approximation PER WORKER ISOLATE, not a global
+#   limit across edge locations — see the comment above checkRateLimit() in
+#   src/index.js. Add a Rate Limiting binding here for a real global limit.

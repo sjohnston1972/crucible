@@ -77,6 +77,83 @@ const HARDEN_TOOL = {
   strict: true,
 };
 
+// --------------------------------------------------------------------------
+// Abuse controls for /api/harden. This is the Worker's only dynamic route —
+// every accepted POST bills the project owner's Anthropic account — so the
+// checks below run and can reject BEFORE we ever touch the network or
+// construct an Anthropic client. Every check fails CLOSED: missing/malformed
+// input is rejected, never silently allowed through.
+//
+// Everything that is NOT /api/harden (index.html, app.js, styles.css,
+// /sample-data/**, ...) is served by env.ASSETS.fetch(request) — plain
+// static file serving via the Workers Assets binding. That path makes no
+// Anthropic calls and costs nothing per-request beyond normal static
+// hosting, so it is intentionally left open to anonymous traffic; there is
+// nothing there to rate-limit or gate behind an origin check.
+// --------------------------------------------------------------------------
+
+// Per-IP fixed-window rate limit.
+//
+// IMPORTANT — this Worker has no Rate Limiting binding and no KV namespace
+// configured in wrangler.toml (no `[[unsafe.bindings]]` of type
+// `ratelimit`, no `[[kv_namespaces]]`). Cloudflare's real Rate Limiting
+// binding would enforce a limit globally across every edge location; this
+// Map instead lives in the memory of a single Worker *isolate*. Cloudflare
+// runs many isolates concurrently across edge PoPs (and recycles them), so
+// this is a best-effort, PER-ISOLATE approximation, NOT a global limit — an
+// attacker whose requests land on different isolates/edges can exceed the
+// nominal per-IP rate. It still meaningfully raises the cost/effort of
+// hammering a single warm isolate, and degrades gracefully to "allow" only
+// within a bounded window per isolate, never silently unbounded. If a Rate
+// Limiting binding or KV is added later, swap checkRateLimit() to use it.
+export const RATE_LIMIT_WINDOW_MS = 60_000;
+export const RATE_LIMIT_MAX_REQUESTS = 10;
+const rateLimitBuckets = new Map();
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  // Opportunistic cleanup so a long-lived isolate doesn't accumulate an
+  // unbounded number of per-IP entries under sustained distributed abuse.
+  if (rateLimitBuckets.size > 5000) {
+    for (const [key, bucket] of rateLimitBuckets) {
+      if (now >= bucket.resetAt) rateLimitBuckets.delete(key);
+    }
+  }
+  const bucket = rateLimitBuckets.get(ip);
+  if (!bucket || now >= bucket.resetAt) {
+    rateLimitBuckets.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+  if (bucket.count >= RATE_LIMIT_MAX_REQUESTS) return false;
+  bucket.count += 1;
+  return true;
+}
+
+/**
+ * Origin allowlist. Fails closed: a missing Origin header is treated the
+ * same as a disallowed one — real browsers send Origin on same-origin POSTs
+ * (not just cross-origin ones), so the app's own front-end always has it;
+ * script/curl abuse typically doesn't set it at all.
+ *
+ * The app's own origin (derived from the incoming request's own URL) is
+ * always allowed, so this works unmodified in prod (custom domain), on the
+ * *.workers.dev URL, and under `wrangler dev` without hardcoding a hostname.
+ * `env.ALLOWED_ORIGIN` (comma-separated) can extend the allowlist for a
+ * deployment that fronts the Worker under an additional origin.
+ */
+function isAllowedOrigin(request, url, env) {
+  const origin = request.headers.get("Origin");
+  if (!origin) return false;
+  const allowed = new Set([url.origin]);
+  if (env && typeof env.ALLOWED_ORIGIN === "string") {
+    for (const o of env.ALLOWED_ORIGIN.split(",")) {
+      const trimmed = o.trim();
+      if (trimmed) allowed.add(trimmed);
+    }
+  }
+  return allowed.has(origin);
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -85,6 +162,18 @@ export default {
       if (request.method !== "POST") {
         return json({ error: "Method not allowed" }, 405);
       }
+
+      // Origin check and rate limit both run here — before handleHarden
+      // ever reads the body or constructs an Anthropic client.
+      if (!isAllowedOrigin(request, url, env)) {
+        return json({ error: "Forbidden" }, 403);
+      }
+
+      const ip = request.headers.get("cf-connecting-ip") || "unknown";
+      if (!checkRateLimit(ip)) {
+        return json({ error: "Too many requests" }, 429);
+      }
+
       return handleHarden(request, env);
     }
 
