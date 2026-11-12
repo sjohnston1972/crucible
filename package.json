@@ -7,9 +7,11 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "test": "node --test"
+    "test": "node --test",
+    "build:standalone": "node scripts/build-standalone.mjs"
   },
   "devDependencies": {
+    "esbuild": "^0.27.3",
     "wrangler": "^4.100.0"
   },
   "dependencies": {

@@ -49,6 +49,17 @@ npx wrangler secret put ANTHROPIC_API_KEY   # one-time, holds the key as a Worke
 npm run deploy
 ```
 
+## Standalone build (no server, no install)
+
+```bash
+npm run build:standalone   # writes dist/crucible.html
+```
+
+`dist/crucible.html` is one self-contained file: copy it to any machine and double-click it to
+open in Chrome/Edge. It needs no Node, no Cloudflare and no network. AI review and the
+**Load sample data** button are left out (both need the server; the sample configs also hold
+real secrets). Fonts fall back to system fonts.
+
 ## Sample data
 
 - `BourdonSW1.txt` — a real C9300 stack config (root-level site).

@@ -1,0 +1,3332 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Crucible — LAN Refresh Config Template Tool</title>  <style>
+/* Crucible — "Forge & Blueprint" theme.
+   Warm paper canvas, blueprint grid, molten-ember accent, steel-teal secondary.
+   Light is the default; [data-theme="dark"] flips to a forge-at-night palette. */
+
+:root {
+  --bg: #f1ece1;
+  --surface: #fbf9f4;
+  --surface-2: #f1ebde;
+  --surface-3: #e7dfce;
+  --border: #ddd3bf;
+  --border-strong: #c9bda2;
+  --text: #221c14;
+  --text-muted: #756b58;
+  --accent: #c2410c;
+  --accent-2: #e07b2e;
+  --accent-grad: linear-gradient(135deg, #ef8b3c 0%, #c2410c 55%, #9a3412 100%);
+  --accent-soft: rgba(194, 65, 12, 0.1);
+  --steel: #1f5c63;
+  --steel-soft: rgba(31, 92, 99, 0.1);
+  --good: #2f7d4f;
+  --warn: #b45309;
+  --bad: #b42318;
+  --ink-grid: rgba(38, 50, 64, 0.05);
+  --shadow-sm: 0 1px 2px rgba(60, 46, 24, 0.06), 0 1px 3px rgba(60, 46, 24, 0.05);
+  --shadow-md: 0 6px 18px rgba(60, 46, 24, 0.1);
+  --shadow-lg: 0 18px 50px rgba(60, 46, 24, 0.16);
+  --term-bg: #1b1610;
+  --term-text: #e9dcc6;
+
+  --radius: 14px;
+  --radius-sm: 9px;
+  --font-display: "Bricolage Grotesque", "Hanken Grotesk", system-ui, sans-serif;
+  --font-body: "Hanken Grotesk", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+[data-theme="dark"] {
+  --bg: #14110b;
+  --surface: #1e1810;
+  --surface-2: #261f15;
+  --surface-3: #30271a;
+  --border: #3a3022;
+  --border-strong: #4c3f2c;
+  --text: #f1e9da;
+  --text-muted: #a99a82;
+  --accent: #f0843e;
+  --accent-2: #f6a85a;
+  --accent-grad: linear-gradient(135deg, #f6a85a 0%, #ed7a36 55%, #c2410c 100%);
+  --accent-soft: rgba(240, 132, 62, 0.14);
+  --steel: #63b5bf;
+  --steel-soft: rgba(99, 181, 191, 0.12);
+  --good: #5fce8f;
+  --warn: #e3ad5e;
+  --bad: #f0867b;
+  --ink-grid: rgba(255, 255, 255, 0.035);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 8px 22px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 20px 55px rgba(0, 0, 0, 0.55);
+  --term-bg: #0e0b07;
+  --term-text: #e9dcc6;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+code, .mono { font-family: var(--font-mono); font-size: 0.88em; }
+code {
+  background: var(--accent-soft);
+  color: var(--accent);
+  padding: 0.05em 0.35em;
+  border-radius: 5px;
+}
+.muted { color: var(--text-muted); }
+.small { font-size: 0.82rem; }
+.hidden { display: none !important; }
+
+/* ---- background atmosphere ---- */
+.bg-grid {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background-image:
+    linear-gradient(var(--ink-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--ink-grid) 1px, transparent 1px);
+  background-size: 30px 30px;
+  mask-image: radial-gradient(ellipse 120% 90% at 50% 0%, #000 35%, transparent 90%);
+}
+.bg-glow {
+  position: fixed;
+  top: -22vh;
+  right: -12vw;
+  width: 60vw;
+  height: 60vh;
+  z-index: -1;
+  background: radial-gradient(circle at center, rgba(224, 123, 46, 0.22), transparent 62%);
+  filter: blur(10px);
+  pointer-events: none;
+}
+
+/* ---- header ---- */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.15rem 1.75rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  backdrop-filter: blur(8px);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+.brand { display: flex; align-items: center; gap: 0.85rem; flex-wrap: wrap; }
+.brand h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 2.1rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  background: var(--accent-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.tagline {
+  margin: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  font-size: 0.86rem;
+  font-style: italic;
+  color: var(--text-muted);
+  padding-left: 0.85rem;
+  border-left: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+}
+@media (max-width: 560px) {
+  .tagline { border-left: none; padding-left: 0; flex-basis: 100%; }
+}
+
+.header-right { display: flex; align-items: center; gap: 0.75rem; }
+.mode-badge {
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+.mode-badge[data-mode="fallback"] { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); background: color-mix(in srgb, var(--warn) 10%, transparent); }
+.theme-toggle {
+  width: 2.3rem;
+  height: 2.3rem;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1.05rem;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: transform 0.2s, border-color 0.2s, background 0.2s;
+}
+.theme-toggle:hover { transform: translateY(-1px) rotate(-12deg); border-color: var(--accent); color: var(--accent); }
+
+/* ---- layout ---- */
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.35rem;
+}
+
+.card {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem 1.6rem;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.25s, transform 0.25s, border-color 0.25s;
+  animation: rise-in 0.55s both cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.card:hover { box-shadow: var(--shadow-md); border-color: var(--border-strong); }
+.card:nth-child(1) { animation-delay: 0.02s; }
+.card:nth-child(2) { animation-delay: 0.06s; }
+.card:nth-child(3) { animation-delay: 0.1s; }
+.card:nth-child(4) { animation-delay: 0.14s; }
+.card:nth-child(5) { animation-delay: 0.18s; }
+.card:nth-child(6) { animation-delay: 0.22s; }
+.card:nth-child(7) { animation-delay: 0.26s; }
+.card:nth-child(8) { animation-delay: 0.3s; }
+
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+.card-head h2 {
+  margin: 0 0 0.5rem;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+.step-num {
+  display: inline-grid;
+  place-items: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 9px;
+  background: var(--accent-grad);
+  color: #fff;
+  font-size: 0.92rem;
+  font-weight: 700;
+  box-shadow: 0 2px 8px var(--accent-soft);
+  transform: rotate(-4deg);
+}
+.step-desc {
+  margin: 0 0 0.4rem;
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  max-width: 62ch;
+}
+
+.sub {
+  margin: 1.5rem 0 0.35rem;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.sub::before {
+  content: "";
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 2px;
+  background: var(--accent-grad);
+  transform: rotate(45deg);
+}
+.sub-desc { margin: 0 0 0.85rem; font-size: 0.86rem; color: var(--text-muted); max-width: 62ch; }
+
+/* ---- buttons ---- */
+.actions { display: flex; align-items: center; gap: 0.85rem; margin-top: 1rem; flex-wrap: wrap; }
+.btn {
+  font: 600 0.92rem/1 var(--font-body);
+  padding: 0.62rem 1.15rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s, background 0.15s;
+}
+.btn:hover { transform: translateY(-1px); border-color: var(--accent); box-shadow: var(--shadow-sm); }
+.btn:active { transform: translateY(0); }
+.btn-primary {
+  background: var(--accent-grad);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 4px 14px var(--accent-soft);
+}
+.btn-primary:hover { filter: brightness(1.06); box-shadow: var(--shadow-md); }
+.btn-small { padding: 0.4rem 0.75rem; font-size: 0.82rem; }
+.btn-ghost { background: transparent; border-color: transparent; color: var(--text-muted); }
+.btn-ghost:hover { color: var(--bad); border-color: transparent; box-shadow: none; transform: none; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
+
+.folder-name { font-family: var(--font-mono); font-size: 0.82rem; }
+.fallback-note {
+  margin: 0.9rem 0 0;
+  font-size: 0.85rem;
+  color: var(--warn);
+  border-left: 3px solid var(--warn);
+  padding: 0.55rem 0.8rem;
+  background: color-mix(in srgb, var(--warn) 8%, transparent);
+  border-radius: 0 8px 8px 0;
+}
+
+/* ---- form primitives ---- */
+.field { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.85rem; }
+.field > span { color: var(--text-muted); font-weight: 500; }
+.field input, .field select,
+.iface-row input, .iface-row select,
+.if-all-mode, .disc-if-mode, #stp-root {
+  font: inherit;
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.field input:focus, .field select:focus, input:focus, select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.field textarea {
+  font-family: var(--font-mono); font-size: 0.84rem; padding: 0.5rem 0.65rem; border-radius: 8px;
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); resize: vertical;
+}
+.field textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.checkbox { display: flex; align-items: flex-start; gap: 0.55rem; font-size: 0.9rem; cursor: pointer; }
+.checkbox input { margin-top: 0.18rem; accent-color: var(--accent); width: 1rem; height: 1rem; }
+.checks { display: flex; flex-direction: column; gap: 0.55rem; }
+.grid2 { display: grid; grid-template-columns: 210px 1fr; gap: 1rem; align-items: center; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
+.role-rows { margin-top: 1rem; }
+
+/* ---- discovered sites ---- */
+.sites-list { display: flex; flex-direction: column; gap: 0.55rem; margin-top: 1rem; }
+.site { border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); overflow: hidden; }
+.site-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.7rem 0.95rem; }
+.site-path { font-family: var(--font-mono); font-size: 0.86rem; }
+.site-count {
+  font-size: 0.74rem; color: var(--text-muted); background: var(--surface);
+  border: 1px solid var(--border); padding: 0.15rem 0.6rem; border-radius: 999px; white-space: nowrap;
+}
+.site-files { list-style: none; margin: 0; padding: 0 0.95rem 0.7rem 1.7rem; display: flex; flex-direction: column; gap: 0.2rem; }
+.site-files li { font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-muted); }
+.site-files li::before { content: "›"; color: var(--accent); margin-right: 0.4rem; }
+.empty { text-align: center; color: var(--text-muted); padding: 1.5rem; font-size: 0.9rem; }
+
+/* ---- interfaces: all-row + manual ---- */
+.secret-input { position: relative; display: flex; }
+.secret-input input { flex: 1; padding-right: 2.3rem; width: 100%; }
+.secret-toggle {
+  position: absolute; right: 0.25rem; top: 50%; transform: translateY(-50%);
+  background: none; border: none; cursor: pointer; font-size: 0.95rem;
+  line-height: 1; padding: 0.25rem; opacity: 0.65; border-radius: 6px;
+}
+.secret-toggle:hover { opacity: 1; }
+
+/* ---- per-site source/merge picker ---- */
+.merge-sites { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 0.5rem; }
+.merge-site {
+  border: 1px solid var(--border); border-radius: 11px; background: var(--surface-2);
+  padding: 0.85rem 1rem;
+}
+.merge-site.candidate {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  animation: candidate-pulse 2.2s ease-in-out infinite;
+}
+@keyframes candidate-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 35%, transparent); }
+  50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 0%, transparent); }
+}
+.merge-site-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.6rem; }
+.merge-site-path { font-family: var(--font-mono); font-size: 0.9rem; font-weight: 600; }
+.merge-flag {
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.03em; color: #fff;
+  background: var(--accent-grad); border-radius: 999px; padding: 0.15rem 0.6rem; white-space: nowrap;
+}
+.merge-files { display: flex; flex-direction: column; gap: 0.3rem; }
+.merge-file {
+  display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 0.55rem;
+  padding: 0.4rem 0.55rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface);
+  cursor: pointer; transition: border-color 0.15s;
+}
+.merge-file:hover { border-color: var(--accent); }
+.merge-file input { accent-color: var(--accent); }
+.merge-file-name { font-family: var(--font-mono); font-size: 0.82rem; overflow: hidden; text-overflow: ellipsis; }
+.merge-file-host { font-family: var(--font-mono); }
+.dev-chip {
+  font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+  border-radius: 4px; padding: 0.08rem 0.4rem; white-space: nowrap;
+}
+.dev-switch { color: var(--steel); background: var(--steel-soft); border: 1px solid color-mix(in srgb, var(--steel) 40%, transparent); }
+.dev-router { color: #7c4dff; background: color-mix(in srgb, #7c4dff 12%, transparent); border: 1px solid color-mix(in srgb, #7c4dff 40%, transparent); }
+.merge-hint { margin: 0.55rem 0 0; }
+
+.if-all-row {
+  display: flex; align-items: center; gap: 1rem; margin-bottom: 0.85rem;
+  padding: 0.65rem 0.8rem; border: 1px dashed var(--border-strong); border-radius: 10px;
+  background: var(--steel-soft);
+}
+.iface-rows { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.75rem 0; }
+.iface-row { display: grid; grid-template-columns: 1fr 130px 36px; gap: 0.5rem; }
+
+/* ---- interface picker (per device) ---- */
+.disc-ifaces {
+  max-height: 440px; overflow-y: auto;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2);
+  padding: 0.75rem; margin-bottom: 0.85rem;
+  display: flex; flex-direction: column; gap: 0.5rem;
+}
+.dev-group { border: 1px solid var(--border); border-radius: 9px; background: var(--surface); }
+.dev-group + .dev-group { margin-top: 0.2rem; }
+.dev-group-head {
+  display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+  padding: 0.55rem 0.7rem; cursor: pointer; list-style: none; border-radius: 9px;
+}
+.dev-group-head::-webkit-details-marker { display: none; }
+.dev-group-head::before {
+  content: "▸"; color: var(--accent); font-size: 0.75rem; transition: transform 0.15s; display: inline-block;
+}
+.dev-group[open] > .dev-group-head::before { transform: rotate(90deg); }
+.dev-group[open] > .dev-group-head { border-bottom: 1px solid var(--border); border-radius: 9px 9px 0 0; }
+.dev-group:hover { border-color: var(--border-strong); }
+.dev-name {
+  font-family: var(--font-mono); font-weight: 600; font-size: 0.9rem; color: var(--accent);
+}
+.dev-select-all { margin-left: auto; }
+.disc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(195px, 1fr)); gap: 0.5rem; padding: 0.6rem 0.7rem; }
+.disc-if {
+  display: flex; flex-direction: column; gap: 0.4rem;
+  border: 1px solid var(--border); border-radius: 9px; background: var(--surface);
+  padding: 0.5rem 0.6rem; cursor: default;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+.disc-if:hover { border-color: var(--accent); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+.disc-if-main { display: flex; align-items: center; gap: 0.45rem; cursor: pointer; min-width: 0; }
+.disc-if-main input { accent-color: var(--accent); flex: none; }
+.disc-if-name { font-family: var(--font-mono); font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.disc-if-row2 { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; }
+.disc-if-mode { padding: 0.25rem 0.4rem; font-size: 0.76rem; }
+/* Port-channel members take their PO's colour (--po-color set per tile in JS). */
+.disc-if.bundled {
+  border-color: color-mix(in srgb, var(--po-color) 50%, var(--border));
+  background: color-mix(in srgb, var(--po-color) 8%, var(--surface));
+}
+.disc-if.bundled .disc-if-name { color: var(--po-color); }
+.disc-if.bundled:hover { border-color: var(--po-color); }
+
+/* Shutdown overrides the port-channel tint (defined after, so it wins). */
+.disc-if.shutdown { border-color: color-mix(in srgb, var(--bad) 55%, transparent); background: color-mix(in srgb, var(--bad) 8%, transparent); }
+.disc-if.shutdown .disc-if-name { color: var(--bad); }
+.disc-if-badges { display: inline-flex; gap: 0.3rem; flex-wrap: wrap; align-items: center; }
+.disc-if-shut {
+  font-size: 0.6rem; font-weight: 700; letter-spacing: 0.06em; color: var(--bad);
+  border: 1px solid color-mix(in srgb, var(--bad) 50%, transparent); border-radius: 4px; padding: 0.02rem 0.28rem;
+}
+.disc-if-po {
+  font-size: 0.6rem; font-weight: 700; letter-spacing: 0.03em;
+  color: var(--po-color, var(--steel));
+  background: color-mix(in srgb, var(--po-color, var(--steel)) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--po-color, var(--steel)) 45%, transparent);
+  border-radius: 4px; padding: 0.02rem 0.32rem; white-space: nowrap;
+}
+.inert { opacity: 0.4; pointer-events: none; }
+
+/* ---- hover config tooltip (terminal look) ---- */
+.iface-tip {
+  position: absolute; z-index: 60; margin: 0;
+  max-width: 520px; max-height: 340px; overflow: auto;
+  font-family: var(--font-mono); font-size: 0.74rem; line-height: 1.5;
+  color: var(--term-text); background: var(--term-bg);
+  border: 1px solid var(--accent); border-radius: 10px; padding: 0.7rem 0.85rem;
+  box-shadow: var(--shadow-lg); pointer-events: none; white-space: pre;
+}
+
+/* ---- tag map ---- */
+.tagmap { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.25rem; }
+.tag-entry { display: flex; align-items: baseline; gap: 0.75rem; padding: 0.15rem 0; }
+.tag-marker {
+  font-family: var(--font-mono); font-weight: 600; color: var(--accent);
+  min-width: 4rem; background: var(--accent-soft); border-radius: 5px; padding: 0.05rem 0.4rem; text-align: center;
+}
+.tag-label { font-size: 0.9rem; }
+
+/* ---- run / stp root / warnings ---- */
+.stp-root { margin-top: 1.1rem; max-width: 540px; padding: 0.9rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+.stp-root .field { margin-bottom: 0.45rem; }
+.warnings { margin-top: 1rem; font-size: 0.85rem; }
+.warn-title { color: var(--warn); font-weight: 600; margin: 0 0 0.3rem; }
+.warnings ul { margin: 0; padding-left: 1.2rem; color: var(--text-muted); }
+
+/* ---- results ---- */
+.results { display: flex; flex-direction: column; gap: 1.4rem; margin-top: 1rem; }
+.site-block { display: flex; flex-direction: column; gap: 0.7rem; }
+.site-block-head { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
+.site-name {
+  font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; letter-spacing: 0.02em;
+  text-transform: uppercase; color: var(--text);
+  border-left: 3px solid var(--accent); padding-left: 0.6rem;
+}
+.merged-from {
+  display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+  margin: -0.35rem 0 0 1.8rem; padding-left: 0.7rem;
+  border-left: 2px dashed var(--border-strong);
+}
+.merged-from-label { font-size: 0.74rem; color: var(--text-muted); font-style: italic; }
+.merged-chip {
+  font: inherit; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 0.4rem;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px;
+  padding: 0.2rem 0.65rem; cursor: pointer; color: var(--text); font-family: var(--font-mono);
+}
+.merged-chip:hover { border-color: var(--accent); }
+.merge-tile { border-left-color: var(--steel); }
+.merge-tile .unit-site { color: var(--steel); background: var(--steel-soft); }
+.merge-tile .merge-flag { margin-left: auto; }
+.merge-actions { display: flex; align-items: flex-end; gap: 0.85rem; flex-wrap: wrap; margin-top: 0.8rem; }
+.merge-name-field { flex: 1; min-width: 200px; max-width: 320px; }
+.site-sub { margin-bottom: 0; }
+.site-sub-body, .stp-root-body { padding: 0.7rem 0.85rem; }
+.stp-root-body > p { margin: 0.4rem 0 0; }
+.site-sub-body > p { margin: 0 0 0.5rem; }
+.site-sub-body .field { max-width: 420px; }
+.unit {
+  border: 1px solid var(--border); border-left: 3px solid var(--accent);
+  border-radius: 11px; background: var(--surface-2); overflow: hidden;
+}
+.unit-head {
+  display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap;
+  padding: 0.85rem 1.1rem; cursor: pointer; list-style: none;
+}
+.unit-head::-webkit-details-marker { display: none; }
+.unit-head::before {
+  content: "▸"; color: var(--accent); font-size: 0.85rem; transition: transform 0.15s; display: inline-block;
+}
+.unit[open] > .unit-head::before { transform: rotate(90deg); }
+.unit[open] > .unit-head { border-bottom: 1px solid var(--border); }
+.unit-caret { display: none; }
+.unit-titlebar { display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; min-width: 0; }
+.unit-site {
+  font-family: var(--font-display); font-weight: 700; font-size: 0.78rem; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--accent); background: var(--accent-soft);
+  padding: 0.1rem 0.5rem; border-radius: 999px;
+}
+.unit-host { font-family: var(--font-mono); font-size: 1rem; font-weight: 600; }
+.unit-view { margin-left: auto; }
+.unit-written { color: var(--good); font-weight: 600; }
+.unit-body { padding: 0.9rem 1.1rem 1.1rem; }
+
+.unit-sub { border: 1px solid var(--border); border-radius: 9px; background: var(--surface); margin-bottom: 0.6rem; }
+.unit-sub-head {
+  display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap;
+  padding: 0.55rem 0.8rem; cursor: pointer; list-style: none;
+}
+.unit-sub-head::-webkit-details-marker { display: none; }
+.unit-sub-head::before {
+  content: "▸"; color: var(--text-muted); font-size: 0.72rem; transition: transform 0.15s; display: inline-block;
+}
+.unit-sub[open] > .unit-sub-head::before { transform: rotate(90deg); }
+.unit-sub[open] > .unit-sub-head { border-bottom: 1px solid var(--border); }
+.unit-sub-head strong { font-family: var(--font-display); }
+.if-all-inline { margin-left: auto; font-size: 0.82rem; }
+.coll-groups { padding: 0.7rem 0.85rem; display: flex; flex-direction: column; gap: 0.7rem; }
+.coll-group-head {
+  margin: 0 0 0.35rem; font-family: var(--font-display); font-size: 0.74rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent);
+}
+.coll-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.35rem 1rem; }
+.coll-item { font-size: 0.86rem; }
+.unit-sub .sub-desc { margin: 0.6rem 0.85rem 0; }
+.ifmap-help { margin: 0.1rem 0.85rem 0.6rem 1.7rem; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.ifmap-help li { line-height: 1.4; }
+.ifmap-help code { font-family: var(--font-mono, monospace); background: var(--bg-alt, rgba(127,127,127,0.12)); padding: 0 0.25rem; border-radius: 3px; }
+.ifmap-rows { padding: 0.2rem 0.85rem 0.7rem; display: flex; flex-direction: column; gap: 0.3rem; }
+.ifmap-row {
+  display: grid; grid-template-columns: minmax(120px, 1fr) auto minmax(140px, 1.4fr) auto auto auto;
+  gap: 0.5rem; align-items: center; font-size: 0.86rem;
+}
+.ifmap-src {
+  font-family: var(--font-mono, monospace); cursor: help;
+  text-decoration: underline dotted; text-underline-offset: 3px; text-decoration-color: var(--border);
+}
+.ifmap-src:hover { text-decoration-color: var(--accent); }
+.ifmap-arrow { opacity: 0.55; }
+.ifmap-target, .ifmap-vlan { font: inherit; padding: 0.15rem 0.35rem; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: inherit; }
+.ifmap-vlan { max-width: 5.5rem; }
+.ifmap-mode { font-size: 0.78rem; white-space: nowrap; }
+.feat-pills { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.5rem 0 0.2rem; }
+.feat-pill {
+  font-size: 0.68rem; font-weight: 600; padding: 0.12rem 0.5rem; border-radius: 999px;
+  border: 1px solid var(--border); white-space: nowrap; cursor: help;
+}
+.feat-pill.on { color: var(--steel); background: var(--steel-soft); border-color: color-mix(in srgb, var(--steel) 40%, transparent); }
+.feat-pill.off { color: var(--text-muted); opacity: 0.5; }
+
+.cfg-tabs { display: flex; gap: 0.3rem; padding: 0.55rem 1.2rem 0; flex-wrap: wrap; background: var(--surface-2); border-bottom: 1px solid var(--border); }
+.cfg-tab {
+  font: 600 0.78rem var(--font-mono); padding: 0.4rem 0.7rem;
+  border: 1px solid var(--border); border-bottom: none; border-radius: 7px 7px 0 0;
+  background: var(--surface); color: var(--text-muted); cursor: pointer;
+}
+.cfg-tab.active { color: var(--accent); background: var(--term-bg); border-color: var(--border-strong); }
+.harden-section { margin-top: 0.85rem; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); }
+.harden-head {
+  display: flex; align-items: center; gap: 0.85rem; flex-wrap: wrap;
+  padding: 0.6rem 0.8rem; cursor: pointer; list-style: none; border-radius: 9px;
+}
+.harden-head::-webkit-details-marker { display: none; }
+.harden-head::before {
+  content: "▸"; color: var(--accent); font-size: 0.75rem; transition: transform 0.15s; display: inline-block;
+}
+.harden-section[open] > .harden-head::before { transform: rotate(90deg); }
+.harden-section[open] > .harden-head { border-bottom: 1px solid var(--border); border-radius: 9px 9px 0 0; }
+.harden-head strong { font-family: var(--font-display); }
+.harden-caret { display: none; }
+.harden-desc { margin: 0.6rem 0.8rem 0.4rem; font-size: 0.8rem; color: var(--text-muted); }
+.apply-all { margin-left: auto; }
+.findings { display: flex; flex-direction: column; gap: 0.1rem; padding: 0 0.8rem 0.6rem; }
+.finding { border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+.finding:last-child { border-bottom: none; }
+.finding-row, .finding-sum {
+  display: grid; grid-template-columns: 22px 68px 62px 1fr auto; align-items: center; gap: 0.5rem;
+  font-size: 0.84rem; padding: 0.22rem 0;
+}
+.finding-sum { cursor: pointer; list-style: none; }
+.finding-sum::-webkit-details-marker { display: none; }
+.finding-missing .finding-caret { color: var(--text-muted); font-size: 0.7rem; transition: transform 0.15s; }
+.finding-missing[open] .finding-caret { transform: rotate(90deg); }
+.finding-rem {
+  margin: 0 0 0.5rem 22px; padding: 0.55rem 0.7rem; border-radius: 7px;
+  background: var(--term-bg); color: var(--term-text);
+  font-family: var(--font-mono); font-size: 0.76rem; line-height: 1.5; white-space: pre; overflow-x: auto;
+}
+.finding-pass { opacity: 0.55; }
+.finding input { accent-color: var(--accent); }
+.apply-spacer { display: inline-block; }
+.status { text-transform: uppercase; font-size: 0.64rem; font-weight: 700; letter-spacing: 0.06em; }
+.status-pass { color: var(--good); }
+.status-missing { color: var(--bad); }
+.status-na { color: var(--text-muted); }
+.sev { font-size: 0.64rem; font-weight: 700; padding: 0.1rem 0.45rem; border-radius: 999px; text-align: center; }
+.sev-high { color: var(--bad); background: color-mix(in srgb, var(--bad) 14%, transparent); }
+.sev-medium { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+.sev-low { color: var(--steel); background: var(--steel-soft); }
+.finding-title { color: var(--text); }
+
+.ai-out { margin-top: 0.85rem; }
+.ai-label { font-size: 0.82rem; color: var(--accent); font-weight: 600; margin: 0 0 0.45rem; font-family: var(--font-display); }
+.ai-finding { border-left: 2px solid var(--border-strong); padding: 0.3rem 0 0.3rem 0.7rem; margin-bottom: 0.55rem; }
+.ai-finding strong { margin-left: 0.4rem; }
+.ai-finding pre {
+  font-family: var(--font-mono); font-size: 0.76rem; background: var(--term-bg); color: var(--term-text);
+  border-radius: 7px; padding: 0.55rem 0.65rem; overflow-x: auto; margin: 0.4rem 0 0;
+}
+.ai-note { font-style: italic; }
+
+.unit:hover { box-shadow: var(--shadow-sm); }
+
+/* ---- config modal ---- */
+.modal { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 1.5rem; }
+.modal-backdrop { position: absolute; inset: 0; background: rgba(20, 14, 8, 0.55); backdrop-filter: blur(3px); animation: fade-in 0.2s; }
+.modal-dialog {
+  position: relative;
+  width: min(880px, 100%);
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: modal-rise 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.modal-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem;
+  padding: 1rem 1.2rem; border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+}
+.modal-title { margin: 0; font-family: var(--font-mono); font-size: 1.02rem; font-weight: 600; }
+.modal-head .muted { margin: 0.15rem 0 0; }
+.modal-actions { display: flex; align-items: center; gap: 0.5rem; flex: none; }
+#cfg-copy.copied { background: var(--good); border-color: var(--good); color: #fff; }
+.modal-code {
+  margin: 0; padding: 1rem 1.2rem; overflow: auto;
+  background: var(--term-bg); color: var(--term-text);
+  font-family: var(--font-mono); font-size: 0.78rem; line-height: 1.55; white-space: pre;
+}
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modal-rise { from { opacity: 0; transform: translateY(16px) scale(0.99); } to { opacity: 1; transform: none; } }
+
+/* ---- confirm dialog ---- */
+.modal-dialog-sm { width: min(460px, 100%); }
+.confirm-dialog .modal-head { background: color-mix(in srgb, var(--warn) 12%, var(--surface)); border-bottom-color: color-mix(in srgb, var(--warn) 30%, var(--border)); }
+.confirm-dialog .modal-title { font-family: var(--font-display); }
+.confirm-icon { color: var(--warn); margin-right: 0.2rem; }
+.confirm-body { padding: 1.1rem 1.2rem; }
+.confirm-message { margin: 0 0 0.7rem; font-size: 0.95rem; }
+.confirm-list { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.32rem; }
+.confirm-list li { color: var(--text-muted); font-size: 0.9rem; }
+.confirm-list li::marker { color: var(--warn); }
+.modal-foot {
+  display: flex; justify-content: flex-end; gap: 0.6rem;
+  padding: 0.9rem 1.2rem; border-top: 1px solid var(--border); background: var(--surface-2);
+}
+
+/* ---- save bar ---- */
+.save-bar {
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  padding: 1.6rem 1.5rem;
+}
+.save-bar-inner { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 0.65rem; }
+.save-bar-main { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.btn-save {
+  font: 700 1.05rem/1 var(--font-display);
+  padding: 0.95rem 1.9rem;
+  border-radius: 12px;
+  border: none;
+  background: var(--accent-grad);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  letter-spacing: 0.01em;
+  transition: transform 0.15s, box-shadow 0.15s, filter 0.15s;
+}
+.btn-save:hover:not(:disabled) { transform: translateY(-2px); box-shadow: var(--shadow-lg); filter: brightness(1.05); }
+.btn-save:active:not(:disabled) { transform: translateY(0); }
+.btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
+.save-bar-hint { margin: 0; }
+
+/* ---- footer ---- */
+.app-footer { text-align: center; font-size: 0.78rem; padding: 1.5rem; border-top: 1px solid var(--border); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
+@media (max-width: 640px) {
+  .grid2, .grid3 { grid-template-columns: 1fr; }
+  .container { padding: 1.5rem 1rem 3rem; }
+}
+
+
+/* standalone build: features that need the server are hidden */
+.ai-btn, .ai-out, #btn-sample { display: none !important; }
+</style>
+</head>
+<body>
+  <div class="bg-grid" aria-hidden="true"></div>
+  <div class="bg-glow" aria-hidden="true"></div>
+
+  <header class="app-header">
+    <div class="brand">
+      <h1>Crucible</h1>
+      <p class="tagline">Melt down your old configs and cast them anew</p>
+    </div>
+    <div class="header-right">
+      <div id="mode-badge" class="mode-badge" data-mode="detecting">Detecting browser…</div>
+      <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle light / dark theme" title="Toggle theme">☾</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Step 1: Master folder -->
+    <section class="card" id="step-folder">
+      <div class="card-head">
+        <h2><span class="step-num">1</span> Master folder</h2>
+        <p class="step-desc">
+          Point Crucible at the top-level folder that holds your site sub-folders. Every folder
+          directly containing a <code>.txt</code> or <code>.cfg</code> file becomes one
+          <strong>site</strong>. Files are read entirely in your browser — nothing is uploaded.
+        </p>
+      </div>
+      <div class="actions">
+        <button id="btn-browse" class="btn btn-primary" type="button">Browse folder…</button>
+        <button id="btn-sample" class="btn" type="button">Load sample data</button>
+        <button id="btn-clear" class="btn btn-ghost" type="button">Clear all</button>
+        <input id="fallback-input" type="file" webkitdirectory directory multiple hidden />
+        <span id="folder-name" class="folder-name muted"></span>
+      </div>
+      <p id="fallback-note" class="fallback-note hidden">
+        Files are read in your browser and never uploaded. Generated configs download as a
+        <code>.zip</code>.
+      </p>
+    </section>
+
+    <!-- Step 2: Discovered sites + analysis -->
+    <section class="card" id="step-sites">
+      <div class="card-head">
+        <h2><span class="step-num">2</span> Sites &amp; devices</h2>
+        <p class="step-desc">
+          Everything Crucible found, grouped by <strong>site</strong>. Each site shows its merge options (where a
+          router and switch can collapse into one L3 switch), a per-site spanning-tree root picker, and a
+          collapsible card per device — interfaces, routing/services and hardening, all chosen per device.
+        </p>
+        <p class="muted small" id="sites-summary">No folder selected yet.</p>
+      </div>
+      <div id="results" class="results"></div>
+    </section>
+
+    <!-- Step 4: Global additions (per-device collection lives in each device card, Step 2) -->
+    <section class="card" id="step-collection">
+      <div class="card-head">
+        <h2><span class="step-num">3</span> Global additions</h2>
+        <p class="step-desc">
+          What to <strong>collect</strong> from each device — interfaces, routing, VRF, DHCP, management — is
+          chosen <strong>per device</strong> in its card up in Step 2 (pre-ticked with what it already has).
+          The settings here are injected into <strong>every</strong> output template.
+        </p>
+      </div>
+
+      <h3 class="sub">VTP (switches)</h3>
+      <p class="sub-desc">Add VTP version 3 to every <strong>switch</strong> template (routers are skipped). Mode defaults to <strong>transparent</strong>.</p>
+      <label class="checkbox"><input id="vtp-enable" type="checkbox" /><span>Configure VTP v3 on switch templates</span></label>
+      <div id="vtp-rows" class="grid3 hidden" style="margin-top:0.75rem">
+        <label class="field"><span>Domain name</span><input id="vtp-domain" type="text" placeholder="CORP" autocomplete="off" /></label>
+        <label class="field"><span>Password <span class="muted small">(optional)</span></span>
+          <div class="secret-input">
+            <input id="vtp-password" type="password" placeholder="vtp secret" autocomplete="new-password" />
+            <button type="button" class="secret-toggle" data-target="vtp-password" aria-label="Show VTP password">👁</button>
+          </div>
+        </label>
+        <label class="field"><span>Mode</span>
+          <select id="vtp-mode"><option value="transparent" selected>transparent (recommended)</option><option value="server">server</option><option value="client">client</option><option value="off">off</option></select>
+        </label>
+      </div>
+
+      <h3 class="sub">Spanning-tree hardening (switches)</h3>
+      <p class="sub-desc">Adds <code>portfast default</code>, <code>portfast bpduguard default</code> and <code>loopguard default</code> to switch templates.</p>
+      <label class="checkbox"><input id="stph-enable" type="checkbox" /><span>Apply global spanning-tree hardening</span></label>
+
+      <h3 class="sub">Errdisable recovery (switches)</h3>
+      <p class="sub-desc">Auto-recover err-disabled ports (udld, bpduguard, link-flap, port-security, storm-control).</p>
+      <label class="checkbox"><input id="errd-enable" type="checkbox" /><span>Enable errdisable recovery</span></label>
+      <div id="errd-rows" class="grid3 hidden" style="margin-top:0.5rem">
+        <label class="field"><span>Recovery interval (seconds)</span><input id="errd-interval" type="number" min="30" value="300" /></label>
+      </div>
+
+      <h3 class="sub">Clock &amp; timezone</h3>
+      <p class="sub-desc">Set a consistent timezone and clock on every device (router and switch).</p>
+      <label class="checkbox"><input id="clock-enable" type="checkbox" /><span>Set clock / timezone</span></label>
+      <div id="clock-rows" class="grid3 hidden" style="margin-top:0.75rem">
+        <label class="field"><span>Timezone name</span><input id="clock-tz" type="text" placeholder="GMT" autocomplete="off" /></label>
+        <label class="field"><span>UTC offset (hours)</span><input id="clock-offset" type="number" value="0" /></label>
+        <label class="field"><span>Summer-time <span class="muted small">(optional, full command)</span></span><input id="clock-summer" type="text" placeholder="BST recurring last Sun Mar 1:00 last Sun Oct 2:00" autocomplete="off" /></label>
+      </div>
+
+      <h3 class="sub">Login / MOTD banner</h3>
+      <p class="sub-desc">Inject the same login and MOTD banner on every device.</p>
+      <label class="checkbox"><input id="banner-enable" type="checkbox" /><span>Set login / MOTD banner</span></label>
+      <div id="banner-rows" class="hidden" style="margin-top:0.6rem">
+        <label class="field"><span>Banner text</span><textarea id="banner-text" rows="3" placeholder="Authorised access only. Disconnect immediately if you are not an authorised user."></textarea></label>
+      </div>
+
+      <h3 class="sub">Secure access</h3>
+      <p class="sub-desc">Inject a hardened local admin and SSH login into every output. Generates SHA-256 user &amp; enable secrets, AAA local login, optional type-6 password encryption, and the SSH/VTY commands that make the login work.</p>
+      <label class="checkbox"><input id="sec-enable" type="checkbox" /><span>Set a secure username &amp; password</span></label>
+      <div id="sec-rows" class="grid2 hidden" style="margin-top:0.75rem; grid-template-columns: 1fr 1fr;">
+        <label class="field"><span>Username</span><input id="sec-user" type="text" placeholder="netadmin" autocomplete="off" /></label>
+        <label class="field"><span>Password / secret</span>
+          <div class="secret-input">
+            <input id="sec-pass" type="password" placeholder="strong secret" autocomplete="new-password" />
+            <button type="button" class="secret-toggle" data-target="sec-pass" aria-label="Show password">👁</button>
+          </div>
+        </label>
+        <label class="field"><span>Enable secret <span class="muted small">(optional — defaults to password)</span></span>
+          <div class="secret-input">
+            <input id="sec-enable-secret" type="password" placeholder="(reuse password)" autocomplete="new-password" />
+            <button type="button" class="secret-toggle" data-target="sec-enable-secret" aria-label="Show enable secret">👁</button>
+          </div>
+        </label>
+        <label class="field"><span>Config-key for type-6 <span class="muted small">(optional)</span></span>
+          <div class="secret-input">
+            <input id="sec-configkey" type="password" placeholder="password-encrypt key" autocomplete="new-password" />
+            <button type="button" class="secret-toggle" data-target="sec-configkey" aria-label="Show config-key">👁</button>
+          </div>
+        </label>
+      </div>
+    </section>
+
+    <!-- Step 5: Template & insertion -->
+    <section class="card" id="step-template">
+      <div class="card-head">
+        <h2><span class="step-num">4</span> Template &amp; insertion</h2>
+        <p class="step-desc">
+          By default Crucible writes its own template that matches your selections — you don’t need to
+          supply one. Provide a file only if you want a specific base config.
+        </p>
+      </div>
+      <div class="actions">
+        <button id="btn-template" class="btn" type="button">Choose template file… (optional)</button>
+        <input id="template-input" type="file" accept=".txt,.cfg,text/plain" hidden />
+        <span id="template-name" class="folder-name muted">Using auto-generated template</span>
+        <button id="btn-clear-template" class="btn btn-small btn-ghost hidden" type="button">✕ clear</button>
+      </div>
+      <div class="checks" style="margin-top:1rem">
+        <label class="checkbox"><input type="radio" name="insertion" value="tag" checked /><span><strong>Tag-based</strong> — fill <code>{a}</code>, <code>{b}</code>, … <code>{harden}</code> markers</span></label>
+        <label class="checkbox"><input type="radio" name="insertion" value="direct" /><span><strong>Direct</strong> — append each block under generated section headers</span></label>
+      </div>
+    </section>
+
+    <!-- Step 6: Output naming -->
+    <section class="card" id="step-naming">
+      <div class="card-head">
+        <h2><span class="step-num">5</span> Output naming</h2>
+        <p class="step-desc">
+          Each output is named from the device’s <code>hostname</code> with a fixed <code>.txt</code>
+          extension. Optionally rename — this updates both the filename and the in-config hostname.
+        </p>
+      </div>
+      <label class="checkbox"><input id="rename" type="checkbox" /><span>Rename hostname</span></label>
+      <div id="rename-rows" class="grid3 hidden" style="margin-top:0.75rem">
+        <label class="field"><span>Method</span>
+          <select id="rename-method"><option value="find">Find / replace</option><option value="suffix">Suffix swap</option></select>
+        </label>
+        <label class="field"><span>Find</span><input id="rename-find" type="text" placeholder="RT" /></label>
+        <label class="field"><span>Replace</span><input id="rename-replace" type="text" placeholder="SW" /></label>
+      </div>
+    </section>
+
+    <!-- Step 7: Tag map -->
+    <section class="card" id="step-tagmap">
+      <div class="card-head">
+        <h2><span class="step-num">6</span> Computed tag map</h2>
+        <p class="step-desc">
+          A live preview of which marker maps to which block. If you bring your own tag-based template,
+          lay the markers out to match this.
+        </p>
+      </div>
+      <div id="tagmap" class="tagmap"></div>
+    </section>
+  </main>
+
+  <section class="save-bar">
+    <div class="save-bar-inner">
+      <div class="save-bar-main">
+        <button id="btn-save" class="btn-save" type="button" disabled>⚒ Generate &amp; save outputs</button>
+        <span id="run-status" class="muted small"></span>
+      </div>
+      <p class="save-bar-hint muted small">Builds each device template and downloads a <code>.zip</code> mirroring your site folders.</p>
+      <div id="warnings" class="warnings"></div>
+    </div>
+  </section>
+
+  <pre id="iface-tip" class="iface-tip hidden"></pre>
+
+  <div id="cfg-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="cfg-modal-title">
+      <div class="modal-head">
+        <div>
+          <h3 id="cfg-modal-title" class="modal-title"></h3>
+          <p id="cfg-modal-sub" class="muted small"></p>
+        </div>
+        <div class="modal-actions">
+          <button id="cfg-copy" class="btn btn-small" type="button">Copy code</button>
+          <button id="cfg-close" class="btn btn-small btn-ghost" type="button" data-close aria-label="Close">✕</button>
+        </div>
+      </div>
+      <div id="cfg-tabs" class="cfg-tabs hidden"></div>
+      <pre class="modal-code"><code id="cfg-code"></code></pre>
+    </div>
+  </div>
+
+  <div id="confirm-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-confirm-cancel></div>
+    <div class="modal-dialog modal-dialog-sm confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+      <div class="modal-head">
+        <h3 id="confirm-title" class="modal-title"><span class="confirm-icon">⚠</span> <span id="confirm-title-text"></span></h3>
+        <button class="btn btn-small btn-ghost" type="button" data-confirm-cancel aria-label="Close">✕</button>
+      </div>
+      <div class="confirm-body">
+        <p id="confirm-message" class="confirm-message"></p>
+        <ul id="confirm-list" class="confirm-list"></ul>
+      </div>
+      <div class="modal-foot">
+        <button id="confirm-cancel" class="btn" type="button" data-confirm-cancel>Cancel</button>
+        <button id="confirm-ok" class="btn btn-primary" type="button">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="app-footer muted">Crucible · standalone edition · runs entirely offline · local files never leave your browser</footer>
+
+  <script>
+(() => {
+  // public/lib/parser.js
+  var CANON_INTERFACES = [
+    "FortyGigabitEthernet",
+    "TenGigabitEthernet",
+    "TwentyFiveGigE",
+    "HundredGigE",
+    "GigabitEthernet",
+    "FastEthernet",
+    "Ethernet",
+    "Port-channel",
+    "Vlan",
+    "Loopback",
+    "Tunnel",
+    "Serial",
+    "Management",
+    "Multilink"
+  ];
+  var INTERFACE_ABBR = {
+    gi: "GigabitEthernet",
+    gig: "GigabitEthernet",
+    te: "TenGigabitEthernet",
+    ten: "TenGigabitEthernet",
+    fo: "FortyGigabitEthernet",
+    fa: "FastEthernet",
+    fas: "FastEthernet",
+    et: "Ethernet",
+    eth: "Ethernet",
+    po: "Port-channel",
+    vl: "Vlan",
+    lo: "Loopback",
+    tu: "Tunnel",
+    se: "Serial",
+    twe: "TwentyFiveGigE",
+    hu: "HundredGigE",
+    mgmt: "Management"
+  };
+  function normalizeInterfaceName(name) {
+    if (name == null) return "";
+    const trimmed = String(name).trim();
+    const m = trimmed.match(/^([A-Za-z][A-Za-z-]*?)\s*([\d].*)?$/);
+    if (!m) return trimmed;
+    const prefix = m[1];
+    const tail = (m[2] || "").replace(/\s+/g, "");
+    const p = prefix.toLowerCase();
+    let canon = CANON_INTERFACES.find((c) => c.toLowerCase() === p);
+    if (!canon) canon = INTERFACE_ABBR[p];
+    if (!canon) canon = CANON_INTERFACES.find((c) => c.toLowerCase().startsWith(p));
+    return (canon || prefix) + tail;
+  }
+  var isIndented = (line) => /^[ \t]/.test(line);
+  var isTerminator = (line) => line.trim() === "!" || line.trim() !== "" && !isIndented(line);
+  function extractBlock(lines, startIdx) {
+    const block = [lines[startIdx]];
+    let j = startIdx + 1;
+    for (; j < lines.length; j++) {
+      const line = lines[j];
+      if (line.trim() === "") continue;
+      if (isTerminator(line)) break;
+      block.push(line);
+    }
+    return { block, endIdx: j - 1 };
+  }
+  var childLines = (block) => block.slice(1).map((l) => l.trim());
+  function parse(text) {
+    const normalized = String(text == null ? "" : text).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    const lines = normalized.split("\n");
+    const result = {
+      hostname: null,
+      interfaces: [],
+      staticRoutes: [],
+      ipv6Routes: [],
+      defaultGateway: null,
+      // { nextHop, source: 'default-route' | 'default-gateway', raw }
+      protocols: [],
+      // { type, id, header, block: [...], lines: [...] }
+      vrfs: [],
+      // { name, legacy, block, rd, routeTargets[], interfaces[], routes[] }
+      spanningTree: {
+        mode: null,
+        extendSystemId: false,
+        globalOptions: [],
+        vlanConfig: [],
+        // { vlans, priority, root, helloTime, forwardTime, maxAge, raw }
+        mstConfig: null,
+        // { name, revision, instances:[{id,vlans}], block, priorities:[] }
+        raw: []
+      },
+      dhcpPools: [],
+      // { name, block, network, defaultRouter, dnsServers, leases, options[] }
+      excludedAddresses: [],
+      // raw lines
+      helperAddresses: [],
+      // { interface, ip }
+      snmp: [],
+      // snmp-server ... lines
+      tacacs: [],
+      // tacacs server / aaa group server tacacs+ blocks + tacacs-server host
+      logging: [],
+      // logging ... lines
+      ntp: [],
+      // ntp ... lines
+      dns: [],
+      // ip name-server / ip domain name|domain-name / ip domain-list lines
+      isL3: false,
+      // `ip routing` present
+      lines: normalized ? lines : [],
+      text: normalized
+    };
+    for (let i = 0; i < lines.length; i++) {
+      const raw = lines[i];
+      const line = raw.trim();
+      if (line === "" || line === "!") continue;
+      if (result.hostname === null) {
+        const h = line.match(/^hostname\s+(\S+)/);
+        if (h) {
+          result.hostname = h[1];
+          continue;
+        }
+      }
+      if (/^ip routing\b/.test(line)) {
+        result.isL3 = true;
+        continue;
+      }
+      const iface = line.match(/^interface\s+(\S+)/);
+      if (iface && !isIndented(raw)) {
+        const { block, endIdx } = extractBlock(lines, i);
+        result.interfaces.push(parseInterface(iface[1], block, result));
+        i = endIdx;
+        continue;
+      }
+      const proto = line.match(/^router\s+(\S+)\s*(.*)$/);
+      if (proto && !isIndented(raw)) {
+        const { block, endIdx } = extractBlock(lines, i);
+        result.protocols.push({
+          type: proto[1].toLowerCase(),
+          id: proto[2].trim(),
+          header: line,
+          block,
+          lines: childLines(block)
+        });
+        i = endIdx;
+        continue;
+      }
+      const vrfDef = line.match(/^vrf definition\s+(\S+)/);
+      const ipVrf = line.match(/^ip vrf\s+(\S+)/);
+      if ((vrfDef || ipVrf) && !isIndented(raw)) {
+        const { block, endIdx } = extractBlock(lines, i);
+        result.vrfs.push(parseVrf(vrfDef ? vrfDef[1] : ipVrf[1], !!ipVrf, block));
+        i = endIdx;
+        continue;
+      }
+      if (/^ip route\s+/.test(line)) {
+        result.staticRoutes.push(line);
+        const def = line.match(/^ip route\s+0\.0\.0\.0\s+0\.0\.0\.0\s+(\S+)/);
+        if (def && !result.defaultGateway) {
+          result.defaultGateway = { nextHop: def[1], source: "default-route", raw: line };
+        }
+        continue;
+      }
+      if (/^ipv6 route\s+/.test(line)) {
+        result.ipv6Routes.push(line);
+        continue;
+      }
+      const dg = line.match(/^ip default-gateway\s+(\S+)/);
+      if (dg) {
+        if (!result.defaultGateway || result.defaultGateway.source === "default-gateway") {
+          result.defaultGateway = { nextHop: dg[1], source: "default-gateway", raw: line };
+        }
+        continue;
+      }
+      if (/^spanning-tree\b/.test(line)) {
+        i = parseSpanningTree(line, lines, i, raw, result.spanningTree);
+        continue;
+      }
+      const pool = line.match(/^ip dhcp pool\s+(\S+)/);
+      if (pool && !isIndented(raw)) {
+        const { block, endIdx } = extractBlock(lines, i);
+        result.dhcpPools.push(parseDhcpPool(pool[1], block));
+        i = endIdx;
+        continue;
+      }
+      if (/^ip dhcp excluded-address\s+/.test(line)) {
+        result.excludedAddresses.push(line);
+        continue;
+      }
+      if (/^snmp-server\b/.test(line)) {
+        result.snmp.push(line);
+        continue;
+      }
+      if (/^logging\b/.test(line)) {
+        result.logging.push(line);
+        continue;
+      }
+      if (/^ntp\b/.test(line)) {
+        result.ntp.push(line);
+        continue;
+      }
+      if (/^ip name-server\b/.test(line) || /^ip domain[- ](name|list)\b/.test(line)) {
+        result.dns.push(line);
+        continue;
+      }
+      if ((/^tacacs server\b/.test(line) || /^aaa group server tacacs\+/.test(line)) && !isIndented(raw)) {
+        const { block, endIdx } = extractBlock(lines, i);
+        result.tacacs.push(...block);
+        i = endIdx;
+        continue;
+      }
+      if (/^tacacs-server\b/.test(line)) {
+        result.tacacs.push(line);
+        continue;
+      }
+    }
+    for (const vrf of result.vrfs) {
+      vrf.interfaces = result.interfaces.filter((f) => f.vrf === vrf.name).map((f) => f.normName);
+      vrf.routes = result.staticRoutes.filter(
+        (r) => new RegExp(`^ip route vrf ${escapeRegex(vrf.name)}\\b`).test(r)
+      );
+    }
+    return result;
+  }
+  function parseInterface(name, block, result) {
+    const children = childLines(block);
+    const iface = {
+      name,
+      normName: normalizeInterfaceName(name),
+      block,
+      text: block.join("\n"),
+      description: null,
+      shutdown: false,
+      vrf: null,
+      ipAddresses: [],
+      // raw "ip address ..." lines (incl. secondary)
+      hasIp: false,
+      switchportLines: [],
+      stpLines: [],
+      // per-port spanning-tree lines (kept with the interface)
+      helperAddresses: [],
+      channelGroup: null
+      // port-channel number this interface is bundled into
+    };
+    for (const c of children) {
+      let m;
+      if (m = c.match(/^description\s+(.*)$/)) iface.description = m[1];
+      else if (/^shutdown$/.test(c)) iface.shutdown = true;
+      else if (m = c.match(/^(?:ip )?vrf forwarding\s+(\S+)/)) iface.vrf = m[1];
+      else if (m = c.match(/^channel-group\s+(\d+)/)) iface.channelGroup = Number(m[1]);
+      else if (/^ip address\s+/.test(c)) {
+        iface.ipAddresses.push(c);
+        iface.hasIp = true;
+      } else if (/^spanning-tree\s+/.test(c)) iface.stpLines.push(c);
+      else if (/^switchport\b/.test(c)) iface.switchportLines.push(c);
+      if (m = c.match(/^ip helper-address\s+(\S+)/)) {
+        iface.helperAddresses.push(m[1]);
+        result.helperAddresses.push({ interface: iface.normName, ip: m[1] });
+      }
+    }
+    return iface;
+  }
+  function parseVrf(name, legacy, block) {
+    const children = childLines(block);
+    const routeTargets = [];
+    let rd = null;
+    for (const c of children) {
+      let m;
+      if (m = c.match(/^rd\s+(\S+)/)) rd = m[1];
+      else if (m = c.match(/^route-target\s+(.*)$/)) routeTargets.push(m[1]);
+    }
+    return { name, legacy, block, rd, routeTargets, interfaces: [], routes: [] };
+  }
+  function parseDhcpPool(name, block) {
+    const children = childLines(block);
+    const pool = {
+      name,
+      block,
+      network: null,
+      defaultRouter: null,
+      dnsServers: null,
+      domainName: null,
+      lease: null,
+      options: []
+    };
+    for (const c of children) {
+      let m;
+      if (m = c.match(/^network\s+(.*)$/)) pool.network = m[1];
+      else if (m = c.match(/^default-router\s+(.*)$/)) pool.defaultRouter = m[1];
+      else if (m = c.match(/^dns-server\s+(.*)$/)) pool.dnsServers = m[1];
+      else if (m = c.match(/^domain-name\s+(.*)$/)) pool.domainName = m[1];
+      else if (m = c.match(/^lease\s+(.*)$/)) pool.lease = m[1];
+      else if (m = c.match(/^option\s+(.*)$/)) pool.options.push(m[1]);
+    }
+    return pool;
+  }
+  function parseSpanningTree(line, lines, i, raw, stp) {
+    if (/^spanning-tree mst configuration$/.test(line)) {
+      const { block, endIdx } = extractBlock(lines, i);
+      const mst = { name: null, revision: null, instances: [], block, priorities: [] };
+      for (const c of childLines(block)) {
+        let m2;
+        if (m2 = c.match(/^name\s+(\S+)/)) mst.name = m2[1];
+        else if (m2 = c.match(/^revision\s+(\d+)/)) mst.revision = Number(m2[1]);
+        else if (m2 = c.match(/^instance\s+(\d+)\s+vlan\s+(.*)$/))
+          mst.instances.push({ id: Number(m2[1]), vlans: m2[2].trim() });
+      }
+      stp.mstConfig = { ...stp.mstConfig || {}, ...mst };
+      stp.raw.push(...block);
+      return endIdx;
+    }
+    stp.raw.push(raw);
+    let m;
+    if (m = line.match(/^spanning-tree mode\s+(\S+)/)) stp.mode = m[1];
+    else if (/^spanning-tree extend system-id$/.test(line)) stp.extendSystemId = true;
+    else if (m = line.match(/^spanning-tree vlan\s+(\S+)\s+(.*)$/)) {
+      const entry = { vlans: m[1], raw: line, priority: null, root: null };
+      const rest = m[2];
+      let mm;
+      if (mm = rest.match(/priority\s+(\d+)/)) entry.priority = Number(mm[1]);
+      if (mm = rest.match(/root\s+(primary|secondary)/)) entry.root = mm[1];
+      if (mm = rest.match(/hello-time\s+(\d+)/)) entry.helloTime = Number(mm[1]);
+      if (mm = rest.match(/forward-time\s+(\d+)/)) entry.forwardTime = Number(mm[1]);
+      if (mm = rest.match(/max-age\s+(\d+)/)) entry.maxAge = Number(mm[1]);
+      stp.vlanConfig.push(entry);
+    } else if (m = line.match(/^spanning-tree mst\s+(\d+)\s+(priority|root)\s+(.*)$/)) {
+      if (!stp.mstConfig) stp.mstConfig = { instances: [], priorities: [] };
+      stp.mstConfig.priorities = stp.mstConfig.priorities || [];
+      stp.mstConfig.priorities.push({ instance: Number(m[1]), kind: m[2], value: m[3].trim(), raw: line });
+    } else {
+      stp.globalOptions.push(line);
+    }
+    return i;
+  }
+  function escapeRegex(s) {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  // public/lib/hardening.js
+  var SEVERITY = { HIGH: "High", MEDIUM: "Medium", LOW: "Low" };
+  function linesOf(parsed) {
+    return (parsed.lines || []).map((l) => l.trim()).filter((l) => l && l !== "!");
+  }
+  var anyLine = (lines, re) => lines.some((l) => re.test(l));
+  function looksLikeSwitch(parsed) {
+    const ifaces = parsed.interfaces || [];
+    if (ifaces.some((f) => (f.switchportLines || []).length > 0)) return true;
+    if (ifaces.some((f) => (f.stpLines || []).length > 0)) return true;
+    const stp = parsed.spanningTree || {};
+    if (stp.mode || stp.raw && stp.raw.length || stp.vlanConfig && stp.vlanConfig.length) return true;
+    return false;
+  }
+  var RULES = [
+    {
+      id: "service-password-encryption",
+      title: "service password-encryption not set",
+      severity: SEVERITY.MEDIUM,
+      detect(_p, lines) {
+        return anyLine(lines, /^service password-encryption\b/) ? { status: "pass" } : { status: "missing", remediation: ["service password-encryption"] };
+      }
+    },
+    {
+      id: "enable-secret",
+      title: "enable password used instead of enable secret",
+      severity: SEVERITY.HIGH,
+      detect(_p, lines) {
+        if (anyLine(lines, /^enable password\b/))
+          return {
+            status: "missing",
+            remediation: ["enable secret <STRONG-SECRET>", "no enable password"],
+            detail: "Replace the weak/reversible enable password with enable secret."
+          };
+        return { status: "pass" };
+      }
+    },
+    {
+      id: "plaintext-username",
+      title: "Plaintext username password (use secret)",
+      severity: SEVERITY.HIGH,
+      detect(_p, lines) {
+        const offenders = lines.filter(
+          (l) => /^username\s+\S+\s+(?:privilege\s+\d+\s+)?password\b/.test(l)
+        );
+        if (offenders.length)
+          return {
+            status: "missing",
+            remediation: offenders.map(
+              (l) => l.replace(/\bpassword\b/, "secret").replace(/\s+\S+$/, " <STRONG-SECRET>")
+            ),
+            detail: `${offenders.length} username(s) use plaintext password.`
+          };
+        return { status: "pass" };
+      }
+    },
+    {
+      id: "ssh-v2",
+      title: "SSH version 2 not enforced",
+      severity: SEVERITY.HIGH,
+      detect(_p, lines) {
+        return anyLine(lines, /^ip ssh version 2\b/) ? { status: "pass" } : {
+          status: "missing",
+          remediation: ["ip ssh version 2", "crypto key generate rsa modulus 2048"]
+        };
+      }
+    },
+    {
+      id: "vty-telnet",
+      title: "VTY allows telnet (transport input telnet/all)",
+      severity: SEVERITY.HIGH,
+      detect(_p, lines) {
+        if (anyLine(lines, /^transport input\b.*\b(telnet|all)\b/))
+          return {
+            status: "missing",
+            remediation: ["line vty 0 15", " transport input ssh"]
+          };
+        return { status: "pass" };
+      }
+    },
+    {
+      id: "exec-timeout",
+      title: "No exec-timeout on console/VTY",
+      severity: SEVERITY.MEDIUM,
+      detect(_p, lines) {
+        return anyLine(lines, /^exec-timeout\b/) ? { status: "pass" } : {
+          status: "missing",
+          remediation: ["line con 0", " exec-timeout 5 0", "line vty 0 15", " exec-timeout 5 0"]
+        };
+      }
+    },
+    {
+      id: "aaa-new-model",
+      title: "aaa new-model not enabled",
+      severity: SEVERITY.MEDIUM,
+      detect(_p, lines) {
+        return anyLine(lines, /^aaa new-model\b/) ? { status: "pass" } : { status: "missing", remediation: ["aaa new-model"] };
+      }
+    },
+    {
+      id: "ip-http-server",
+      title: "ip http server enabled",
+      severity: SEVERITY.MEDIUM,
+      detect(_p, lines) {
+        if (anyLine(lines, /^ip http server\b/))
+          return { status: "missing", remediation: ["no ip http server"] };
+        return { status: "pass" };
+      }
+    },
+    {
+      id: "cdp-run",
+      title: "CDP enabled globally (untrusted edges)",
+      severity: SEVERITY.LOW,
+      detect(_p, lines) {
+        return anyLine(lines, /^no cdp run\b/) ? { status: "pass" } : {
+          status: "missing",
+          remediation: ["no cdp run"],
+          detail: "Disable globally, or per-interface 'no cdp enable' on edge ports."
+        };
+      }
+    },
+    {
+      id: "login-throttling",
+      title: "No login throttling",
+      severity: SEVERITY.MEDIUM,
+      detect(_p, lines) {
+        return anyLine(lines, /^login block-for\b/) ? { status: "pass" } : { status: "missing", remediation: ["login block-for 120 attempts 3 within 60"] };
+      }
+    },
+    {
+      id: "snmp-default-community",
+      title: "SNMP community public/private",
+      severity: SEVERITY.HIGH,
+      detect(_p, lines) {
+        const bad = lines.filter((l) => /^snmp-server community\s+(public|private)\b/i.test(l));
+        if (bad.length)
+          return {
+            status: "missing",
+            remediation: bad.map((l) => "no " + l).concat(["! migrate to SNMPv3 with auth+priv"]),
+            detail: "Default community strings present."
+          };
+        if (anyLine(lines, /^snmp-server community\b/)) return { status: "pass" };
+        return { status: "na" };
+      }
+    },
+    {
+      id: "logging",
+      title: "No syslog host / buffered logging",
+      severity: SEVERITY.MEDIUM,
+      detect(_p, lines) {
+        const hasHost = anyLine(lines, /^logging\s+(host\s+)?\d+\.\d+\.\d+\.\d+/);
+        const hasBuffered = anyLine(lines, /^logging buffered\b/);
+        if (hasHost && hasBuffered) return { status: "pass" };
+        const rem = [];
+        if (!hasBuffered) rem.push("logging buffered 16384");
+        if (!hasHost) rem.push("logging host <SYSLOG-IP>");
+        rem.push("service timestamps log datetime msec");
+        return { status: "missing", remediation: rem };
+      }
+    },
+    {
+      id: "ntp-auth",
+      title: "NTP unauthenticated",
+      severity: SEVERITY.LOW,
+      detect(_p, lines) {
+        if (!anyLine(lines, /^ntp server\b/)) return { status: "na" };
+        return anyLine(lines, /^ntp authenticate\b/) ? { status: "pass" } : {
+          status: "missing",
+          remediation: [
+            "ntp authenticate",
+            "ntp authentication-key 1 md5 <KEY>",
+            "ntp trusted-key 1"
+          ]
+        };
+      }
+    },
+    {
+      id: "login-banner",
+      title: "No login/MOTD legal banner",
+      severity: SEVERITY.LOW,
+      detect(_p, lines) {
+        return anyLine(lines, /^banner (login|motd)\b/) ? { status: "pass" } : {
+          status: "missing",
+          remediation: ["banner login ^C Authorised access only. ^C"]
+        };
+      }
+    },
+    {
+      id: "vty-acl",
+      title: "No VTY ACL restricting management",
+      severity: SEVERITY.MEDIUM,
+      detect(_p, lines) {
+        return anyLine(lines, /^access-class\b/) ? { status: "pass" } : {
+          status: "missing",
+          remediation: [
+            "ip access-list standard MGMT-ACCESS",
+            " permit <MGMT-SUBNET> <WILDCARD>",
+            "line vty 0 15",
+            " access-class MGMT-ACCESS in"
+          ]
+        };
+      }
+    },
+    {
+      id: "service-hardening",
+      title: "Legacy services not disabled",
+      severity: SEVERITY.LOW,
+      detect(_p, lines) {
+        const wanted = [
+          ["no service pad", /^no service pad\b/],
+          ["no ip bootp server", /^no ip bootp server\b/],
+          ["no service config", /^no service config\b/],
+          ["no ip source-route", /^no ip source-route\b/]
+        ];
+        const missing = wanted.filter(([, re]) => !anyLine(lines, re)).map(([cmd]) => cmd);
+        return missing.length ? { status: "missing", remediation: missing, detail: missing.join(", ") } : { status: "pass" };
+      }
+    },
+    {
+      id: "password-min-length",
+      title: "security passwords min-length unset",
+      severity: SEVERITY.LOW,
+      detect(_p, lines) {
+        return anyLine(lines, /^security passwords min-length\b/) ? { status: "pass" } : { status: "missing", remediation: ["security passwords min-length 10"] };
+      }
+    },
+    {
+      id: "bpduguard-default",
+      title: "Global BPDU Guard default not set",
+      severity: SEVERITY.MEDIUM,
+      detect(parsed, lines) {
+        if (!looksLikeSwitch(parsed)) return { status: "na", detail: "router \u2014 no Layer 2 / spanning-tree" };
+        return anyLine(lines, /^spanning-tree portfast bpduguard default\b/) ? { status: "pass" } : { status: "missing", remediation: ["spanning-tree portfast bpduguard default"] };
+      }
+    },
+    {
+      id: "udld-aggressive",
+      title: "UDLD aggressive mode not enabled",
+      severity: SEVERITY.MEDIUM,
+      detect(parsed, lines) {
+        if (!looksLikeSwitch(parsed)) return { status: "na", detail: "router \u2014 UDLD is for switch fibre uplinks" };
+        return anyLine(lines, /^udld aggressive\b/) || anyLine(lines, /^udld enable aggressive\b/) ? { status: "pass" } : { status: "missing", remediation: ["udld aggressive"] };
+      }
+    },
+    {
+      id: "portfast-without-bpduguard",
+      title: "PortFast access ports without BPDU Guard",
+      severity: SEVERITY.MEDIUM,
+      detect(parsed) {
+        if (!looksLikeSwitch(parsed)) return { status: "na", detail: "router \u2014 no Layer 2 / spanning-tree" };
+        const offenders = (parsed.interfaces || []).filter((f) => {
+          const hasAccessPortfast = f.stpLines.some(
+            (l) => /^spanning-tree portfast$/.test(l) || /^spanning-tree portfast edge$/.test(l)
+          );
+          const hasBpduGuard = f.stpLines.some((l) => /spanning-tree bpduguard enable/.test(l));
+          return hasAccessPortfast && !hasBpduGuard;
+        });
+        if (!offenders.length) return { status: "pass" };
+        const rem = [];
+        for (const f of offenders) {
+          rem.push(`interface ${f.normName}`, " spanning-tree bpduguard enable");
+        }
+        return {
+          status: "missing",
+          remediation: rem,
+          detail: `${offenders.length} port(s): ${offenders.map((f) => f.normName).join(", ")}`
+        };
+      }
+    }
+  ];
+  var WHY = {
+    "service-password-encryption": "Encrypts plaintext passwords in the config so they aren't readable at a glance.",
+    "enable-secret": "enable secret stores a strong hash; enable password is weak and reversible.",
+    "plaintext-username": "Local user passwords should be hashed (secret), never stored in plaintext.",
+    "ssh-v2": "SSHv2 is required for secure remote access; SSHv1 is broken.",
+    "vty-telnet": "Telnet is cleartext \u2014 VTY lines should accept SSH only.",
+    "exec-timeout": "Idle CLI sessions should time out so an unattended terminal can't be hijacked.",
+    "aaa-new-model": "Enables AAA for centralised authentication, authorisation and accounting.",
+    "ip-http-server": "The built-in HTTP server is an unneeded management attack surface \u2014 disable it.",
+    "cdp-run": "CDP advertises device details; disable it on untrusted / edge ports.",
+    "login-throttling": "Rate-limits failed logins to slow down brute-force attempts.",
+    "snmp-default-community": "Default community strings (public/private) are well-known \u2014 remove them or move to SNMPv3.",
+    logging: "Central syslog plus buffered logging are needed for audit trails and troubleshooting.",
+    "ntp-auth": "Authenticated NTP stops time spoofing that can corrupt logs and certificate validation.",
+    "login-banner": "A legal login/MOTD banner is commonly required for unauthorised-access notices.",
+    "vty-acl": "Restrict management (VTY) access to known source addresses with an access-class.",
+    "service-hardening": "Disable legacy services (pad, bootp, source-route, service config) that aren't needed.",
+    "password-min-length": "Enforce a minimum length for locally configured passwords.",
+    "bpduguard-default": "BPDU Guard on PortFast edge ports shuts a port if it sees a rogue switch \u2014 prevents loops.",
+    "portfast-without-bpduguard": "A PortFast access port without BPDU Guard can introduce a spanning-tree loop.",
+    "udld-aggressive": "UDLD aggressive detects one-way fibre links and err-disables them before they cause loops."
+  };
+  function audit(parsed) {
+    const lines = linesOf(parsed);
+    return RULES.map((rule) => {
+      let out;
+      try {
+        out = rule.detect(parsed, lines) || { status: "na" };
+      } catch (err) {
+        out = { status: "na", detail: `rule error: ${err.message}` };
+      }
+      return {
+        id: rule.id,
+        title: rule.title,
+        severity: rule.severity,
+        status: out.status,
+        remediation: out.remediation || [],
+        detail: out.detail || null,
+        why: WHY[rule.id] || "",
+        apply: false
+        // user toggles this in the UI for Missing items
+      };
+    });
+  }
+  function remediationLines(findings) {
+    const out = [];
+    for (const f of findings) {
+      if (f.apply && f.status === "missing" && f.remediation.length) {
+        if (out.length) out.push("!");
+        out.push(`! [${f.severity}] ${f.title}`);
+        out.push(...f.remediation);
+      }
+    }
+    return out;
+  }
+
+  // public/lib/template.js
+  function tagFor(index) {
+    let n = index + 1;
+    let s = "";
+    while (n > 0) {
+      n--;
+      s = String.fromCharCode(97 + n % 26) + s;
+      n = Math.floor(n / 26);
+    }
+    return s;
+  }
+  function buildTagMap(config) {
+    const slots = [];
+    let idx = 0;
+    const push = (key, category, label) => slots.push({ tag: tagFor(idx++), key, category, label });
+    if (config.interfacesAll && config.interfacesAll.enabled) {
+      const m = config.interfacesAll.mode === "ip" ? "IP only" : "full";
+      push("iface:all", "Interfaces", `All interfaces (${m})`);
+    } else {
+      (config.interfaces || []).forEach((it, i) => {
+        const mode = it.mode === "ip" ? "IP only" : "full";
+        push(`iface:${i}`, "Interfaces", `${it.name} (${mode})`);
+      });
+    }
+    const r = config.routing || {};
+    if (r.defaultGateway) push("route:default", "Routing", "Default route");
+    if (r.allStatic) push("route:static", "Routing", "All static routes");
+    if (r.protocols) push("route:protocols", "Routing", "Routing protocols");
+    if (config.vrf && config.vrf.enabled) push("vrf", "VRF", "VRFs");
+    if (config.stp && config.stp.enabled) push("stp", "Spanning tree", "Spanning tree");
+    if (config.dhcp && config.dhcp.enabled) push("dhcp", "DHCP", "DHCP scopes");
+    if (config.snmp && config.snmp.enabled) push("snmp", "Management", "SNMP");
+    if (config.tacacs && config.tacacs.enabled) push("tacacs", "Management", "TACACS+");
+    if (config.logging && config.logging.enabled) push("logging", "Management", "Logging");
+    if (config.ntp && config.ntp.enabled) push("ntp", "Management", "NTP");
+    if (config.dns && config.dns.enabled) push("dns", "Management", "DNS");
+    slots.push({ tag: "harden", key: "harden", category: "Hardening", label: "Hardening" });
+    return slots;
+  }
+  var NOT_FOUND = (what) => [`! ${what}: not found in source`];
+  function defaultRouteLine(parsed) {
+    if (!parsed.defaultGateway) return null;
+    return `ip route 0.0.0.0 0.0.0.0 ${parsed.defaultGateway.nextHop}`;
+  }
+  function vlanUnion(vlanConfig) {
+    const set = /* @__PURE__ */ new Set();
+    for (const v of vlanConfig || []) {
+      for (const part of String(v.vlans).split(",")) set.add(part.trim());
+    }
+    return [...set].filter(Boolean).join(",");
+  }
+  function buildSpanningTreeBlock(parsed, role = "asis", vlans = null) {
+    const stp = parsed.spanningTree || {};
+    const lines = [];
+    if (stp.mode) lines.push(`spanning-tree mode ${stp.mode}`);
+    if (stp.extendSystemId) lines.push("spanning-tree extend system-id");
+    for (const g of stp.globalOptions || []) lines.push(g);
+    const list = vlans || vlanUnion(stp.vlanConfig) || "1-4094";
+    for (const v of stp.vlanConfig || []) {
+      if (role !== "asis" && v.root) continue;
+      lines.push(v.raw);
+    }
+    const mst = stp.mode === "mst";
+    if (role === "root") {
+      lines.push(mst ? "spanning-tree mst 0 root primary" : `spanning-tree vlan ${list} root primary`);
+    } else if (role === "nonroot") {
+      lines.push(
+        mst ? "spanning-tree mst 0 root secondary" : `spanning-tree vlan ${list} root secondary`
+      );
+    }
+    if (stp.mstConfig && stp.mstConfig.block) lines.push(...stp.mstConfig.block);
+    return lines;
+  }
+  function buildVrfBlock(parsed) {
+    const lines = [];
+    for (const vrf of parsed.vrfs || []) {
+      lines.push(`! ---- VRF ${vrf.name} ----`);
+      lines.push(...vrf.block);
+      if (vrf.interfaces.length) lines.push(`! bound interfaces: ${vrf.interfaces.join(", ")}`);
+      lines.push(...vrf.routes);
+    }
+    return lines;
+  }
+  function buildDhcpBlock(parsed) {
+    const lines = [];
+    lines.push(...parsed.excludedAddresses || []);
+    for (const pool of parsed.dhcpPools || []) lines.push(...pool.block);
+    for (const h of parsed.helperAddresses || [])
+      lines.push(`! relay: ${h.interface} ip helper-address ${h.ip}`);
+    return lines;
+  }
+  function buildBlocks(config, parsed, opts = {}) {
+    const slots = buildTagMap(config);
+    for (const slot of slots) {
+      const r = fillSlot(slot, config, parsed, opts);
+      slot.lines = r.lines;
+      slot.found = r.found;
+    }
+    return slots;
+  }
+  function fillSlot(slot, config, parsed, opts) {
+    if (slot.key === "iface:all") {
+      const mode = config.interfacesAll && config.interfacesAll.mode || "full";
+      const lines = [];
+      let found = false;
+      for (const f of parsed.interfaces || []) {
+        if (mode === "ip") {
+          if (!f.ipAddresses.length) continue;
+          lines.push(`interface ${f.normName}`, ...f.ipAddresses.map((l) => " " + l));
+        } else {
+          lines.push(...f.block);
+        }
+        found = true;
+      }
+      return found ? { lines, found: true } : { lines: NOT_FOUND("interfaces"), found: false };
+    }
+    if (slot.key.startsWith("iface:")) {
+      const i = Number(slot.key.split(":")[1]);
+      const def = config.interfaces[i];
+      const want = normalizeInterfaceName(def.name);
+      const iface = (parsed.interfaces || []).find((f) => f.normName === want);
+      if (!iface) return { lines: NOT_FOUND(`interface ${def.name}`), found: false };
+      if (def.mode === "ip") {
+        if (!iface.ipAddresses.length) return { lines: NOT_FOUND(`ip on ${def.name}`), found: false };
+        return { lines: [`interface ${iface.normName}`, ...iface.ipAddresses.map((l) => " " + l)], found: true };
+      }
+      return { lines: iface.block.slice(), found: true };
+    }
+    switch (slot.key) {
+      case "route:default": {
+        const line = defaultRouteLine(parsed);
+        return line ? { lines: [line], found: true } : { lines: NOT_FOUND("default route"), found: false };
+      }
+      case "route:static": {
+        const routes = (parsed.staticRoutes || []).concat(parsed.ipv6Routes || []);
+        return routes.length ? { lines: routes, found: true } : { lines: NOT_FOUND("static routes"), found: false };
+      }
+      case "route:protocols": {
+        const lines = [];
+        for (const p of parsed.protocols || []) lines.push(...p.block);
+        return lines.length ? { lines, found: true } : { lines: NOT_FOUND("routing protocols"), found: false };
+      }
+      case "vrf": {
+        const lines = buildVrfBlock(parsed);
+        return lines.length ? { lines, found: true } : { lines: NOT_FOUND("VRFs"), found: false };
+      }
+      case "stp": {
+        const stp = parsed.spanningTree || {};
+        const hasStp = stp.mode || stp.vlanConfig && stp.vlanConfig.length || stp.mstConfig || stp.raw && stp.raw.length;
+        if (!hasStp) return { lines: NOT_FOUND("spanning-tree"), found: false };
+        const lines = buildSpanningTreeBlock(parsed, opts.stpRole || "asis", opts.stpVlans || null);
+        return lines.length ? { lines, found: true } : { lines: NOT_FOUND("spanning-tree"), found: false };
+      }
+      case "dhcp": {
+        const lines = buildDhcpBlock(parsed);
+        return lines.length ? { lines, found: true } : { lines: NOT_FOUND("DHCP"), found: false };
+      }
+      case "snmp":
+        return (parsed.snmp || []).length ? { lines: parsed.snmp, found: true } : { lines: NOT_FOUND("SNMP"), found: false };
+      case "tacacs":
+        return (parsed.tacacs || []).length ? { lines: parsed.tacacs, found: true } : { lines: NOT_FOUND("TACACS+"), found: false };
+      case "logging":
+        return (parsed.logging || []).length ? { lines: parsed.logging, found: true } : { lines: NOT_FOUND("logging"), found: false };
+      case "ntp":
+        return (parsed.ntp || []).length ? { lines: parsed.ntp, found: true } : { lines: NOT_FOUND("NTP"), found: false };
+      case "dns":
+        return (parsed.dns || []).length ? { lines: parsed.dns, found: true } : { lines: NOT_FOUND("DNS"), found: false };
+      case "harden":
+        return { lines: opts.hardenLines || [], found: (opts.hardenLines || []).length > 0 };
+      default:
+        return { lines: [], found: false };
+    }
+  }
+  var TAG_RE = /\{([a-z]+|harden)\}/g;
+  function renderTagBased(templateText, slots) {
+    const warnings = [];
+    const byTag = new Map(slots.map((s) => [s.tag, s]));
+    const used = /* @__PURE__ */ new Set();
+    const REMOVE = "\0REMOVE\0";
+    let out = String(templateText).replace(TAG_RE, (_m, tag) => {
+      const slot = byTag.get(tag);
+      if (!slot) {
+        warnings.push(`Marker {${tag}} has no matching collected data - line removed.`);
+        return REMOVE;
+      }
+      used.add(tag);
+      if (!slot.found) warnings.push(`Marker {${tag}} (${slot.label}): data not found in source.`);
+      return (slot.lines || []).join("\n");
+    });
+    out = out.split("\n").filter((l) => !l.includes(REMOVE)).join("\n");
+    for (const s of slots) {
+      if (!used.has(s.tag) && s.found) {
+        warnings.push(`Collected "${s.label}" ({${s.tag}}) has no marker in the template - its data was NOT inserted.`);
+      }
+    }
+    return { content: out, warnings };
+  }
+  function renderDirect(templateText, slots) {
+    const warnings = [];
+    const parts = [String(templateText).replace(/\s+$/, "")];
+    const byCategory = /* @__PURE__ */ new Map();
+    for (const slot of slots) {
+      if (slot.tag === "harden") continue;
+      if (!byCategory.has(slot.category)) byCategory.set(slot.category, []);
+      byCategory.get(slot.category).push(slot);
+    }
+    for (const [category, catSlots] of byCategory) {
+      parts.push("", `! ==== ${category} ====`);
+      for (const slot of catSlots) {
+        if (!slot.found) warnings.push(`${slot.label}: data not found in source.`);
+        parts.push(...slot.lines || []);
+      }
+    }
+    const harden = slots.find((s) => s.tag === "harden");
+    if (harden && (harden.lines || []).length) {
+      parts.push("", "! ==== Hardening ====", ...harden.lines);
+    }
+    return { content: parts.join("\n") + "\n", warnings };
+  }
+  function computeOutput(parsed, naming = {}) {
+    const original = parsed.hostname || "device";
+    let host = original;
+    if (naming.rename && naming.find) {
+      if (naming.method === "suffix") {
+        host = original.replace(new RegExp(escapeRegex2(naming.find) + "$"), naming.replace || "");
+      } else {
+        host = original.split(naming.find).join(naming.replace || "");
+      }
+    }
+    const ext = "." + String(naming.extension || "txt").replace(/^\.+/, "");
+    return { original, hostname: host, filename: host + ext };
+  }
+  function buildSecureAccess({ username, password, enableSecret, configKey } = {}) {
+    if (!username || !password) return [];
+    const lines = [
+      `username ${username} privilege 15 algorithm-type sha256 secret ${password}`,
+      "!",
+      `enable algorithm-type sha256 secret ${enableSecret || password}`,
+      "!",
+      "aaa new-model",
+      "aaa authentication login default local",
+      "aaa authorization exec default local"
+    ];
+    if (configKey) {
+      lines.push("!", `key config-key password-encrypt ${configKey}`, "password encryption aes");
+    }
+    lines.push(
+      "!",
+      "ip ssh version 2",
+      "!",
+      "line con 0",
+      " login authentication default",
+      "line vty 0 15",
+      " transport input ssh",
+      " login authentication default"
+    );
+    return lines;
+  }
+  function buildVtp({ domain, password, mode } = {}) {
+    if (!domain) return [];
+    const lines = [`vtp domain ${domain}`, "vtp version 3", `vtp mode ${mode || "transparent"}`];
+    if (password) lines.push(`vtp password ${password}`);
+    return lines;
+  }
+  function buildClock({ timezone, offset, summerTime } = {}) {
+    if (!timezone) return [];
+    const lines = [`clock timezone ${timezone} ${offset == null || offset === "" ? 0 : offset}`];
+    if (summerTime) lines.push(`clock summer-time ${summerTime}`);
+    return lines;
+  }
+  function buildStpHardening() {
+    return [
+      "spanning-tree portfast default",
+      "spanning-tree portfast bpduguard default",
+      "spanning-tree loopguard default"
+    ];
+  }
+  function buildErrdisable({ interval } = {}) {
+    const causes = ["udld", "bpduguard", "link-flap", "psecure-violation", "storm-control"];
+    return causes.map((c) => `errdisable recovery cause ${c}`).concat([`errdisable recovery interval ${interval || 300}`]);
+  }
+  function buildBanner({ text } = {}) {
+    if (!text || !text.trim()) return [];
+    const body = text.replace(/\^C/g, "").trimEnd();
+    return [`banner login ^C ${body} ^C`, `banner motd ^C ${body} ^C`];
+  }
+  function applyHostname(content, hostname) {
+    if (/^hostname\s+\S+/m.test(content)) {
+      return content.replace(/^hostname\s+\S+.*$/m, `hostname ${hostname}`);
+    }
+    return `hostname ${hostname}
+${content}`;
+  }
+  function escapeRegex2(s) {
+    return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+  function renameIface(f, target) {
+    const block = f.block.slice();
+    if (block.length) block[0] = "interface " + target;
+    return { ...f, name: target, normName: target, block, text: block.join("\n") };
+  }
+  function makeSyntheticIface(name, block) {
+    const ipAddresses = block.filter((l) => /^\s*ip address\s/.test(l)).map((l) => l.trim());
+    return {
+      name,
+      normName: name,
+      block,
+      text: block.join("\n"),
+      description: null,
+      shutdown: false,
+      vrf: null,
+      ipAddresses,
+      hasIp: ipAddresses.length > 0,
+      switchportLines: block.filter((l) => /^\s*switchport\b/.test(l)).map((l) => l.trim()),
+      stpLines: [],
+      helperAddresses: [],
+      channelGroup: null
+    };
+  }
+  function applyInterfaceMap(parsed, map) {
+    if (!map || map.size === 0) return parsed;
+    const remap = /* @__PURE__ */ new Map();
+    for (const [normName, m] of map) {
+      if (!m || !m.target || !m.target.trim()) continue;
+      const target = normalizeInterfaceName(m.target.trim());
+      if (target === normName) continue;
+      remap.set(normName, { transform: m.transform || "routed", vlan: m.vlan, target });
+    }
+    if (remap.size === 0) return parsed;
+    const suppressed = new Set([...remap.values()].map((m) => m.target));
+    const sviVlanNames = new Set(
+      [...remap.values()].filter((m) => m.transform === "svi" && m.vlan).map((m) => normalizeInterfaceName("Vlan" + m.vlan))
+    );
+    const out = [];
+    const svis = /* @__PURE__ */ new Map();
+    for (const f of parsed.interfaces || []) {
+      if (sviVlanNames.has(f.normName) && !remap.has(f.normName)) {
+        svis.set(f.normName, { ...f, block: f.block.slice(), ipAddresses: f.ipAddresses.slice() });
+      }
+    }
+    for (const f of parsed.interfaces || []) {
+      if (sviVlanNames.has(f.normName) && !remap.has(f.normName)) continue;
+      const m = remap.get(f.normName);
+      if (!m) {
+        if (!suppressed.has(f.normName)) out.push(f);
+        continue;
+      }
+      if (m.transform === "svi" && m.vlan) {
+        const vlanName = normalizeInterfaceName("Vlan" + m.vlan);
+        const l3 = f.ipAddresses.slice();
+        const svi = svis.get(vlanName);
+        if (svi) {
+          svi.block.push(...l3.map((l) => " " + l));
+          svi.ipAddresses.push(...l3);
+          svi.hasIp = svi.hasIp || l3.length > 0;
+          svi.text = svi.block.join("\n");
+        } else {
+          svis.set(vlanName, makeSyntheticIface(vlanName, ["interface " + vlanName, ...l3.map((l) => " " + l)]));
+        }
+        out.push(makeSyntheticIface(m.target, [
+          "interface " + m.target,
+          " switchport mode access",
+          " switchport access vlan " + m.vlan
+        ]));
+      } else {
+        out.push(renameIface(f, m.target));
+      }
+    }
+    return { ...parsed, interfaces: [...out, ...svis.values()] };
+  }
+  function detectInterfaceMapConflicts(parsed, map, opts = {}) {
+    const warnings = [];
+    if (!map || map.size === 0) return warnings;
+    const label = opts.label || "device";
+    const selected = opts.selectedTargets instanceof Set ? opts.selectedTargets : /* @__PURE__ */ new Set();
+    const byTarget = /* @__PURE__ */ new Map();
+    for (const [normName, m] of map) {
+      if (!m || !m.target || !m.target.trim()) continue;
+      const target = normalizeInterfaceName(m.target.trim());
+      if (target === normName) continue;
+      if (m.transform === "svi" && (m.vlan == null || !String(m.vlan).trim())) {
+        warnings.push({ hard: true, message: `${label}: ${normName} mapped as SVI but no VLAN given \u2014 set a VLAN.` });
+      }
+      if (!byTarget.has(target)) byTarget.set(target, []);
+      byTarget.get(target).push(normName);
+    }
+    for (const [target, sources] of byTarget) {
+      if (sources.length > 1) {
+        warnings.push({ hard: true, message: `${label}: ${sources.join(" and ")} both map to ${target} \u2014 pick distinct targets.` });
+      } else if (selected.has(target) && (parsed.interfaces || []).some((f) => f.normName === target)) {
+        warnings.push({ hard: false, message: `${label}: ${target} config replaced by mapped ${sources[0]}.` });
+      }
+    }
+    return warnings;
+  }
+
+  // public/lib/redact.js
+  function buildSummary(parsed) {
+    const interfaces = parsed.interfaces || [];
+    const byKind = {};
+    let trunks = 0;
+    let access = 0;
+    const svis = [];
+    for (const f of interfaces) {
+      const kind = (f.normName.match(/^[A-Za-z-]+/) || ["?"])[0];
+      byKind[kind] = (byKind[kind] || 0) + 1;
+      if (f.switchportLines.some((l) => /mode trunk/.test(l))) trunks++;
+      if (f.switchportLines.some((l) => /mode access/.test(l))) access++;
+      if (f.hasIp) svis.push({ name: f.normName, addresses: f.ipAddresses.length });
+    }
+    const hasL2 = trunks > 0 || access > 0 || !!parsed.spanningTree.mode || interfaces.some((f) => f.switchportLines.length);
+    const role = hasL2 ? parsed.isL3 ? "l3-switch" : "l2-switch" : "router";
+    return {
+      hostname: parsed.hostname,
+      role,
+      // 'router' | 'l2-switch' | 'l3-switch' — drives role-appropriate AI suggestions
+      layer3: !!parsed.isL3,
+      interfaceCount: interfaces.length,
+      interfacesByKind: byKind,
+      trunkPorts: trunks,
+      accessPorts: access,
+      routedInterfaces: svis,
+      defaultGateway: parsed.defaultGateway ? { present: true, via: parsed.defaultGateway.source } : { present: false },
+      staticRouteCount: (parsed.staticRoutes || []).length,
+      routingProtocols: (parsed.protocols || []).map((p) => `${p.type} ${p.id}`.trim()),
+      vrfs: (parsed.vrfs || []).map((v) => v.name),
+      spanningTree: {
+        mode: parsed.spanningTree.mode,
+        perVlanEntries: parsed.spanningTree.vlanConfig.length,
+        mst: !!parsed.spanningTree.mstConfig
+      },
+      dhcpPools: (parsed.dhcpPools || []).map((p) => p.name),
+      dhcpRelays: (parsed.helperAddresses || []).length
+    };
+  }
+  function redactForAI(parsed) {
+    return { hostname: parsed.hostname, summary: buildSummary(parsed) };
+  }
+
+  // public/lib/zip.js
+  var textEncoder = new TextEncoder();
+  var CRC_TABLE = (() => {
+    const t = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 3988292384 ^ c >>> 1 : c >>> 1;
+      t[n] = c >>> 0;
+    }
+    return t;
+  })();
+  function crc32(bytes) {
+    let c = 4294967295;
+    for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 255] ^ c >>> 8;
+    return (c ^ 4294967295) >>> 0;
+  }
+  var ByteWriter = class {
+    constructor() {
+      this.chunks = [];
+      this.length = 0;
+    }
+    u16(v) {
+      this.chunks.push(new Uint8Array([v & 255, v >>> 8 & 255]));
+      this.length += 2;
+    }
+    u32(v) {
+      this.chunks.push(
+        new Uint8Array([v & 255, v >>> 8 & 255, v >>> 16 & 255, v >>> 24 & 255])
+      );
+      this.length += 4;
+    }
+    bytes(b) {
+      this.chunks.push(b);
+      this.length += b.length;
+    }
+    concat() {
+      const out = new Uint8Array(this.length);
+      let off = 0;
+      for (const c of this.chunks) {
+        out.set(c, off);
+        off += c.length;
+      }
+      return out;
+    }
+  };
+  function buildZip(files) {
+    const w = new ByteWriter();
+    const central = [];
+    for (const file of files) {
+      const nameBytes = textEncoder.encode(file.path.replace(/\\/g, "/"));
+      const dataBytes = typeof file.content === "string" ? textEncoder.encode(file.content) : file.content;
+      const crc = crc32(dataBytes);
+      const offset = w.length;
+      w.u32(67324752);
+      w.u16(20);
+      w.u16(2048);
+      w.u16(0);
+      w.u16(0);
+      w.u16(33);
+      w.u32(crc);
+      w.u32(dataBytes.length);
+      w.u32(dataBytes.length);
+      w.u16(nameBytes.length);
+      w.u16(0);
+      w.bytes(nameBytes);
+      w.bytes(dataBytes);
+      central.push({ nameBytes, crc, size: dataBytes.length, offset });
+    }
+    const cdStart = w.length;
+    for (const e of central) {
+      w.u32(33639248);
+      w.u16(20);
+      w.u16(20);
+      w.u16(2048);
+      w.u16(0);
+      w.u16(0);
+      w.u16(33);
+      w.u32(e.crc);
+      w.u32(e.size);
+      w.u32(e.size);
+      w.u16(e.nameBytes.length);
+      w.u16(0);
+      w.u16(0);
+      w.u16(0);
+      w.u16(0);
+      w.u32(0);
+      w.u32(e.offset);
+      w.bytes(e.nameBytes);
+    }
+    const cdSize = w.length - cdStart;
+    w.u32(101010256);
+    w.u16(0);
+    w.u16(0);
+    w.u16(central.length);
+    w.u16(central.length);
+    w.u32(cdSize);
+    w.u32(cdStart);
+    w.u16(0);
+    return w.concat();
+  }
+
+  // public/app.js
+  var CONFIG_EXT = /\.(txt|cfg)$/i;
+  var isConfigFile = (name) => CONFIG_EXT.test(name);
+  var PO_PALETTE = ["#2f8d99", "#7c4dff", "#2f9e57", "#cf4f86", "#3f7fd6", "#c98a3a", "#1f9aa8", "#8e9b34"];
+  function interfacePo(f) {
+    if (f.channelGroup != null) return f.channelGroup;
+    const m = f.normName.match(/^Port-channel(\d+)/i);
+    return m ? Number(m[1]) : null;
+  }
+  var state = {
+    sites: [],
+    // { path, name, files: [...], parsedFiles: [{ name, entry, parsed }] }
+    mergeSel: /* @__PURE__ */ new Map(),
+    // sitePath -> Set(fileName) committed to merge into one template
+    mergeName: /* @__PURE__ */ new Map(),
+    // sitePath -> custom hostname for the merged device
+    units: [],
+    // built output units
+    deviceCfg: /* @__PURE__ */ new Map(),
+    // unitId -> per-device collection state (see defaultDeviceCfg)
+    rootBySite: /* @__PURE__ */ new Map(),
+    // sitePath -> unitId elected as that site's spanning-tree root
+    poColor: /* @__PURE__ */ new Map(),
+    // port-channel number -> colour (computed per scan)
+    stpVlans: null
+  };
+  var $ = (id) => document.getElementById(id);
+  function initModeBadge() {
+    const badge = $("mode-badge");
+    badge.dataset.mode = "fallback";
+    badge.textContent = "Read-only \xB7 saves .zip";
+    $("fallback-note").classList.remove("hidden");
+  }
+  function onBrowse() {
+    $("fallback-input").click();
+  }
+  function onFallbackPicked(event) {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+    $("folder-name").textContent = files[0].webkitRelativePath.split("/")[0] || "(folder)";
+    state.sites = discoverSitesFromFileList(files);
+    renderSites();
+  }
+  function discoverSitesFromFileList(files) {
+    const byDir = /* @__PURE__ */ new Map();
+    for (const file of files) {
+      if (!isConfigFile(file.name)) continue;
+      const parts = file.webkitRelativePath.split("/");
+      parts.pop();
+      const dirPath = parts.join("/") || "(root)";
+      if (!byDir.has(dirPath)) byDir.set(dirPath, []);
+      byDir.get(dirPath).push({ name: file.name, file });
+    }
+    const sites = [];
+    for (const [path, fileList] of byDir) {
+      fileList.sort((a, b) => a.name.localeCompare(b.name));
+      sites.push({ path, name: path.split("/").pop(), files: fileList });
+    }
+    sites.sort((a, b) => a.path.localeCompare(b.path));
+    return sites;
+  }
+  function renderSites() {
+    if (!state.sites.length) {
+      $("sites-summary").textContent = "No sites found \u2014 no folder directly contains a .txt/.cfg file.";
+      return;
+    }
+    const fileTotal = state.sites.reduce((n, s) => n + s.files.length, 0);
+    $("sites-summary").textContent = `${state.sites.length} site${state.sites.length === 1 ? "" : "s"} \xB7 ${fileTotal} config file${fileTotal === 1 ? "" : "s"} \u2014 analysed below.`;
+    onAnalyze().catch(reportError);
+  }
+  function readGlobalConfig() {
+    return {
+      secureAccess: {
+        enabled: $("sec-enable").checked,
+        username: $("sec-user").value.trim(),
+        password: $("sec-pass").value.trim(),
+        enableSecret: $("sec-enable-secret").value.trim(),
+        configKey: $("sec-configkey").value.trim()
+      },
+      vtp: {
+        enabled: $("vtp-enable").checked,
+        domain: $("vtp-domain").value.trim(),
+        password: $("vtp-password").value.trim(),
+        mode: $("vtp-mode").value
+      },
+      clock: {
+        enabled: $("clock-enable").checked,
+        timezone: $("clock-tz").value.trim(),
+        offset: $("clock-offset").value.trim(),
+        summerTime: $("clock-summer").value.trim()
+      },
+      stpHardening: { enabled: $("stph-enable").checked },
+      errdisable: { enabled: $("errd-enable").checked, interval: $("errd-interval").value.trim() },
+      banner: { enabled: $("banner-enable").checked, text: $("banner-text").value },
+      insertion: document.querySelector('input[name="insertion"]:checked').value,
+      naming: {
+        rename: $("rename").checked,
+        method: $("rename-method").value,
+        find: $("rename-find").value,
+        replace: $("rename-replace").value
+      }
+    };
+  }
+  function defaultDeviceCfg(p) {
+    return {
+      interfacesAll: { enabled: false, mode: "full" },
+      ifaceSel: /* @__PURE__ */ new Map(),
+      // normName -> { checked, mode }
+      ifaceMap: /* @__PURE__ */ new Map(),
+      // normName -> { target, transform: "routed"|"svi", vlan }
+      routing: {
+        defaultGateway: !!p.defaultGateway,
+        allStatic: p.staticRoutes.length > 0,
+        protocols: p.protocols.length > 0
+      },
+      vrf: p.vrfs.length > 0,
+      stp: !!p.spanningTree.mode,
+      dhcp: p.dhcpPools.length > 0,
+      snmp: p.snmp.length > 0,
+      tacacs: p.tacacs.length > 0,
+      logging: p.logging.length > 0,
+      ntp: p.ntp.length > 0,
+      dns: p.dns.length > 0
+    };
+  }
+  function deviceCfg(unit) {
+    if (!state.deviceCfg.has(unit.id)) state.deviceCfg.set(unit.id, defaultDeviceCfg(unit.parsed));
+    return state.deviceCfg.get(unit.id);
+  }
+  function mappedSelections(selected, ifaceMap) {
+    if (!ifaceMap || ifaceMap.size === 0) return selected;
+    const out = [];
+    const seen = /* @__PURE__ */ new Set();
+    const push = (name, mode) => {
+      const k = name + "::" + mode;
+      if (!seen.has(k)) {
+        seen.add(k);
+        out.push({ name, mode });
+      }
+    };
+    for (const sel of selected) {
+      const m = ifaceMap.get(sel.name);
+      if (!m || !m.target || !m.target.trim()) {
+        push(sel.name, sel.mode);
+        continue;
+      }
+      const target = normalizeInterfaceName(m.target.trim());
+      if (target === sel.name) {
+        push(sel.name, sel.mode);
+        continue;
+      }
+      if (m.transform === "svi" && m.vlan) {
+        push(target, "full");
+        push(normalizeInterfaceName("Vlan" + m.vlan), "full");
+      } else {
+        push(target, sel.mode);
+      }
+    }
+    return out;
+  }
+  function unitConfig(unit, global) {
+    const d = deviceCfg(unit);
+    const interfaces = d.interfacesAll.enabled ? [] : mappedSelections(
+      [...d.ifaceSel.entries()].filter(([, v]) => v.checked).map(([name, v]) => ({ name, mode: v.mode })),
+      d.ifaceMap
+    );
+    return {
+      interfacesAll: d.interfacesAll,
+      interfaces,
+      routing: d.routing,
+      vrf: { enabled: d.vrf },
+      stp: { enabled: d.stp },
+      dhcp: { enabled: d.dhcp },
+      snmp: { enabled: d.snmp },
+      tacacs: { enabled: d.tacacs },
+      logging: { enabled: d.logging },
+      ntp: { enabled: d.ntp },
+      dns: { enabled: d.dns },
+      insertion: global.insertion,
+      naming: global.naming
+    };
+  }
+  function refreshTagMap() {
+    const el = $("tagmap");
+    el.innerHTML = "";
+    const rep = state.units[0];
+    if (!rep) {
+      el.innerHTML = `<p class="muted small">Scan a folder to compute the tag map.</p>`;
+      return;
+    }
+    if (state.units.length > 1) {
+      const note = document.createElement("p");
+      note.className = "muted small";
+      note.textContent = `Tags shown for ${rep.parsed.hostname || rep.sourceNames[0]}; each device's auto-template matches its own selection.`;
+      el.appendChild(note);
+    }
+    for (const slot of buildTagMap(unitConfig(rep, readGlobalConfig()))) {
+      const div = document.createElement("div");
+      div.className = "tag-entry";
+      div.innerHTML = `<span class="tag-marker">{${slot.tag}}</span><span class="tag-label">${escapeHtml(slot.label)}</span>`;
+      el.appendChild(div);
+    }
+  }
+  function computePoColors() {
+    const poNums = [
+      ...new Set(
+        state.units.flatMap((u) => (u.parsed.interfaces || []).map(interfacePo).filter((n) => n != null))
+      )
+    ].sort((a, b) => a - b);
+    state.poColor = new Map(poNums.map((n, i) => [n, PO_PALETTE[i % PO_PALETTE.length]]));
+  }
+  function buildIfaceTile(unit, f) {
+    const d = deviceCfg(unit);
+    const sel = d.ifaceSel.get(f.normName) || { checked: false, mode: "full" };
+    const key = `${unit.id}::${f.normName}`;
+    state.ifaceConfigs.set(key, {
+      text: f.text || (f.block || []).join("\n"),
+      host: unit.parsed.hostname || unit.sourceNames[0],
+      shutdown: !!f.shutdown
+    });
+    const po = interfacePo(f);
+    const isAggregate = f.channelGroup == null && po != null;
+    const tile = document.createElement("div");
+    tile.className = "disc-if" + (po != null ? " bundled" : "") + (f.shutdown ? " shutdown" : "");
+    if (po != null) tile.style.setProperty("--po-color", state.poColor.get(po));
+    tile.dataset.unit = unit.id;
+    tile.dataset.name = f.normName;
+    const badges = (f.shutdown ? '<span class="disc-if-shut">SHUT</span>' : "") + (po != null ? isAggregate ? `<span class="disc-if-po" title="Port-channel ${po} aggregate interface">PO${po} aggregate</span>` : `<span class="disc-if-po" title="Bundled into Port-channel${po}">bundled PO${po}</span>` : "");
+    tile.innerHTML = `<label class="disc-if-main"><input type="checkbox" class="disc-if-cb"${sel.checked ? " checked" : ""} /><span class="disc-if-name">${escapeHtml(f.normName)}</span></label><div class="disc-if-row2"><span class="disc-if-badges">${badges}</span><select class="disc-if-mode"><option value="full"${sel.mode !== "ip" ? " selected" : ""}>All data</option><option value="ip"${sel.mode === "ip" ? " selected" : ""}>IP only</option></select></div>`;
+    const cb = tile.querySelector(".disc-if-cb");
+    const modeSel = tile.querySelector(".disc-if-mode");
+    const update = () => {
+      d.ifaceSel.set(f.normName, { checked: cb.checked, mode: modeSel.value });
+      refreshTagMap();
+    };
+    cb.addEventListener("change", update);
+    modeSel.addEventListener("change", update);
+    tile.addEventListener("mouseenter", () => showIfaceTip(key, tile));
+    tile.addEventListener("mouseleave", hideIfaceTip);
+    return tile;
+  }
+  function showIfaceTip(key, anchor) {
+    const info = state.ifaceConfigs && state.ifaceConfigs.get(key);
+    const tip = $("iface-tip");
+    if (!info) return;
+    tip.textContent = `! from ${info.host}
+${info.text || "(no config captured)"}`;
+    tip.classList.remove("hidden");
+    const r = anchor.getBoundingClientRect();
+    const docW = document.documentElement.clientWidth;
+    let left = window.scrollX + r.left;
+    const maxLeft = window.scrollX + docW - tip.offsetWidth - 12;
+    if (left > maxLeft) left = Math.max(window.scrollX + 8, maxLeft);
+    tip.style.top = `${window.scrollY + r.bottom + 6}px`;
+    tip.style.left = `${left}px`;
+  }
+  function hideIfaceTip() {
+    $("iface-tip").classList.add("hidden");
+  }
+  async function onChooseTemplateFSA() {
+    $("template-input").click();
+  }
+  async function onTemplatePicked(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    const text = await file.text();
+    state.template = { name: file.name, text };
+    $("template-name").textContent = file.name;
+    $("btn-clear-template").classList.remove("hidden");
+  }
+  function onClearTemplate() {
+    state.template = null;
+    $("template-input").value = "";
+    $("template-name").textContent = "Using auto-generated template";
+    $("btn-clear-template").classList.add("hidden");
+  }
+  async function readEntryText(entry) {
+    if (entry.text != null) return entry.text;
+    if (entry.handle) return (await entry.handle.getFile()).text();
+    if (entry.file) return entry.file.text();
+    return "";
+  }
+  async function loadSampleData() {
+    $("sites-summary").textContent = "Loading sample data\u2026";
+    try {
+      const res = await fetch("/sample-data/manifest.json");
+      if (!res.ok) throw new Error(`could not load sample manifest (${res.status})`);
+      const manifest = await res.json();
+      const sites = [];
+      for (const site of manifest) {
+        const files = [];
+        for (const f of site.files) {
+          const r = await fetch(`/sample-data/${encodeURI(f.url)}`);
+          if (!r.ok) throw new Error(`could not load ${f.name} (${r.status})`);
+          files.push({ name: f.name, text: await r.text() });
+        }
+        sites.push({ path: site.path, name: site.path, files });
+      }
+      state.mergeSel = /* @__PURE__ */ new Map();
+      state.sites = sites;
+      $("folder-name").textContent = `Sample data \xB7 ${sites.length} sites`;
+      renderSites();
+    } catch (err) {
+      reportError(err);
+    }
+  }
+  function clearAll() {
+    state.sites = [];
+    state.mergeSel = /* @__PURE__ */ new Map();
+    state.mergeName = /* @__PURE__ */ new Map();
+    state.units = [];
+    state.deviceCfg = /* @__PURE__ */ new Map();
+    state.rootBySite = /* @__PURE__ */ new Map();
+    state.template = null;
+    state.ifaceConfigs = /* @__PURE__ */ new Map();
+    state.stpVlans = null;
+    $("folder-name").textContent = "";
+    $("sites-summary").textContent = "No folder selected yet.";
+    $("results").innerHTML = "";
+    $("template-name").textContent = "Using auto-generated template";
+    $("template-input").value = "";
+    $("btn-clear-template").classList.add("hidden");
+    $("warnings").innerHTML = "";
+    $("run-status").textContent = "";
+    $("btn-save").disabled = true;
+    refreshTagMap();
+  }
+  function applyTheme(theme) {
+    document.documentElement.dataset.theme = theme;
+    $("theme-toggle").textContent = theme === "dark" ? "\u2600" : "\u263E";
+    try {
+      localStorage.setItem("crucible-theme", theme);
+    } catch {
+    }
+  }
+  function toggleTheme() {
+    applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+  }
+  function detectStpConflicts(parsedList, site) {
+    const warnings = [];
+    const stps = parsedList.map((p) => p.spanningTree).filter((s) => s && (s.mode || s.vlanConfig.length || s.mstConfig));
+    if (stps.length < 2) return warnings;
+    const rootClaims = stps.filter((s) => (s.vlanConfig || []).some((v) => v.root === "primary"));
+    if (rootClaims.length > 1) {
+      warnings.push(`${site.path}: ${rootClaims.length} sources both claim spanning-tree root primary \u2014 elect one root for the scan.`);
+    }
+    const instMap = /* @__PURE__ */ new Map();
+    for (const s of stps) {
+      for (const inst of s.mstConfig?.instances || []) {
+        if (instMap.has(inst.id) && instMap.get(inst.id) !== inst.vlans) {
+          warnings.push(`${site.path}: MST instance ${inst.id} maps to different VLANs across sources ("${instMap.get(inst.id)}" vs "${inst.vlans}") \u2014 resolve manually.`);
+        } else {
+          instMap.set(inst.id, inst.vlans);
+        }
+      }
+    }
+    return warnings;
+  }
+  function mergeParsed(list) {
+    if (list.length === 1) return list[0];
+    const merged = parse("");
+    merged.hostname = list.find((p) => p.hostname)?.hostname || null;
+    merged.text = list.map((p) => p.text).join("\n!\n");
+    merged.lines = list.flatMap((p) => p.lines);
+    for (const p of list) {
+      merged.interfaces.push(...p.interfaces);
+      merged.staticRoutes.push(...p.staticRoutes);
+      merged.ipv6Routes.push(...p.ipv6Routes);
+      merged.protocols.push(...p.protocols);
+      merged.vrfs.push(...p.vrfs);
+      merged.dhcpPools.push(...p.dhcpPools);
+      merged.excludedAddresses.push(...p.excludedAddresses);
+      merged.helperAddresses.push(...p.helperAddresses);
+      if (!merged.defaultGateway && p.defaultGateway) merged.defaultGateway = p.defaultGateway;
+      if (p.isL3) merged.isL3 = true;
+    }
+    const stpSource = list.find((p) => p.spanningTree.mode) || list[0];
+    merged.spanningTree = stpSource.spanningTree;
+    return merged;
+  }
+  function isSwitchParsed(p) {
+    return (p.interfaces || []).some((f) => f.switchportLines.length) || !!p.spanningTree.mode || (p.interfaces || []).some((f) => f.stpLines.length);
+  }
+  var deviceType = (p) => isSwitchParsed(p) ? "switch" : "router";
+  function isMergeCandidate(parsedFiles) {
+    if (!parsedFiles || parsedFiles.length < 2) return false;
+    const types = new Set(parsedFiles.map((pf) => deviceType(pf.parsed)));
+    return types.has("switch") && types.has("router");
+  }
+  async function onAnalyze() {
+    if (!state.sites.length) return;
+    $("run-status").textContent = "Parsing\u2026";
+    $("warnings").innerHTML = "";
+    try {
+      for (const site of state.sites) {
+        site.parsedFiles = [];
+        for (const entry of site.files) {
+          const text = await readEntryText(entry);
+          site.parsedFiles.push({ name: entry.name, entry, parsed: parse(text) });
+        }
+        if (!state.mergeSel.has(site.path)) state.mergeSel.set(site.path, /* @__PURE__ */ new Set());
+      }
+    } catch (err) {
+      $("run-status").textContent = "";
+      return reportError(err);
+    }
+    rebuildUnits();
+  }
+  function rebuildUnits() {
+    state.units = [];
+    const warnings = [];
+    for (const site of state.sites) {
+      const sel = state.mergeSel.get(site.path) || /* @__PURE__ */ new Set();
+      const chosen = (site.parsedFiles || []).filter((pf) => sel.has(pf.name));
+      const singles = (site.parsedFiles || []).filter((pf) => !sel.has(pf.name));
+      if (chosen.length >= 2) {
+        detectStpConflicts(chosen.map((pf) => pf.parsed), site).forEach((w) => warnings.push(w));
+        const merged = mergeParsed(chosen.map((pf) => pf.parsed));
+        const customName = state.mergeName.get(site.path);
+        if (customName) merged.hostname = customName;
+        const mu = makeUnit(site, merged, chosen.map((pf) => ({ name: pf.name, text: pf.parsed.text })));
+        mu.mergedFrom = chosen.map((pf) => ({ name: pf.name, parsed: pf.parsed }));
+        state.units.push(mu);
+      } else {
+        singles.push(...chosen);
+      }
+      for (const pf of singles) {
+        state.units.push(makeUnit(site, pf.parsed, [{ name: pf.name, text: pf.parsed.text }]));
+      }
+    }
+    for (const unit of state.units) {
+      const d = deviceCfg(unit);
+      if (!d.ifaceMap.size) continue;
+      const selTargets = new Set([...d.ifaceSel.entries()].filter(([, v]) => v.checked).map(([n]) => n));
+      detectInterfaceMapConflicts(unit.parsed, d.ifaceMap, { label: unit.id, selectedTargets: selTargets }).forEach((w) => warnings.push(w.message));
+    }
+    renderWarnings(warnings);
+    const vlanSet = /* @__PURE__ */ new Set();
+    for (const u of state.units) {
+      for (const v of u.parsed.spanningTree.vlanConfig || []) {
+        for (const part of String(v.vlans).split(",")) vlanSet.add(part.trim());
+      }
+    }
+    state.stpVlans = [...vlanSet].filter(Boolean).join(",") || null;
+    computePoColors();
+    renderResults();
+    refreshTagMap();
+    $("run-status").textContent = `Built ${state.units.length} device template${state.units.length === 1 ? "" : "s"}.`;
+    $("btn-save").disabled = false;
+  }
+  function defaultMergeName(site) {
+    const sw = (site.parsedFiles || []).find((pf) => isSwitchParsed(pf.parsed));
+    const pick = sw || (site.parsedFiles || [])[0];
+    return pick && pick.parsed.hostname || site.name || site.path;
+  }
+  function renderSiteBlock(site, units) {
+    const block = document.createElement("section");
+    block.className = "site-block";
+    const candidate = isMergeCandidate(site.parsedFiles);
+    block.innerHTML = `<div class="site-block-head"><span class="site-name">${escapeHtml(site.path)}</span>` + (candidate ? `<span class="merge-flag">\u26A1 merge candidate</span>` : "") + `</div>`;
+    const stpUnits = units.filter((u) => u.parsed.spanningTree.mode);
+    let currentRootId = null;
+    if (stpUnits.length) {
+      const current = detectCurrentRoot(stpUnits);
+      currentRootId = current ? current.id : null;
+      const stored = state.rootBySite.get(site.path);
+      const selectedId = stored && stpUnits.some((u) => u.id === stored) ? stored : currentRootId || "";
+      state.rootBySite.set(site.path, selectedId);
+    }
+    for (const u of units) {
+      block.appendChild(renderUnit(u, currentRootId));
+      if (u.mergedFrom) block.appendChild(renderMergedFromStrip(u));
+    }
+    if (candidate) block.appendChild(renderMergeTile(site));
+    return block;
+  }
+  function renderMergedFromStrip(unit) {
+    const strip = document.createElement("div");
+    strip.className = "merged-from";
+    strip.innerHTML = `<span class="merged-from-label">\u21B3 merged from</span>` + unit.mergedFrom.map((src, i) => {
+      const t = deviceType(src.parsed);
+      return `<button class="merged-chip" type="button" data-i="${i}" title="View ${escapeHtml(src.name)}"><span class="dev-chip dev-${t}">${t}</span> ${escapeHtml(src.parsed.hostname || src.name)} \u2922</button>`;
+    }).join("");
+    strip.querySelectorAll(".merged-chip").forEach(
+      (btn) => btn.addEventListener("click", () => {
+        const src = unit.mergedFrom[Number(btn.dataset.i)];
+        openConfigModal(src.parsed.hostname || src.name, [{ name: src.name, text: src.parsed.text }]);
+      })
+    );
+    return strip;
+  }
+  function renderMergeTile(site) {
+    const committed = state.mergeSel.get(site.path) || /* @__PURE__ */ new Set();
+    const merged = committed.size >= 2;
+    const tile = document.createElement("details");
+    tile.className = "unit merge-tile";
+    const files = (site.parsedFiles || []).map((pf) => {
+      const t = deviceType(pf.parsed);
+      const checked = committed.size ? committed.has(pf.name) : true;
+      return `<label class="merge-file"><input type="checkbox" class="merge-file-cb" data-file="${escapeHtml(pf.name)}"${checked ? " checked" : ""} /><span class="merge-file-name">${escapeHtml(pf.name)}</span><span class="dev-chip dev-${t}">${t}</span><span class="muted small merge-file-host">${escapeHtml(pf.parsed.hostname || "")}</span></label>`;
+    }).join("");
+    const nameVal = state.mergeName.get(site.path) || defaultMergeName(site);
+    tile.innerHTML = `<summary class="unit-head"><span class="unit-titlebar"><span class="unit-site">merge</span><span class="unit-host">${escapeHtml(site.path)}</span></span><span class="merge-flag">\u26A1 router + switch \u2192 one L3 switch</span></summary><div class="unit-body"><p class="muted small">Tick the devices to combine, name the merged Layer-3 switch, then click <strong>Merge</strong>. ${merged ? "Currently merged." : ""}</p><div class="merge-files">${files}</div><div class="merge-actions"><label class="field merge-name-field"><span>Merged device name</span><input class="merge-name" type="text" value="${escapeHtml(nameVal)}" autocomplete="off" /></label><button class="btn btn-primary merge-go" type="button" disabled>\u2692 Merge these devices</button>` + (merged ? `<button class="btn btn-ghost merge-undo" type="button">Unmerge</button>` : "") + `</div></div>`;
+    const goBtn = tile.querySelector(".merge-go");
+    const cbs = () => [...tile.querySelectorAll(".merge-file-cb")];
+    const syncBtn = () => goBtn.disabled = cbs().filter((c) => c.checked).length < 2;
+    cbs().forEach((c) => c.addEventListener("change", syncBtn));
+    syncBtn();
+    goBtn.addEventListener("click", () => {
+      const chosen = new Set(cbs().filter((c) => c.checked).map((c) => c.dataset.file));
+      if (chosen.size < 2) return;
+      state.mergeSel.set(site.path, chosen);
+      const name = tile.querySelector(".merge-name").value.trim();
+      if (name) state.mergeName.set(site.path, name);
+      else state.mergeName.delete(site.path);
+      rebuildUnits();
+    });
+    const undo = tile.querySelector(".merge-undo");
+    if (undo)
+      undo.addEventListener("click", () => {
+        state.mergeSel.set(site.path, /* @__PURE__ */ new Set());
+        rebuildUnits();
+      });
+    return tile;
+  }
+  function makeUnit(site, parsed, sources) {
+    const findings = audit(parsed);
+    const sourceNames = sources.map((s) => s.name);
+    return {
+      id: `${site.path}::${parsed.hostname || sourceNames[0]}`,
+      site,
+      parsed,
+      sources,
+      // [{ name, text }] — individual device configs (for per-device view)
+      sourceNames,
+      findings,
+      output: null,
+      ai: null
+    };
+  }
+  function detectCurrentRoot(stpUnits) {
+    let best = null;
+    let bestScore = Infinity;
+    let signal = false;
+    for (const u of stpUnits) {
+      const stp = u.parsed.spanningTree;
+      const hasPrimary = (stp.vlanConfig || []).some((v) => v.root === "primary");
+      const mstPrimary = (stp.mstConfig?.priorities || []).some((p) => /primary|^0$|^4096$/.test(String(p.value)));
+      const prios = (stp.vlanConfig || []).map((v) => v.priority).filter((p) => typeof p === "number");
+      let score;
+      if (hasPrimary || mstPrimary) {
+        score = -1;
+        signal = true;
+      } else if (prios.length) {
+        score = Math.min(...prios);
+        if (score < 32768) signal = true;
+      } else {
+        score = 32768;
+      }
+      if (score < bestScore) {
+        bestScore = score;
+        best = u;
+      }
+    }
+    return signal ? best : null;
+  }
+  function defaultTemplate(config, hostname) {
+    const host = hostname || "PLACEHOLDER";
+    if (config.insertion === "direct") {
+      return `!
+hostname ${host}
+!
+ip routing
+!`;
+    }
+    const lines = ["!", `hostname ${host}`, "!", "ip routing", "!"];
+    for (const slot of buildTagMap(config)) {
+      const label = slot.tag === "harden" ? "hardening" : slot.label;
+      lines.push(`! ---- ${label} ----`, `{${slot.tag}}`, "!");
+    }
+    lines.push("end");
+    return lines.join("\n");
+  }
+  function unitCollectsNothing(unit) {
+    const d = deviceCfg(unit);
+    const anyIface = d.interfacesAll.enabled || [...d.ifaceSel.values()].some((v) => v.checked);
+    const anyRouting = d.routing.defaultGateway || d.routing.allStatic || d.routing.protocols;
+    const anyOther = d.vrf || d.stp || d.dhcp || d.snmp || d.tacacs || d.logging || d.ntp;
+    const anyHarden = unit.findings.some((f) => f.apply);
+    return !anyIface && !anyRouting && !anyOther && !anyHarden;
+  }
+  function saveSanityWarnings(global, anyElectedRoot) {
+    const w = [];
+    const empties = state.units.filter((u) => unitCollectsNothing(u));
+    if (empties.length === state.units.length) {
+      w.push("no device has anything selected to collect");
+    } else if (empties.length) {
+      w.push(`${empties.length} device(s) have nothing selected: ${empties.map((u) => u.parsed.hostname || u.sourceNames[0]).join(", ")}`);
+    }
+    if (!global.secureAccess.enabled && !global.vtp.enabled && !anyElectedRoot) {
+      w.push("no global additions (VTP / secure access / root election)");
+    }
+    return w;
+  }
+  async function onSave() {
+    const global = readGlobalConfig();
+    if (!state.units.length) return reportError(new Error("Scan a folder first (Step 1)."));
+    const anyElectedRoot = [...state.rootBySite.values()].some(Boolean);
+    const sanity = saveSanityWarnings(global, anyElectedRoot);
+    if (sanity.length >= 2) {
+      const ok = await styledConfirm({
+        title: "Your templates will be sparse",
+        message: "Crucible didn\u2019t detect much selected to put in the output:",
+        items: sanity,
+        confirmLabel: "Generate anyway",
+        cancelLabel: "Go back"
+      });
+      if (!ok) {
+        $("run-status").textContent = "Cancelled \u2014 nothing generated.";
+        return;
+      }
+    }
+    $("run-status").textContent = "Building & saving\u2026";
+    const siteCurrentRoot = /* @__PURE__ */ new Map();
+    for (const u of state.units) {
+      if (!u.parsed.spanningTree.mode) continue;
+      if (!siteCurrentRoot.has(u.site.path)) {
+        const us = state.units.filter((x) => x.site.path === u.site.path && x.parsed.spanningTree.mode);
+        const c = detectCurrentRoot(us);
+        siteCurrentRoot.set(u.site.path, c ? c.id : null);
+      }
+    }
+    const zipFiles = [];
+    const allWarnings = [];
+    for (const unit of state.units) {
+      const ucfg = unitConfig(unit, global);
+      const dcfg = deviceCfg(unit);
+      const selTargets = new Set(
+        [...dcfg.ifaceSel.entries()].filter(([, v]) => v.checked).map(([n]) => n)
+      );
+      const mapConflicts = detectInterfaceMapConflicts(unit.parsed, dcfg.ifaceMap, {
+        label: unit.id,
+        selectedTargets: selTargets
+      });
+      mapConflicts.forEach((w) => allWarnings.push(w.message));
+      if (mapConflicts.some((w) => w.hard)) continue;
+      const elected = state.rootBySite.get(unit.site.path) || null;
+      const changingRoot = !!elected && elected !== siteCurrentRoot.get(unit.site.path);
+      if (elected && unit.parsed.spanningTree.mode) ucfg.stp.enabled = true;
+      const stpRole = !ucfg.stp.enabled ? "asis" : changingRoot ? unit.id === elected ? "root" : "nonroot" : "asis";
+      const applied = unit.findings.filter((f) => f.apply);
+      const hardenLines = remediationLines(applied);
+      const tparsed = applyInterfaceMap(unit.parsed, dcfg.ifaceMap);
+      const slots = buildBlocks(ucfg, tparsed, {
+        stpRole,
+        stpVlans: state.stpVlans,
+        hardenLines
+      });
+      const templateText = state.template && state.template.text ? state.template.text : defaultTemplate(ucfg, unit.parsed.hostname);
+      const rendered = ucfg.insertion === "direct" ? renderDirect(templateText, slots) : renderTagBased(templateText, slots);
+      let content = rendered.content;
+      const isSwitch = isSwitchParsed(unit.parsed);
+      const appendBlock = (title, lines) => {
+        if (lines && lines.length) content = content.replace(/\n*$/, "") + `
+!
+! ==== ${title} ====
+${lines.join("\n")}
+`;
+      };
+      if (global.clock.enabled) appendBlock("Clock & timezone", buildClock(global.clock));
+      if (global.banner.enabled) appendBlock("Banner", buildBanner(global.banner));
+      if (global.stpHardening.enabled && isSwitch) appendBlock("Spanning-tree hardening", buildStpHardening());
+      if (global.errdisable.enabled && isSwitch) appendBlock("Errdisable recovery", buildErrdisable(global.errdisable));
+      if (global.vtp && global.vtp.enabled && isSwitchParsed(unit.parsed)) {
+        const vtpLines = buildVtp(global.vtp);
+        if (vtpLines.length) {
+          content = content.replace(/\n*$/, "") + `
+!
+! ==== VTP ====
+${vtpLines.join("\n")}
+`;
+        } else {
+          allWarnings.push(`${unit.id}: VTP enabled but no domain name \u2014 skipped.`);
+        }
+      }
+      if (global.secureAccess && global.secureAccess.enabled) {
+        const secLines = buildSecureAccess(global.secureAccess);
+        if (secLines.length) {
+          content = content.replace(/\n*$/, "") + `
+!
+! ==== Secure access ====
+${secLines.join("\n")}
+`;
+        } else {
+          allWarnings.push(`${unit.id}: secure access enabled but username/password missing \u2014 skipped.`);
+        }
+      }
+      const naming = computeOutput(unit.parsed, global.naming);
+      if (global.naming.rename) content = applyHostname(content, naming.hostname);
+      rendered.warnings.forEach((w) => allWarnings.push(`${unit.id}: ${w}`));
+      try {
+        const filename = await writeOutput(unit, naming.filename, content, zipFiles);
+        unit.output = { filename, content };
+        markUnitWritten(unit, filename);
+      } catch (err) {
+        allWarnings.push(`${unit.id}: write failed \u2014 ${err.message}`);
+      }
+    }
+    if (zipFiles.length) {
+      downloadZip(buildZip(zipFiles), "crucible-output.zip");
+    }
+    renderWarnings(allWarnings);
+    $("run-status").textContent = `Saved ${state.units.filter((u) => u.output).length} file(s).`;
+  }
+  function writeOutput(unit, filename, content, zipFiles) {
+    const path = `${unit.site.path}/${filename}`.replace(/^[^/]*\//, "");
+    zipFiles.push({ path, content });
+    return filename;
+  }
+  function downloadZip(bytes, name) {
+    const blob = new Blob([bytes], { type: "application/zip" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+  function renderResults() {
+    state.ifaceConfigs = /* @__PURE__ */ new Map();
+    const root = $("results");
+    root.innerHTML = "";
+    const bySite = /* @__PURE__ */ new Map();
+    for (const u of state.units) {
+      if (!bySite.has(u.site.path)) bySite.set(u.site.path, { site: u.site, units: [] });
+      bySite.get(u.site.path).units.push(u);
+    }
+    for (const { site, units } of bySite.values()) root.appendChild(renderSiteBlock(site, units));
+  }
+  var getPath = (o, path) => path.split(".").reduce((a, k) => a == null ? a : a[k], o);
+  function setPath(o, path, v) {
+    const ks = path.split(".");
+    const last = ks.pop();
+    let t = o;
+    for (const k of ks) t = t[k] || (t[k] = {});
+    t[last] = v;
+  }
+  function renderUnit(unit, currentRootId = null) {
+    const p = unit.parsed;
+    const d = deviceCfg(unit);
+    const card = document.createElement("details");
+    card.className = "unit";
+    card.dataset.unit = unit.id;
+    const routingN = p.staticRoutes.length + p.protocols.length + (p.defaultGateway ? 1 : 0);
+    const feats = [
+      { label: `${p.interfaces.length} interfaces`, on: p.interfaces.length > 0, tip: `${p.interfaces.length} interface block(s) parsed` },
+      { label: "Routing", on: routingN > 0, tip: `${p.staticRoutes.length} static route(s), ${p.protocols.length} routing protocol(s)${p.defaultGateway ? ", default gateway" : ""}` },
+      { label: "VRF", on: p.vrfs.length > 0, tip: p.vrfs.length ? `VRFs: ${p.vrfs.map((v) => v.name).join(", ")}` : "No VRFs configured" },
+      { label: p.spanningTree.mode ? `STP ${p.spanningTree.mode}` : "STP", on: !!p.spanningTree.mode, tip: p.spanningTree.mode ? `Spanning-tree mode ${p.spanningTree.mode}` : "No spanning-tree configured" },
+      { label: "DHCP", on: p.dhcpPools.length > 0, tip: p.dhcpPools.length ? `${p.dhcpPools.length} DHCP pool(s): ${p.dhcpPools.map((x) => x.name).join(", ")}` : "No DHCP pools" },
+      { label: "SNMP", on: p.snmp.length > 0, tip: p.snmp.length ? `${p.snmp.length} snmp-server line(s)` : "No SNMP config" },
+      { label: "TACACS+", on: p.tacacs.length > 0, tip: p.tacacs.length ? `${p.tacacs.length} TACACS+ line(s)` : "No TACACS+ config" },
+      { label: "Logging", on: p.logging.length > 0, tip: p.logging.length ? `${p.logging.length} logging line(s)` : "No logging config" },
+      { label: "NTP", on: p.ntp.length > 0, tip: p.ntp.length ? `${p.ntp.length} ntp line(s)` : "No NTP config" }
+    ];
+    const pills = feats.map((f) => `<span class="feat-pill ${f.on ? "on" : "off"}" title="${escapeHtml(f.tip)}">${escapeHtml(f.label)}</span>`).join("");
+    const ifaces = (p.interfaces || []).slice().sort((a, b) => a.normName.localeCompare(b.normName, void 0, { numeric: true }));
+    const COLL_GROUPS = [
+      {
+        name: "Routing",
+        items: [
+          { path: "routing.defaultGateway", label: "Default gateway \u2192 default route", has: !!p.defaultGateway },
+          { path: "routing.allStatic", label: "Static routes", has: p.staticRoutes.length > 0 },
+          { path: "routing.protocols", label: "Routing protocols", has: p.protocols.length > 0 },
+          { path: "vrf", label: "VRFs", has: p.vrfs.length > 0 }
+        ]
+      },
+      {
+        name: "Switching",
+        items: [
+          { path: "stp", label: "Spanning-tree", has: !!p.spanningTree.mode },
+          { path: "dhcp", label: "DHCP scopes", has: p.dhcpPools.length > 0 }
+        ]
+      },
+      {
+        name: "Management",
+        items: [
+          { path: "snmp", label: "SNMP", has: p.snmp.length > 0 },
+          { path: "tacacs", label: "TACACS+", has: p.tacacs.length > 0 },
+          { path: "logging", label: "Logging", has: p.logging.length > 0 },
+          { path: "ntp", label: "NTP", has: p.ntp.length > 0 },
+          { path: "dns", label: "DNS (name-server / domain)", has: p.dns.length > 0 }
+        ]
+      }
+    ];
+    const collHtml = COLL_GROUPS.map(
+      (g) => `<div class="coll-group"><h4 class="coll-group-head">${g.name}</h4><div class="coll-grid">` + g.items.map(
+        (c) => `<label class="checkbox coll-item"><input type="checkbox" class="coll-cb" data-path="${c.path}"${getPath(d, c.path) ? " checked" : ""} /><span>${escapeHtml(c.label)}${c.has ? "" : ' <span class="muted small">(none found)</span>'}</span></label>`
+      ).join("") + `</div></div>`
+    ).join("");
+    const siblingPorts = [
+      ...new Set(
+        state.units.filter((u) => u.site.path === unit.site.path && u.id !== unit.id).flatMap((u) => (u.parsed.interfaces || []).map((f) => f.normName))
+      )
+    ].sort((a, b) => a.localeCompare(b, void 0, { numeric: true }));
+    const knownVlans = [
+      ...new Set((p.interfaces || []).map((f) => (f.normName.match(/^Vlan(\d+)$/i) || [])[1]).filter(Boolean))
+    ];
+    const dlId = `ports-${unit.id}`;
+    const vlId = `vlans-${unit.id}`;
+    const mappedCount = ifaces.filter((f) => (d.ifaceMap.get(f.normName)?.target || "").trim()).length;
+    const ifmapRows = ifaces.map((f) => {
+      const m = d.ifaceMap.get(f.normName) || { target: "", transform: "routed", vlan: "" };
+      const isSvi = m.transform === "svi";
+      const grp = `ifmode-${unit.id}-${f.normName}`;
+      return `<div class="ifmap-row" data-name="${escapeHtml(f.normName)}"><span class="ifmap-src">${escapeHtml(f.normName)}</span><span class="ifmap-arrow">\u2192</span><input class="ifmap-target" list="${dlId}" placeholder="(keep name)" value="${escapeHtml(m.target || "")}" /><label class="ifmap-mode"><input type="radio" name="${escapeHtml(grp)}" value="routed"${isSvi ? "" : " checked"} /> routed</label><label class="ifmap-mode"><input type="radio" name="${escapeHtml(grp)}" value="svi"${isSvi ? " checked" : ""} /> SVI</label><input class="ifmap-vlan${isSvi ? "" : " hidden"}" placeholder="VLAN" list="${vlId}" value="${escapeHtml(m.vlan || "")}" /></div>`;
+    }).join("");
+    const ifmapHtml = `<details class="unit-sub"><summary class="unit-sub-head"><strong>Interface mapping</strong> <span class="muted small">${mappedCount} remapped</span></summary><p class="muted small sub-desc">Remap each source interface to target hardware. Leave the target blank to keep the interface unchanged. Hover a source interface name to view its current config.</p><ul class="ifmap-help muted small"><li><strong>Routed</strong> \u2014 the target box is the interface's new name. The interface is renamed to that port and its config is carried across <em>verbatim</em>; any existing port of that name on this device is <em>replaced</em> by it.</li><li><strong>SVI</strong> \u2014 the target box is the physical port to convert. That port becomes a <code>switchport access vlan&nbsp;X</code> member, and the interface's IP config is moved onto <code>interface Vlan&nbsp;X</code> (X = the VLAN ID you enter).</li></ul><div class="ifmap-rows">${ifmapRows}</div><datalist id="${dlId}">${siblingPorts.map((n) => `<option value="${escapeHtml(n)}">`).join("")}</datalist><datalist id="${vlId}">${knownVlans.map((n) => `<option value="${escapeHtml(n)}">`).join("")}</datalist></details>`;
+    const missing = unit.findings.filter((f) => f.status === "missing");
+    const pass = unit.findings.filter((f) => f.status === "pass").length;
+    card.innerHTML = `<summary class="unit-head"><span class="unit-caret"></span><span class="unit-titlebar"><span class="unit-site">${escapeHtml(unit.site.path)}</span><span class="unit-host">${escapeHtml(p.hostname || "(no hostname)")}</span><span class="unit-src muted small"> \u2190 ${escapeHtml(unit.sourceNames.join(", "))}</span></span><button class="btn btn-small unit-view" type="button">\u2922 view config</button><span class="unit-written muted small"></span></summary><div class="unit-body"><div class="feat-pills">${pills}</div><details class="unit-sub"><summary class="unit-sub-head"><strong>Interfaces</strong> <span class="muted small">${ifaces.length} found</span><label class="checkbox if-all-inline"><input type="checkbox" class="d-ifall"${d.interfacesAll.enabled ? " checked" : ""} /><span>All</span></label><select class="d-ifall-mode"><option value="full"${d.interfacesAll.mode !== "ip" ? " selected" : ""}>All data</option><option value="ip"${d.interfacesAll.mode === "ip" ? " selected" : ""}>IP only</option></select><button class="btn btn-small btn-ghost d-selectall" type="button">Select all</button></summary><div class="disc-grid"></div></details>` + // Interface mapping subsection
+    ifmapHtml + // Routing & services subsection
+    `<details class="unit-sub"><summary class="unit-sub-head"><strong>Routing &amp; services</strong></summary><p class="muted small sub-desc">Pre-ticked with what this device actually has \u2014 untick anything you don't want carried across.</p><div class="coll-groups">${collHtml}</div></details>` + // Spanning-tree root subsection (switch devices only)
+    (p.spanningTree.mode ? `<details class="unit-sub"><summary class="unit-sub-head"><strong>Spanning-tree root</strong>` + (currentRootId === unit.id ? ` <span class="feat-pill on">currently root</span>` : "") + `</summary><div class="stp-root-body"><label class="checkbox"><input type="checkbox" class="root-elect" data-site="${escapeHtml(unit.site.path)}"${state.rootBySite.get(unit.site.path) === unit.id ? " checked" : ""} /><span>Elect this switch as the spanning-tree root for its site</span></label><p class="muted small">Sets it as the sole root (root primary); other switches in the site stand down (root secondary). Leave unticked to carry spanning-tree across unchanged.</p></div></details>` : "") + // Hardening subsection
+    `<details class="harden-section"><summary class="harden-head"><strong>Hardening</strong> <span class="muted small">${pass} pass \xB7 ${missing.length} missing</span><label class="checkbox apply-all"><input type="checkbox" class="apply-all-cb" /><span>Apply all</span></label><button class="btn btn-small ai-btn" type="button">AI review</button></summary><p class="harden-desc">Best-practice hardening checks \u2014 tick the missing items to inject into this device's template. Tailored to router vs switch.</p><div class="findings"></div><div class="ai-out"></div></details></div>`;
+    const grid = card.querySelector(".disc-grid");
+    for (const f of ifaces) grid.appendChild(buildIfaceTile(unit, f));
+    if (d.interfacesAll.enabled) grid.classList.add("inert");
+    const ifAll = card.querySelector(".d-ifall");
+    const ifAllMode = card.querySelector(".d-ifall-mode");
+    const applyIfAll = () => {
+      d.interfacesAll = { enabled: ifAll.checked, mode: ifAllMode.value };
+      grid.classList.toggle("inert", ifAll.checked);
+      refreshTagMap();
+    };
+    ifAll.addEventListener("change", applyIfAll);
+    ifAllMode.addEventListener("change", applyIfAll);
+    const selAll = card.querySelector(".d-selectall");
+    selAll.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const tiles = [...grid.querySelectorAll(".disc-if-cb")];
+      const allOn = tiles.length && tiles.every((c) => c.checked);
+      tiles.forEach((c) => {
+        c.checked = !allOn;
+        c.dispatchEvent(new Event("change"));
+      });
+      selAll.textContent = allOn ? "Select all" : "Clear all";
+    });
+    card.querySelectorAll(".if-all-inline, .d-ifall-mode").forEach(
+      (el) => el.addEventListener("click", (e) => e.stopPropagation())
+    );
+    const ifmapCount = card.querySelector(".unit-sub .ifmap-rows")?.closest(".unit-sub")?.querySelector(".unit-sub-head .muted");
+    const refreshMapCount = () => {
+      if (!ifmapCount) return;
+      const n = [...d.ifaceMap.values()].filter((m) => (m.target || "").trim()).length;
+      ifmapCount.textContent = `${n} remapped`;
+    };
+    card.querySelectorAll(".ifmap-row").forEach((row) => {
+      const name = row.dataset.name;
+      const tipKey = `${unit.id}::${name}`;
+      const srcEl = row.querySelector(".ifmap-src");
+      srcEl.addEventListener("mouseenter", () => showIfaceTip(tipKey, srcEl));
+      srcEl.addEventListener("mouseleave", hideIfaceTip);
+      const get = () => d.ifaceMap.get(name) || { target: "", transform: "routed", vlan: "" };
+      const set = (patch) => {
+        d.ifaceMap.set(name, { ...get(), ...patch });
+        refreshMapCount();
+        refreshTagMap();
+      };
+      const targetIn = row.querySelector(".ifmap-target");
+      const vlanIn = row.querySelector(".ifmap-vlan");
+      targetIn.addEventListener("input", () => set({ target: targetIn.value }));
+      vlanIn.addEventListener("input", () => set({ vlan: vlanIn.value }));
+      row.querySelectorAll("input[type=radio]").forEach(
+        (r) => r.addEventListener("change", () => {
+          const svi = row.querySelector("input[value=svi]").checked;
+          vlanIn.classList.toggle("hidden", !svi);
+          set({ transform: svi ? "svi" : "routed" });
+        })
+      );
+    });
+    card.querySelectorAll(".coll-cb").forEach(
+      (cb) => cb.addEventListener("change", () => {
+        setPath(d, cb.dataset.path, cb.checked);
+        refreshTagMap();
+      })
+    );
+    const findingsEl = card.querySelector(".findings");
+    for (const f of unit.findings) findingsEl.appendChild(renderFinding(unit, f));
+    const applyAll = card.querySelector(".apply-all-cb");
+    applyAll.addEventListener("click", (e) => e.stopPropagation());
+    applyAll.addEventListener("change", (e) => {
+      for (const f of unit.findings) if (f.status === "missing") f.apply = e.target.checked;
+      card.querySelectorAll(".finding-apply").forEach((cb) => {
+        if (!cb.disabled) cb.checked = e.target.checked;
+      });
+    });
+    const aiBtn = card.querySelector(".ai-btn");
+    aiBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      card.querySelector(".harden-section").open = true;
+      runAiReview(unit, card);
+    });
+    const rootCb = card.querySelector(".root-elect");
+    if (rootCb) {
+      rootCb.addEventListener("change", () => {
+        if (rootCb.checked) {
+          state.rootBySite.set(unit.site.path, unit.id);
+          document.querySelectorAll(".root-elect").forEach((o) => {
+            if (o !== rootCb && o.dataset.site === unit.site.path) o.checked = false;
+          });
+        } else if (state.rootBySite.get(unit.site.path) === unit.id) {
+          state.rootBySite.set(unit.site.path, "");
+        }
+      });
+    }
+    card.querySelector(".unit-view").addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openConfigModal(p.hostname || unit.sourceNames[0], unit.sources);
+    });
+    return card;
+  }
+  var modalText = "";
+  function openConfigModal(title, sources) {
+    state.modalSources = sources && sources.length ? sources : [{ name: "", text: "" }];
+    $("cfg-modal-title").textContent = title || "Device config";
+    const tabs = $("cfg-tabs");
+    if (state.modalSources.length > 1) {
+      tabs.innerHTML = state.modalSources.map((s, i) => `<button class="cfg-tab${i === 0 ? " active" : ""}" type="button" data-i="${i}">${escapeHtml(s.name)}</button>`).join("");
+      tabs.classList.remove("hidden");
+    } else {
+      tabs.innerHTML = "";
+      tabs.classList.add("hidden");
+    }
+    showModalSource(0);
+    const copyBtn = $("cfg-copy");
+    copyBtn.textContent = "Copy code";
+    copyBtn.classList.remove("copied");
+    const modal = $("cfg-modal");
+    modal.classList.remove("hidden");
+    modal.setAttribute("aria-hidden", "false");
+  }
+  function showModalSource(i) {
+    const s = state.modalSources[i] || { name: "", text: "" };
+    modalText = s.text || "";
+    $("cfg-modal-sub").textContent = s.name ? `source: ${s.name}` : "";
+    $("cfg-code").textContent = modalText;
+    $("cfg-tabs").querySelectorAll(".cfg-tab").forEach((b) => b.classList.toggle("active", Number(b.dataset.i) === i));
+  }
+  function closeConfigModal() {
+    const modal = $("cfg-modal");
+    modal.classList.add("hidden");
+    modal.setAttribute("aria-hidden", "true");
+  }
+  function styledConfirm({ title, message, items = [], confirmLabel = "Confirm", cancelLabel = "Cancel" }) {
+    return new Promise((resolve) => {
+      const modal = $("confirm-modal");
+      $("confirm-title-text").textContent = title;
+      $("confirm-message").textContent = message;
+      const list = $("confirm-list");
+      list.innerHTML = items.map((i) => `<li>${escapeHtml(i)}</li>`).join("");
+      list.classList.toggle("hidden", !items.length);
+      const okBtn = $("confirm-ok");
+      okBtn.textContent = confirmLabel;
+      $("confirm-cancel").textContent = cancelLabel;
+      modal.classList.remove("hidden");
+      modal.setAttribute("aria-hidden", "false");
+      const cleanup = (result) => {
+        modal.classList.add("hidden");
+        modal.setAttribute("aria-hidden", "true");
+        okBtn.removeEventListener("click", onOk);
+        modal.removeEventListener("click", onCancel);
+        document.removeEventListener("keydown", onKey);
+        resolve(result);
+      };
+      const onOk = () => cleanup(true);
+      const onCancel = (e) => {
+        if (e.target.hasAttribute("data-confirm-cancel")) cleanup(false);
+      };
+      const onKey = (e) => {
+        if (e.key === "Escape") cleanup(false);
+        else if (e.key === "Enter") cleanup(true);
+      };
+      okBtn.addEventListener("click", onOk);
+      modal.addEventListener("click", onCancel);
+      document.addEventListener("keydown", onKey);
+      okBtn.focus();
+    });
+  }
+  async function copyModalConfig() {
+    const btn = $("cfg-copy");
+    try {
+      await navigator.clipboard.writeText(modalText);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = modalText;
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy");
+      } catch {
+      }
+      ta.remove();
+    }
+    btn.textContent = "\u2713 Copied";
+    btn.classList.add("copied");
+    setTimeout(() => {
+      btn.textContent = "Copy code";
+      btn.classList.remove("copied");
+    }, 1600);
+  }
+  function renderFinding(unit, f) {
+    const sev = `<span class="sev sev-${f.severity.toLowerCase()}">${f.severity}</span>`;
+    const title = `<span class="finding-title">${escapeHtml(f.title)}` + (f.detail ? ` <span class="muted small">\u2014 ${escapeHtml(f.detail)}</span>` : "") + `</span>`;
+    const tip = f.why ? ` title="${escapeHtml(f.why)}"` : "";
+    if (f.status === "missing" && f.remediation.length) {
+      const row2 = document.createElement("details");
+      row2.className = "finding finding-missing";
+      row2.innerHTML = `<summary class="finding-sum"${tip}><input type="checkbox" class="finding-apply" title="Apply remediation" /><span class="status status-missing">missing</span>${sev}${title}<span class="finding-caret">\u25B8</span></summary><pre class="finding-rem">${escapeHtml(f.remediation.join("\n"))}</pre>`;
+      const cb = row2.querySelector(".finding-apply");
+      cb.checked = !!f.apply;
+      cb.addEventListener("click", (e) => e.stopPropagation());
+      cb.addEventListener("change", (e) => f.apply = e.target.checked);
+      return row2;
+    }
+    const row = document.createElement("div");
+    row.className = `finding finding-row finding-${f.status}`;
+    if (f.why) row.title = f.why;
+    row.innerHTML = `<span class="apply-spacer"></span><span class="status status-${f.status}">${f.status}</span>${sev}${title}<span></span>`;
+    return row;
+  }
+  function markUnitWritten(unit, filename) {
+    const card = document.querySelector(`.unit[data-unit="${cssEscape(unit.id)}"]`);
+    if (card) card.querySelector(".unit-written").textContent = `\u2713 ${filename}`;
+  }
+  async function runAiReview(unit, card) {
+    const out = card.querySelector(".ai-out");
+    out.innerHTML = `<p class="muted small">Requesting AI review\u2026</p>`;
+    try {
+      const res = await fetch("/api/harden", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(redactForAI(unit.parsed))
+      });
+      const data = await res.json();
+      unit.ai = data;
+      if (!data.findings || !data.findings.length) {
+        out.innerHTML = `<p class="muted small ai-note">${escapeHtml(data.notes || "No additional AI findings.")}</p>`;
+        return;
+      }
+      out.innerHTML = `<p class="ai-label">AI advisory (not auto-applied):</p>` + data.findings.map(
+        (f) => `<div class="ai-finding"><span class="sev sev-${String(f.severity).toLowerCase()}">${escapeHtml(f.severity)}</span><strong>${escapeHtml(f.title)}</strong><div class="muted small">${escapeHtml(f.rationale || "")}</div>` + (f.suggestedConfig ? `<pre>${escapeHtml(f.suggestedConfig)}</pre>` : "") + `</div>`
+      ).join("") + (data.notes ? `<p class="muted small ai-note">${escapeHtml(data.notes)}</p>` : "");
+    } catch (err) {
+      out.innerHTML = `<p class="muted small">AI review unavailable: ${escapeHtml(err.message)}</p>`;
+    }
+  }
+  function renderWarnings(list) {
+    const el = $("warnings");
+    el.innerHTML = "";
+    if (!list.length) return;
+    el.innerHTML = `<p class="warn-title">${list.length} warning${list.length === 1 ? "" : "s"}:</p><ul>${list.map((w) => `<li>${escapeHtml(w)}</li>`).join("")}</ul>`;
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  }
+  function cssEscape(s) {
+    return window.CSS && CSS.escape ? CSS.escape(s) : String(s).replace(/["\\]/g, "\\$&");
+  }
+  function reportError(err) {
+    console.error(err);
+    $("warnings").innerHTML = `<p class="warn-title">Error: ${escapeHtml(err.message || String(err))}</p>`;
+  }
+  function init() {
+    initModeBadge();
+    try {
+      applyTheme(localStorage.getItem("crucible-theme") || "light");
+    } catch {
+      applyTheme("light");
+    }
+    $("theme-toggle").addEventListener("click", toggleTheme);
+    $("btn-sample").addEventListener("click", loadSampleData);
+    $("btn-clear").addEventListener("click", clearAll);
+    $("cfg-copy").addEventListener("click", copyModalConfig);
+    $("cfg-tabs").addEventListener("click", (e) => {
+      const b = e.target.closest(".cfg-tab");
+      if (b) showModalSource(Number(b.dataset.i));
+    });
+    $("cfg-modal").addEventListener("click", (e) => {
+      if (e.target.hasAttribute("data-close")) closeConfigModal();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !$("cfg-modal").classList.contains("hidden")) closeConfigModal();
+    });
+    $("btn-browse").addEventListener("click", onBrowse);
+    $("fallback-input").addEventListener("change", onFallbackPicked);
+    $("btn-template").addEventListener("click", onChooseTemplateFSA);
+    $("template-input").addEventListener("change", onTemplatePicked);
+    $("btn-clear-template").addEventListener("click", onClearTemplate);
+    $("btn-save").addEventListener("click", onSave);
+    $("sec-enable").addEventListener(
+      "change",
+      () => $("sec-rows").classList.toggle("hidden", !$("sec-enable").checked)
+    );
+    $("vtp-enable").addEventListener(
+      "change",
+      () => $("vtp-rows").classList.toggle("hidden", !$("vtp-enable").checked)
+    );
+    $("errd-enable").addEventListener(
+      "change",
+      () => $("errd-rows").classList.toggle("hidden", !$("errd-enable").checked)
+    );
+    $("clock-enable").addEventListener(
+      "change",
+      () => $("clock-rows").classList.toggle("hidden", !$("clock-enable").checked)
+    );
+    $("banner-enable").addEventListener(
+      "change",
+      () => $("banner-rows").classList.toggle("hidden", !$("banner-enable").checked)
+    );
+    document.querySelectorAll(".secret-toggle").forEach(
+      (btn) => btn.addEventListener("click", () => {
+        const inp = $(btn.dataset.target);
+        const reveal = inp.type === "password";
+        inp.type = reveal ? "text" : "password";
+        btn.textContent = reveal ? "\u{1F648}" : "\u{1F441}";
+        btn.setAttribute("aria-label", reveal ? "Hide" : "Show");
+      })
+    );
+    document.querySelectorAll('input[name="insertion"]').forEach((el) => el.addEventListener("change", refreshTagMap));
+    $("rename").addEventListener("change", () => $("rename-rows").classList.toggle("hidden", !$("rename").checked));
+    refreshTagMap();
+  }
+  init();
+})();
+
+</script>
+</body>
+</html>
