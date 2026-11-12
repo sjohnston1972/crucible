@@ -91,3 +91,21 @@ test("VLANs used on ports but defined nowhere are reported, not invented", () =>
   assert.deepEqual(r.undefinedUsed, [30, 40]);
   assert.equal(r.content, tpl);
 });
+
+test("port-security lines (incl. learned sticky MACs) are carried over verbatim through a remap", async () => {
+  const { applyInterfaceMap, convertLegacyQos, buildBlocks } = await import("../public/lib/template.js");
+  const ps = [
+    " switchport port-security maximum 2",
+    " switchport port-security violation restrict",
+    " switchport port-security mac-address sticky",
+    " switchport port-security mac-address sticky 0011.2233.4455",
+    " switchport port-security",
+  ];
+  const src = ["interface FastEthernet0/5", " switchport mode access", ...ps, "!"].join("\n");
+  const map = new Map([["FastEthernet0/5", { target: "Gi1/0/5", transform: "routed" }]]);
+  const p = convertLegacyQos(applyInterfaceMap(parse(src), map));
+  const slots = buildBlocks({ interfacesAll: { enabled: true, mode: "full" }, interfaces: [] }, p, {});
+  const lines = slots.find((s) => s.key === "iface:all").lines;
+  assert.equal(lines[0], "interface GigabitEthernet1/0/5");
+  for (const l of ps) assert.ok(lines.includes(l), l);
+});
