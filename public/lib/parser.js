@@ -87,6 +87,53 @@ export function extractBlock(lines, startIdx) {
 
 const childLines = (block) => block.slice(1).map((l) => l.trim());
 
+// --------------------------------------------------------------------- vlans
+
+/** Expand a VLAN list such as `10,20,30-35` into valid IDs (1-4094). */
+export function expandVlanList(list) {
+  const ids = [];
+  for (const part of String(list).split(",")) {
+    const m = part.trim().match(/^(\d+)(?:\s*-\s*(\d+))?$/);
+    if (!m) continue;
+    const lo = Number(m[1]);
+    const hi = m[2] ? Number(m[2]) : lo;
+    for (let id = Math.max(lo, 1); id <= Math.min(hi, 4094); id++) ids.push(id);
+  }
+  return ids;
+}
+
+/**
+ * Collect layer-2 VLAN definitions (`vlan 101` + indented ` name ...`). Other
+ * `vlan ...` commands (internal allocation, access-map, configuration, group)
+ * are not definitions and are ignored. A list line (`vlan 10,20-25`) yields one
+ * bare entry per ID. Returns { vlans: [{ id, name, block }], lastEndIdx } where
+ * lastEndIdx is the last line of the final definition block (-1 if none).
+ */
+export function parseVlans(lines) {
+  const byId = new Map();
+  let lastEndIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    if (isIndented(raw)) continue;
+    const m = raw.trim().match(/^vlan\s+(\d[\d,\s-]*)$/);
+    if (!m) continue;
+    const { block, endIdx } = extractBlock(lines, i);
+    const ids = expandVlanList(m[1]);
+    i = endIdx;
+    if (!ids.length) continue;
+    lastEndIdx = endIdx;
+    const single = ids.length === 1;
+    const children = single ? block.slice(1) : []; // a name can't apply to a list
+    const nameLine = children.map((c) => c.trim().match(/^name\s+(.+)$/)).find(Boolean);
+    for (const id of ids) {
+      const prev = byId.get(id);
+      if (prev && (prev.block.length > 1 || !children.length)) continue; // first full definition wins
+      byId.set(id, { id, name: nameLine ? nameLine[1].trim() : null, block: [`vlan ${id}`, ...children] });
+    }
+  }
+  return { vlans: [...byId.values()].sort((a, b) => a.id - b.id), lastEndIdx };
+}
+
 // --------------------------------------------------------------------- parse
 
 export function parse(text) {
@@ -120,6 +167,7 @@ export function parse(text) {
     ntp: [], // ntp ... lines
     dns: [], // ip name-server lines (domain name/list lines are left to the template)
     isL3: false, // `ip routing` present
+    vlans: parseVlans(lines).vlans, // { id, name, block } layer-2 VLAN definitions
     lines: normalized ? lines : [],
     text: normalized,
   };

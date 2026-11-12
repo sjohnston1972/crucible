@@ -9,7 +9,7 @@
  * uses the named {harden} marker.
  */
 
-import { normalizeInterfaceName } from "./parser.js";
+import { normalizeInterfaceName, parseVlans } from "./parser.js";
 
 // ------------------------------------------------------------- tag sequencing
 
@@ -405,6 +405,51 @@ export function applyHostname(content, hostname) {
 export function stampHostname(content, parsed, naming = {}) {
   if (!parsed.hostname && !naming.rename) return content;
   return applyHostname(content, computeOutput(parsed, naming).hostname);
+}
+
+// ------------------------------------------------------------------- vlans
+
+const DEFAULT_VLANS = new Set([1, 1002, 1003, 1004, 1005]); // always exist on the switch
+
+/**
+ * Add every VLAN the source defines that the rendered output does not. A VLAN
+ * already in the output is left alone (the template's name wins). New ones go
+ * straight after the output's last `vlan` block; with none, in a labelled block
+ * before the first interface (or at the end).
+ * Returns { content, added: [ids], undefinedUsed: [ids] } — undefinedUsed are
+ * access/voice VLANs on ports that are defined nowhere (reported, not invented).
+ */
+export function mergeMissingVlans(content, parsed) {
+  const text = String(content);
+  const lines = text.split("\n");
+  const { vlans: have, lastEndIdx } = parseVlans(lines);
+  const defined = new Set(have.map((v) => v.id));
+
+  const missing = ((parsed && parsed.vlans) || []).filter((v) => !defined.has(v.id) && !DEFAULT_VLANS.has(v.id));
+  const added = missing.map((v) => v.id);
+  added.forEach((id) => defined.add(id));
+
+  const used = new Set();
+  for (const l of lines) {
+    const m = l.match(/^\s+switchport (?:access|voice) vlan (\d+)\s*$/);
+    if (m) used.add(Number(m[1]));
+  }
+  const undefinedUsed = [...used].filter((id) => !defined.has(id) && !DEFAULT_VLANS.has(id)).sort((a, b) => a - b);
+
+  if (!missing.length) return { content: text, added, undefinedUsed };
+
+  const newLines = missing.flatMap((v) => v.block);
+  if (lastEndIdx >= 0) {
+    lines.splice(lastEndIdx + 1, 0, ...newLines);
+    return { content: lines.join("\n"), added, undefinedUsed };
+  }
+  const header = "! ==== VLANs (from source) ====";
+  const firstIface = lines.findIndex((l) => /^interface\s+\S/.test(l));
+  if (firstIface >= 0) {
+    lines.splice(firstIface, 0, header, ...newLines, "!");
+    return { content: lines.join("\n"), added, undefinedUsed };
+  }
+  return { content: text.replace(/\n*$/, "") + `\n!\n${header}\n${newLines.join("\n")}\n`, added, undefinedUsed };
 }
 
 function escapeRegex(s) {

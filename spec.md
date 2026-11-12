@@ -185,6 +185,7 @@ Parse line-by-line with indentation awareness. Treat `!` and any non-indented co
   - Per-VLAN lines `^spanning-tree vlan <list> …` (priority / root / timers).
   - The **indented** `spanning-tree mst configuration` block — treat like an interface block: capture indented children (`name`, `revision`, `instance …`) until the terminator. (This is one of the few global blocks that uses indentation, so don't assume all `spanning-tree` config is single-line.)
 - **DHCP:** `ip dhcp pool <name>` blocks, `ip dhcp excluded-address` lines, interface `ip helper-address`.
+- **VLAN definitions:** top-level `vlan <id>` blocks with their indented children (`name …`); list lines (`vlan 10,20-25`) expand to one bare entry per ID. Always on, per switch: any VLAN the source defines that the rendered output lacks is added after the output's last `vlan` block (or in a labelled block before the first interface if the template defines none). A VLAN already in the template is left untouched — the template's name wins silently. VLAN 1 and 1002-1005 are never added. Access/voice VLANs used on ports but defined in neither source nor template are warned about, not invented.
 
 Edge cases to handle gracefully: configs with CRLF vs LF, leading whitespace variations, banner blocks containing `!`, comment lines, and truncated/partial configs. If a requested interface or item is not found, record it as "not found" per site rather than failing the run.
 

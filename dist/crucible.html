@@ -1056,6 +1056,41 @@ code {
     return { block, endIdx: j - 1 };
   }
   var childLines = (block) => block.slice(1).map((l) => l.trim());
+  function expandVlanList(list) {
+    const ids = [];
+    for (const part of String(list).split(",")) {
+      const m = part.trim().match(/^(\d+)(?:\s*-\s*(\d+))?$/);
+      if (!m) continue;
+      const lo = Number(m[1]);
+      const hi = m[2] ? Number(m[2]) : lo;
+      for (let id = Math.max(lo, 1); id <= Math.min(hi, 4094); id++) ids.push(id);
+    }
+    return ids;
+  }
+  function parseVlans(lines) {
+    const byId = /* @__PURE__ */ new Map();
+    let lastEndIdx = -1;
+    for (let i = 0; i < lines.length; i++) {
+      const raw = lines[i];
+      if (isIndented(raw)) continue;
+      const m = raw.trim().match(/^vlan\s+(\d[\d,\s-]*)$/);
+      if (!m) continue;
+      const { block, endIdx } = extractBlock(lines, i);
+      const ids = expandVlanList(m[1]);
+      i = endIdx;
+      if (!ids.length) continue;
+      lastEndIdx = endIdx;
+      const single = ids.length === 1;
+      const children = single ? block.slice(1) : [];
+      const nameLine = children.map((c) => c.trim().match(/^name\s+(.+)$/)).find(Boolean);
+      for (const id of ids) {
+        const prev = byId.get(id);
+        if (prev && (prev.block.length > 1 || !children.length)) continue;
+        byId.set(id, { id, name: nameLine ? nameLine[1].trim() : null, block: [`vlan ${id}`, ...children] });
+      }
+    }
+    return { vlans: [...byId.values()].sort((a, b) => a.id - b.id), lastEndIdx };
+  }
   function parse(text) {
     const normalized = String(text == null ? "" : text).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
     const lines = normalized.split("\n");
@@ -1098,6 +1133,8 @@ code {
       // ip name-server lines (domain name/list lines are left to the template)
       isL3: false,
       // `ip routing` present
+      vlans: parseVlans(lines).vlans,
+      // { id, name, block } layer-2 VLAN definitions
       lines: normalized ? lines : [],
       text: normalized
     };
@@ -1950,6 +1987,39 @@ ${content}`;
   function stampHostname(content, parsed, naming = {}) {
     if (!parsed.hostname && !naming.rename) return content;
     return applyHostname(content, computeOutput(parsed, naming).hostname);
+  }
+  var DEFAULT_VLANS = /* @__PURE__ */ new Set([1, 1002, 1003, 1004, 1005]);
+  function mergeMissingVlans(content, parsed) {
+    const text = String(content);
+    const lines = text.split("\n");
+    const { vlans: have, lastEndIdx } = parseVlans(lines);
+    const defined = new Set(have.map((v) => v.id));
+    const missing = (parsed && parsed.vlans || []).filter((v) => !defined.has(v.id) && !DEFAULT_VLANS.has(v.id));
+    const added = missing.map((v) => v.id);
+    added.forEach((id) => defined.add(id));
+    const used = /* @__PURE__ */ new Set();
+    for (const l of lines) {
+      const m = l.match(/^\s+switchport (?:access|voice) vlan (\d+)\s*$/);
+      if (m) used.add(Number(m[1]));
+    }
+    const undefinedUsed = [...used].filter((id) => !defined.has(id) && !DEFAULT_VLANS.has(id)).sort((a, b) => a - b);
+    if (!missing.length) return { content: text, added, undefinedUsed };
+    const newLines = missing.flatMap((v) => v.block);
+    if (lastEndIdx >= 0) {
+      lines.splice(lastEndIdx + 1, 0, ...newLines);
+      return { content: lines.join("\n"), added, undefinedUsed };
+    }
+    const header = "! ==== VLANs (from source) ====";
+    const firstIface = lines.findIndex((l) => /^interface\s+\S/.test(l));
+    if (firstIface >= 0) {
+      lines.splice(firstIface, 0, header, ...newLines, "!");
+      return { content: lines.join("\n"), added, undefinedUsed };
+    }
+    return { content: text.replace(/\n*$/, "") + `
+!
+${header}
+${newLines.join("\n")}
+`, added, undefinedUsed };
   }
   function escapeRegex2(s) {
     return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -2983,6 +3053,14 @@ ip routing
       const templateText = state.template && state.template.text ? state.template.text : defaultTemplate(ucfg, unit.parsed.hostname);
       const rendered = ucfg.insertion === "direct" ? renderDirect(templateText, slots) : renderTagBased(templateText, slots);
       let content = rendered.content;
+      const vlanMerge = mergeMissingVlans(content, unit.parsed);
+      content = vlanMerge.content;
+      if (vlanMerge.added.length) {
+        allWarnings.push(`${unit.id}: added VLAN ${vlanMerge.added.join(", ")} from the source (not in the template).`);
+      }
+      if (vlanMerge.undefinedUsed.length) {
+        allWarnings.push(`${unit.id}: ports use VLAN ${vlanMerge.undefinedUsed.join(", ")} but neither the source nor the template defines it \u2014 not added.`);
+      }
       const isSwitch = isSwitchParsed(unit.parsed);
       const appendBlock = (title, lines) => {
         if (lines && lines.length) content = content.replace(/\n*$/, "") + `

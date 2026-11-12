@@ -26,6 +26,7 @@ import {
   buildRsaKey,
   applyInterfaceMap,
   detectInterfaceMapConflicts,
+  mergeMissingVlans,
 } from "./lib/template.js";
 import { TARGET_MODELS, targetModel, targetPorts, autoMapInterfaces } from "./lib/targets.js";
 import { redactForAI } from "./lib/redact.js";
@@ -904,6 +905,16 @@ async function onSave() {
         : renderTagBased(templateText, slots);
 
     let content = rendered.content;
+
+    // VLANs the source defines but the template lacks are added (template names win).
+    const vlanMerge = mergeMissingVlans(content, unit.parsed);
+    content = vlanMerge.content;
+    if (vlanMerge.added.length) {
+      allWarnings.push(`${unit.id}: added VLAN ${vlanMerge.added.join(", ")} from the source (not in the template).`);
+    }
+    if (vlanMerge.undefinedUsed.length) {
+      allWarnings.push(`${unit.id}: ports use VLAN ${vlanMerge.undefinedUsed.join(", ")} but neither the source nor the template defines it — not added.`);
+    }
     const isSwitch = isSwitchParsed(unit.parsed);
     const appendBlock = (title, lines) => {
       if (lines && lines.length) content = content.replace(/\n*$/, "") + `\n!\n! ==== ${title} ====\n${lines.join("\n")}\n`;
