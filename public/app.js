@@ -15,7 +15,8 @@ import {
   renderTagBased,
   renderDirect,
   computeOutput,
-  applyHostname,
+  stampHostname,
+  convertLegacyQos,
   buildSecureAccess,
   buildVtp,
   buildClock,
@@ -25,6 +26,7 @@ import {
   applyInterfaceMap,
   detectInterfaceMapConflicts,
 } from "./lib/template.js";
+import { TARGET_MODELS, targetModel, targetPorts, autoMapInterfaces } from "./lib/targets.js";
 import { redactForAI } from "./lib/redact.js";
 import { buildZip } from "./lib/zip.js";
 
@@ -180,12 +182,17 @@ function readGlobalConfig() {
   };
 }
 
+/** Target-hardware uplink ports offered in the interface-mapping target dropdown
+ * while no destination switch model is selected (a selected model lists all its ports). */
+const TARGET_UPLINK_PORTS = ["TenGigabitEthernet1/1/3", "TenGigabitEthernet1/1/4"];
+
 /** Per-device collection state, pre-seeded with whatever the device actually has. */
 function defaultDeviceCfg(p) {
   return {
     interfacesAll: { enabled: false, mode: "full" },
     ifaceSel: new Map(), // normName -> { checked, mode }
     ifaceMap: new Map(), // normName -> { target, transform: "routed"|"svi", vlan }
+    targetModel: "", // destination switch model id (lib/targets.js); "" = map by hand
     routing: {
       defaultGateway: !!p.defaultGateway,
       allStatic: p.staticRoutes.length > 0,
@@ -876,7 +883,8 @@ async function onSave() {
     const applied = unit.findings.filter((f) => f.apply);
     const hardenLines = remediationLines(applied);
 
-    const tparsed = applyInterfaceMap(unit.parsed, dcfg.ifaceMap);
+    // Remap ports, then swap legacy `mls qos` port QoS for its IOS-XE equivalent.
+    const tparsed = convertLegacyQos(applyInterfaceMap(unit.parsed, dcfg.ifaceMap));
     const slots = buildBlocks(ucfg, tparsed, {
       stpRole,
       stpVlans: state.stpVlans,
@@ -926,7 +934,8 @@ async function onSave() {
     }
 
     const naming = computeOutput(unit.parsed, global.naming);
-    if (global.naming.rename) content = applyHostname(content, naming.hostname);
+    // Always carry the source hostname into the template; rename (if ticked) applies on top.
+    content = stampHostname(content, unit.parsed, global.naming);
 
     rendered.warnings.forEach((w) => allWarnings.push(`${unit.id}: ${w}`));
 
@@ -1066,7 +1075,14 @@ function renderUnit(unit, currentRootId = null) {
         .filter((u) => u.site.path === unit.site.path && u.id !== unit.id)
         .flatMap((u) => (u.parsed.interfaces || []).map((f) => f.normName))
     ),
-  ].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  ];
+  // Target dropdown: the selected destination model's ports (or the common uplinks) + sibling ports.
+  const portOptionsHtml = () => {
+    const model = targetModel(d.targetModel);
+    const names = [...new Set((model ? targetPorts(model) : TARGET_UPLINK_PORTS).concat(siblingPorts))];
+    names.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    return names.map((n) => `<option value="${escapeHtml(n)}">`).join("");
+  };
   const knownVlans = [
     ...new Set((p.interfaces || []).map((f) => (f.normName.match(/^Vlan(\d+)$/i) || [])[1]).filter(Boolean)),
   ];
@@ -1097,8 +1113,13 @@ function renderUnit(unit, currentRootId = null) {
     `<li><strong>Routed</strong> — the target box is the interface's new name. The interface is renamed to that port and its config is carried across <em>verbatim</em>; any existing port of that name on this device is <em>replaced</em> by it.</li>` +
     `<li><strong>SVI</strong> — the target box is the physical port to convert. That port becomes a <code>switchport access vlan&nbsp;X</code> member, and the interface's IP config is moved onto <code>interface Vlan&nbsp;X</code> (X = the VLAN ID you enter).</li>` +
     `</ul>` +
+    `<div class="ifmap-model"><label>Destination switch ` +
+    `<select class="ifmap-model-sel"><option value="">(none — map by hand)</option>` +
+    TARGET_MODELS.map((m) => `<option value="${m.id}"${d.targetModel === m.id ? " selected" : ""}>${escapeHtml(m.label)}</option>`).join("") +
+    `</select></label>` +
+    `<span class="muted small">Picking a model auto-fills the targets below (replacing the current mapping); every row stays editable.</span></div>` +
     `<div class="ifmap-rows">${ifmapRows}</div>` +
-    `<datalist id="${dlId}">${siblingPorts.map((n) => `<option value="${escapeHtml(n)}">`).join("")}</datalist>` +
+    `<datalist id="${dlId}">${portOptionsHtml()}</datalist>` +
     `<datalist id="${vlId}">${knownVlans.map((n) => `<option value="${escapeHtml(n)}">`).join("")}</datalist>` +
     `</details>`;
 
@@ -1207,6 +1228,27 @@ function renderUnit(unit, currentRootId = null) {
         set({ transform: svi ? "svi" : "routed" });
       })
     );
+  });
+
+  // Destination model: auto-fill the whole map, then sync the rows to it.
+  const modelSel = card.querySelector(".ifmap-model-sel");
+  modelSel.addEventListener("change", () => {
+    d.targetModel = modelSel.value;
+    const model = targetModel(d.targetModel);
+    card.querySelector(`datalist[id="${CSS.escape(dlId)}"]`).innerHTML = portOptionsHtml();
+    if (model) {
+      d.ifaceMap = autoMapInterfaces(p, model);
+      card.querySelectorAll(".ifmap-row").forEach((row) => {
+        const m = d.ifaceMap.get(row.dataset.name);
+        row.querySelector(".ifmap-target").value = m ? m.target : "";
+        row.querySelector("input[value=routed]").checked = true;
+        const vlanIn = row.querySelector(".ifmap-vlan");
+        vlanIn.value = "";
+        vlanIn.classList.add("hidden");
+      });
+    }
+    refreshMapCount();
+    refreshTagMap();
   });
 
   // --- routing & services ---

@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 
 import { parse } from "../public/lib/parser.js";
@@ -20,6 +21,8 @@ import {
   buildBanner,
   applyInterfaceMap,
   detectInterfaceMapConflicts,
+  stampHostname,
+  convertLegacyQos,
 } from "../public/lib/template.js";
 
 const CFG = {
@@ -361,4 +364,108 @@ interface GigabitEthernet0/0/1
   const all = slots.flatMap((s) => s.lines).join("\n");
   assert.ok(all.includes("interface GigabitEthernet1/0/24"));
   assert.ok(!all.includes("interface GigabitEthernet0/0/1"));
+});
+
+// ------------------------------------------------- hostname stamping (no rename)
+
+test("stampHostname inserts the source hostname into a user template without rename", () => {
+  const parsed = parse("hostname Paisley-48G-SW2\n");
+  const out = stampHostname("!\nhostname TEMPLATE-NAME\n!\nend\n", parsed, { rename: false });
+  assert.match(out, /^hostname Paisley-48G-SW2$/m);
+  assert.doesNotMatch(out, /TEMPLATE-NAME/);
+});
+
+test("stampHostname applies the rename transform when ticked", () => {
+  const parsed = parse("hostname abccorp_RT1\n");
+  const out = stampHostname("hostname X\n", parsed, { rename: true, method: "suffix", find: "RT1", replace: "SW1" });
+  assert.match(out, /^hostname abccorp_SW1$/m);
+});
+
+test("stampHostname leaves the template alone when the source has no hostname", () => {
+  const out = stampHostname("hostname KEEP\n", parse("interface Vlan1\n"), {});
+  assert.equal(out, "hostname KEEP\n");
+});
+
+// ------------------------------------------------- legacy mls qos → IOS-XE
+
+const ifaceBlock = (p, name) => p.interfaces.find((f) => f.normName === name).block;
+
+test("convertLegacyQos: mls qos trust cos → auto qos trust cos, legacy queueing removed", () => {
+  const src = parse(`hostname X
+interface GigabitEthernet0/11
+ switchport access vlan 4
+ srr-queue bandwidth share 10 10 60 20
+ srr-queue bandwidth shape  10  0  0  0
+ queue-set 2
+ mls qos trust cos
+ auto qos voip trust
+ spanning-tree portfast`);
+  const out = convertLegacyQos(src);
+  assert.deepEqual(ifaceBlock(out, "GigabitEthernet0/11"), [
+    "interface GigabitEthernet0/11",
+    " switchport access vlan 4",
+    " auto qos trust cos",
+    " spanning-tree portfast",
+  ]);
+  // input not mutated
+  assert.ok(ifaceBlock(src, "GigabitEthernet0/11").includes(" mls qos trust cos"));
+});
+
+test("convertLegacyQos: mls qos trust dscp → auto qos trust dscp", () => {
+  const out = convertLegacyQos(parse("interface Gi0/1\n mls qos trust dscp\n"));
+  assert.deepEqual(ifaceBlock(out, "GigabitEthernet0/1"), ["interface Gi0/1", " auto qos trust dscp"]);
+});
+
+test("convertLegacyQos: cisco-phone conditional trust → auto qos voip cisco-phone, legacy policer dropped", () => {
+  const out = convertLegacyQos(parse(`interface Gi1/0/1
+ switchport voice vlan 91
+ srr-queue bandwidth share 10 10 60 20
+ queue-set 2
+ priority-queue out
+ mls qos trust device cisco-phone
+ mls qos trust cos
+ auto qos voip cisco-phone
+ service-policy input AutoQoS-Police-CiscoPhone
+ spanning-tree portfast`));
+  assert.deepEqual(ifaceBlock(out, "GigabitEthernet1/0/1"), [
+    "interface Gi1/0/1",
+    " switchport voice vlan 91",
+    " auto qos voip cisco-phone",
+    " spanning-tree portfast",
+  ]);
+});
+
+test("convertLegacyQos: IOS-XE style interfaces are left untouched", () => {
+  const src = parse(`interface Te1/1/2
+ switchport mode trunk
+ auto qos trust
+ service-policy input AutoQos-4.0-Trust-Cos-Input-Policy
+ service-policy output AutoQos-4.0-Output-Policy
+!
+interface Gi1/0/2
+ switchport mode access`);
+  assert.equal(convertLegacyQos(src), src);
+});
+
+test("convertLegacyQos: no mls qos line survives on the real legacy samples", () => {
+  for (const f of ["paisley/Paisley L3 Switch.txt", "cmb/CMB-TUK-SWT02_sh run.txt"]) {
+    const src = parse(readFileSync(new URL("../public/sample-data/" + f, import.meta.url), "utf8"));
+    const out = convertLegacyQos(src);
+    const text = out.interfaces.map((i) => i.block.join("\n")).join("\n");
+    assert.doesNotMatch(text, /^\s*(mls qos|srr-queue|queue-set|priority-queue)\b/m, f);
+    const legacyCount = src.interfaces.filter((i) => i.block.some((l) => /^\s*mls qos\b/.test(l))).length;
+    const xeCount = out.interfaces.filter((i) => i.block.some((l) => /^ auto qos (trust (cos|dscp)|voip cisco-phone)$/.test(l))).length;
+    assert.ok(legacyCount > 0 && xeCount >= legacyCount, f);
+  }
+});
+
+test("convertLegacyQos survives an interface remap (Gi0/11 → Te1/1/3)", () => {
+  const src = parse("interface GigabitEthernet0/11\n switchport access vlan 4\n mls qos trust cos\n");
+  const map = new Map([["GigabitEthernet0/11", { target: "Te1/1/3", transform: "routed", vlan: null }]]);
+  const out = convertLegacyQos(applyInterfaceMap(src, map));
+  assert.deepEqual(ifaceBlock(out, "TenGigabitEthernet1/1/3"), [
+    "interface TenGigabitEthernet1/1/3",
+    " switchport access vlan 4",
+    " auto qos trust cos",
+  ]);
 });

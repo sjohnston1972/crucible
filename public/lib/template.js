@@ -392,6 +392,17 @@ export function applyHostname(content, hostname) {
   return `hostname ${hostname}\n${content}`;
 }
 
+/**
+ * Put the device's own hostname into the rendered template. Always applied when
+ * the source has a hostname (the template's own `hostname` line is a placeholder);
+ * the rename transform, when ticked, is applied on top (§12.4). A source with no
+ * hostname and no rename leaves the template's line untouched.
+ */
+export function stampHostname(content, parsed, naming = {}) {
+  if (!parsed.hostname && !naming.rename) return content;
+  return applyHostname(content, computeOutput(parsed, naming).hostname);
+}
+
 function escapeRegex(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -511,4 +522,57 @@ export function detectInterfaceMapConflicts(parsed, map, opts = {}) {
     }
   }
   return warnings;
+}
+
+// ------------------------------------------------- legacy QoS → IOS-XE
+
+// Classic-IOS (2960/3560/3750) per-port QoS that does not exist on IOS-XE.
+const LEGACY_QOS_RE = /^(mls qos\b|srr-queue\b|wrr-queue\b|queue-set\b|priority-queue\b)/;
+// Lines superseded by the IOS-XE replacement once an interface is being converted.
+const LEGACY_QOS_COMPANION_RE = /^(auto qos\b|service-policy (input|output) AutoQoS-)/;
+
+/**
+ * Replace legacy `mls qos` port QoS with the IOS-XE equivalent, returning a
+ * transformed CLONE of parsed (the same object if nothing needed converting).
+ *
+ * Only interfaces carrying legacy commands are touched. On those, every legacy
+ * line (mls qos / srr-queue / queue-set / priority-queue, plus the old auto-qos
+ * macro lines and its generated AutoQoS-* policer) is removed and ONE IOS-XE
+ * auto-qos line is put in its place, chosen from the port's trust intent:
+ *   cisco-phone conditional trust → auto qos voip cisco-phone
+ *   mls qos trust dscp            → auto qos trust dscp
+ *   mls qos trust cos / other     → auto qos trust cos
+ * IOS-XE auto qos generates and attaches the ingress + egress queueing policies
+ * itself, which is what stands in for the removed srr-queue/priority-queue lines.
+ */
+export function convertLegacyQos(parsed) {
+  let changed = false;
+  const interfaces = (parsed.interfaces || []).map((f) => {
+    const body = f.block.slice(1);
+    const t = body.map((l) => l.trim());
+    if (!t.some((l) => LEGACY_QOS_RE.test(l))) return f;
+
+    let replacement;
+    if (t.some((l) => /^mls qos trust device cisco-phone\b/.test(l) || /^auto qos voip cisco-phone\b/.test(l))) {
+      replacement = " auto qos voip cisco-phone";
+    } else if (t.some((l) => /^mls qos trust dscp\b/.test(l))) {
+      replacement = " auto qos trust dscp";
+    } else {
+      replacement = " auto qos trust cos";
+    }
+
+    const block = [f.block[0]];
+    let placed = false;
+    body.forEach((line, i) => {
+      if (LEGACY_QOS_RE.test(t[i]) || LEGACY_QOS_COMPANION_RE.test(t[i])) {
+        if (!placed) block.push(replacement);
+        placed = true;
+      } else {
+        block.push(line);
+      }
+    });
+    changed = true;
+    return { ...f, block, text: block.join("\n") };
+  });
+  return changed ? { ...parsed, interfaces } : parsed;
 }
