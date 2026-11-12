@@ -118,7 +118,7 @@ export function parse(text) {
     tacacs: [], // tacacs server / aaa group server tacacs+ blocks + tacacs-server host
     logging: [], // logging ... lines
     ntp: [], // ntp ... lines
-    dns: [], // ip name-server / ip domain name|domain-name / ip domain-list lines
+    dns: [], // ip name-server lines (domain name/list lines are left to the template)
     isL3: false, // `ip routing` present
     lines: normalized ? lines : [],
     text: normalized,
@@ -231,10 +231,13 @@ export function parse(text) {
       result.ntp.push(line);
       continue;
     }
-    if (/^ip name-server\b/.test(line) || /^ip domain[- ](name|list)\b/.test(line)) {
+    if (/^ip name-server\b/.test(line)) {
       result.dns.push(line);
       continue;
     }
+    // `ip domain-name` / `ip domain name|list` are deliberately NOT carried over:
+    // the target template supplies its own domain name commands.
+    if (/^ip domain[- ](name|list)\b/.test(line)) continue;
     if ((/^tacacs server\b/.test(line) || /^aaa group server tacacs\+/.test(line)) && !isIndented(raw)) {
       const { block, endIdx } = extractBlock(lines, i);
       result.tacacs.push(...block);

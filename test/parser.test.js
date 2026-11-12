@@ -238,9 +238,7 @@ test("management capture from inline sample", () => {
   assert.equal(p.snmp.length, 1);
   assert.equal(p.logging.length, 1);
   assert.equal(p.ntp.length, 1);
-  assert.equal(p.dns.length, 2);
-  assert.ok(p.dns.some((l) => /ip name-server/.test(l)));
-  assert.ok(p.dns.some((l) => /ip domain-name/.test(l)));
+  assert.deepEqual(p.dns, ["ip name-server 10.0.0.10"]); // domain name is left to the template
   assert.ok(p.tacacs.some((l) => /tacacs server X/.test(l)));
   assert.ok(p.tacacs.some((l) => /address ipv4 10\.0\.0\.3/.test(l)));
 });

@@ -23,6 +23,7 @@ import {
   buildStpHardening,
   buildErrdisable,
   buildBanner,
+  buildRsaKey,
   applyInterfaceMap,
   detectInterfaceMapConflicts,
 } from "./lib/template.js";
@@ -169,6 +170,7 @@ function readGlobalConfig() {
       offset: $("clock-offset").value.trim(),
       summerTime: $("clock-summer").value.trim(),
     },
+    rsaKey: { enabled: $("rsa-enable").checked },
     stpHardening: { enabled: $("stph-enable").checked },
     errdisable: { enabled: $("errd-enable").checked, interval: $("errd-interval").value.trim() },
     banner: { enabled: $("banner-enable").checked, text: $("banner-text").value },
@@ -933,6 +935,12 @@ async function onSave() {
       }
     }
 
+    // RSA host key — last, so hostname + domain name (from the template) are already set.
+    // Skipped if a ticked hardening item has already put the same command in.
+    if (global.rsaKey.enabled && !/^crypto key generate rsa\b/m.test(content)) {
+      appendBlock("SSH host key", buildRsaKey());
+    }
+
     const naming = computeOutput(unit.parsed, global.naming);
     // Always carry the source hostname into the template; rename (if ticked) applies on top.
     content = stampHostname(content, unit.parsed, global.naming);
@@ -1051,7 +1059,7 @@ function renderUnit(unit, currentRootId = null) {
         { path: "tacacs", label: "TACACS+", has: p.tacacs.length > 0 },
         { path: "logging", label: "Logging", has: p.logging.length > 0 },
         { path: "ntp", label: "NTP", has: p.ntp.length > 0 },
-        { path: "dns", label: "DNS (name-server / domain)", has: p.dns.length > 0 },
+        { path: "dns", label: "DNS (name-servers)", has: p.dns.length > 0 },
       ],
     },
   ];

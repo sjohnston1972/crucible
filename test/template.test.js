@@ -23,7 +23,9 @@ import {
   detectInterfaceMapConflicts,
   stampHostname,
   convertLegacyQos,
+  buildRsaKey,
 } from "../public/lib/template.js";
+import { audit, remediationLines } from "../public/lib/hardening.js";
 
 const CFG = {
   interfaces: [
@@ -214,8 +216,7 @@ test("buildSecureAccess: SHA-256 secrets, AAA local, type-6, SSH/VTY", () => {
   assert.match(lines, /^key config-key password-encrypt Key1/m);
   assert.match(lines, /^password encryption aes/m);
   assert.match(lines, /^ip ssh version 2/m);
-  assert.match(lines, / transport input ssh/);
-  assert.match(lines, / login authentication default/);
+  assert.match(lines, /^line con 0\n login authentication default/m);
 });
 
 test("global generators: clock, STP hardening, errdisable, banner", () => {
@@ -468,4 +469,28 @@ test("convertLegacyQos survives an interface remap (Gi0/11 → Te1/1/3)", () => 
     " switchport access vlan 4",
     " auto qos trust cos",
   ]);
+});
+
+// ------------------------------------- domain name / RSA key / VTY left to template
+
+test("source ip domain-name is not carried over (template supplies the domain name)", () => {
+  const p = parse("ip name-server 10.0.0.10\nip domain-name old.corp.local\nip domain name other.local\nip domain-list a.local\n");
+  assert.deepEqual(p.dns, ["ip name-server 10.0.0.10"]);
+  const slots = buildBlocks({ dns: { enabled: true } }, p);
+  assert.doesNotMatch(slots.flatMap((s) => s.lines).join("\n"), /domain/);
+});
+
+test("buildRsaKey emits the 2048-bit key generation command", () => {
+  assert.deepEqual(buildRsaKey(), ["crypto key generate rsa modulus 2048"]);
+});
+
+test("nothing Crucible injects touches line vty (template VTY settings stay as-is)", () => {
+  const sec = buildSecureAccess({ username: "netadmin", password: "Sec!", configKey: "Key1" });
+  assert.ok(!sec.some((l) => /^line vty/.test(l)));
+  assert.ok(!sec.some((l) => /transport input/.test(l)));
+  const findings = audit(parse("hostname X\nline vty 0 4\n transport input telnet\n"));
+  for (const f of findings) f.apply = true;
+  const lines = remediationLines(findings);
+  assert.ok(!lines.some((l) => /^line vty|transport input|access-class/.test(l)), lines.join("\n"));
+  assert.ok(lines.includes("line con 0")); // console hardening is still offered
 });

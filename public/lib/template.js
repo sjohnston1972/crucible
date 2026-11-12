@@ -311,7 +311,7 @@ export function computeOutput(parsed, naming = {}) {
 /**
  * Generate a secure local-admin + SSH access block from user-supplied credentials.
  * Produces SHA-256 user/enable secrets, AAA local login, optional type-6 password
- * encryption, and the SSH/VTY login commands needed to make it work. Returns [] if
+ * encryption, SSH v2 and the console login command. Returns [] if
  * username or password is missing.
  */
 export function buildSecureAccess({ username, password, enableSecret, configKey } = {}) {
@@ -332,13 +332,17 @@ export function buildSecureAccess({ username, password, enableSecret, configKey 
     "!",
     "ip ssh version 2",
     "!",
+    // Console only: VTY lines are left exactly as the template has them. With
+    // `aaa authentication login default local` the VTYs use this login anyway.
     "line con 0",
-    " login authentication default",
-    "line vty 0 15",
-    " transport input ssh",
     " login authentication default"
   );
   return lines;
+}
+
+/** RSA host key for SSH. Needs hostname + domain name set first — both come from the template. */
+export function buildRsaKey() {
+  return ["crypto key generate rsa modulus 2048"];
 }
 
 /**

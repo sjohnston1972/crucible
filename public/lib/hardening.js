@@ -97,7 +97,7 @@ export const RULES = [
       if (anyLine(lines, /^transport input\b.*\b(telnet|all)\b/))
         return {
           status: "missing",
-          remediation: ["line vty 0 15", " transport input ssh"],
+          remediation: [], // advisory only — VTY settings are left as the template has them
         };
       return { status: "pass" };
     },
@@ -111,7 +111,7 @@ export const RULES = [
         ? { status: "pass" }
         : {
             status: "missing",
-            remediation: ["line con 0", " exec-timeout 5 0", "line vty 0 15", " exec-timeout 5 0"],
+            remediation: ["line con 0", " exec-timeout 5 0"], // console only — VTY left to the template
           };
     },
   },
@@ -230,12 +230,7 @@ export const RULES = [
         ? { status: "pass" }
         : {
             status: "missing",
-            remediation: [
-              "ip access-list standard MGMT-ACCESS",
-              " permit <MGMT-SUBNET> <WILDCARD>",
-              "line vty 0 15",
-              " access-class MGMT-ACCESS in",
-            ],
+            remediation: [], // advisory only — VTY settings are left as the template has them
           };
     },
   },

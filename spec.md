@@ -200,8 +200,8 @@ Deterministic checks run client-side. Each has: id, description, severity, detec
 | `enable password` used instead of `enable secret` | High | `enable secret <…>` (and remove `enable password`) |
 | Plaintext `username … password` | High | `username <u> secret <…>` |
 | SSH not v2 / no `ip ssh version 2` | High | `ip ssh version 2` + RSA key ≥2048 |
-| VTY allows telnet (`transport input telnet`/`all`) | High | `transport input ssh` |
-| No `exec-timeout` on console/vty | Medium | `exec-timeout 5 0` |
+| VTY allows telnet (`transport input telnet`/`all`) | High | advisory only — VTY settings are left as the template has them |
+| No `exec-timeout` on console/vty | Medium | `exec-timeout 5 0` on `line con 0` only (VTY left to the template) |
 | `aaa new-model` absent | Medium | `aaa new-model` (+ method lists) |
 | `ip http server` enabled | Medium | `no ip http server` / restrict `ip http secure-server` |
 | `cdp run` global (untrusted edges) | Low | `no cdp run` or per-interface `no cdp enable` |
@@ -210,7 +210,7 @@ Deterministic checks run client-side. Each has: id, description, severity, detec
 | No logging host / buffered | Medium | `logging buffered`, `logging host <ip>`, `service timestamps log datetime msec` |
 | No NTP / unauthenticated NTP | Low | `ntp authenticate` + keys |
 | No login/MOTD legal banner | Low | `banner login ^C … ^C` |
-| No VTY ACL restricting mgmt | Medium | `access-class <acl> in` on `line vty` |
+| No VTY ACL restricting mgmt | Medium | advisory only — VTY settings are left as the template has them |
 | `no service pad`, `no ip source-route`, `no ip bootp server`, `no service config` absent | Low | apply the `no …` forms |
 | `security passwords min-length` unset | Low | `security passwords min-length 10` |
 | Global BPDU Guard default not set | Medium | `spanning-tree portfast bpduguard default` |
