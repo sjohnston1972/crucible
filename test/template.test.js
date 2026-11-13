@@ -11,6 +11,8 @@ import {
   buildSpanningTreeBlock,
   renderTagBased,
   renderDirect,
+  buildDirectSections,
+  insertAfterDomainName,
   computeOutput,
   applyHostname,
   buildSecureAccess,
@@ -186,6 +188,35 @@ test("renderDirect appends section headers in order", () => {
   assert.ok(content.includes("! ==== Spanning tree ===="));
   assert.ok(content.includes("! ==== Hardening ===="));
   assert.ok(content.indexOf("! ==== Interfaces ====") < content.indexOf("! ==== Hardening ===="));
+});
+
+test("generated config goes straight after the template's ip domain name line, RSA key first", () => {
+  const tpl = "hostname T\n!\nip domain name corp.local\n!\ninterface Vlan1\n no ip address\n!\nline vty 0 4\n transport input ssh\n!\nend";
+  const gen = [...buildRsaKey(), ...buildDirectSections(buildBlocks(CFG, SRC, {})).lines];
+  const { content, placed } = insertAfterDomainName(tpl, gen);
+  assert.equal(placed, true);
+  const lines = content.split("\n");
+  const at = lines.indexOf("ip domain name corp.local");
+  assert.equal(lines[at + 1], "crypto key generate rsa modulus 2048");
+  assert.equal(lines[at + 2], "!");
+  assert.equal(lines[at + 3], "! ==== Interfaces ====");
+  // the rest of the template still follows the generated run, intact
+  assert.ok(content.indexOf("! ==== Interfaces ====") < content.indexOf("interface Vlan1\n no ip address"));
+  assert.ok(content.endsWith("line vty 0 4\n transport input ssh\n!\nend"));
+  assert.doesNotMatch(content, /!\n!\ninterface Vlan1\n no ip address/); // no doubled separator
+});
+
+test("insertAfterDomainName: hyphenated form matches, DHCP pool domain-name does not", () => {
+  const tpl = "ip dhcp pool A\n domain-name pool.local\n!\nip domain-name corp.local\nend";
+  const { content } = insertAfterDomainName(tpl, ["crypto key generate rsa modulus 2048"]);
+  assert.equal(content, "ip dhcp pool A\n domain-name pool.local\n!\nip domain-name corp.local\ncrypto key generate rsa modulus 2048\n!\nend");
+});
+
+test("insertAfterDomainName: no domain name line falls back to the end; nothing to insert is a no-op", () => {
+  const r = insertAfterDomainName("hostname T\n!\n", ["crypto key generate rsa modulus 2048"]);
+  assert.equal(r.placed, false);
+  assert.equal(r.content, "hostname T\n!\n!\ncrypto key generate rsa modulus 2048\n");
+  assert.equal(insertAfterDomainName("hostname T\n", []).content, "hostname T\n");
 });
 
 test("management slots carry SNMP/TACACS/logging/NTP", () => {

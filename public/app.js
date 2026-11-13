@@ -13,7 +13,8 @@ import {
   buildTagMap,
   buildBlocks,
   renderTagBased,
-  renderDirect,
+  buildDirectSections,
+  insertAfterDomainName,
   computeOutput,
   stampHostname,
   convertLegacyQos,
@@ -778,7 +779,7 @@ function detectCurrentRoot(stpUnits) {
 /**
  * Synthesize a default template when the user hasn't chosen one. Tag-based:
  * a hostname line plus every marker from the computed tag map under a labelled
- * comment. Direct: a minimal base — renderDirect appends the section headers.
+ * comment. Direct: a minimal base — the section headers are added on save.
  */
 function defaultTemplate(config, hostname) {
   const host = hostname || "PLACEHOLDER";
@@ -884,7 +885,11 @@ async function onSave() {
       : "asis";
 
     const applied = unit.findings.filter((f) => f.apply);
-    const hardenLines = remediationLines(applied);
+    // With the RSA key box ticked the command leads the generated config, so a
+    // ticked hardening item must not repeat it.
+    const hardenLines = remediationLines(applied).filter(
+      (l) => !(global.rsaKey.enabled && /^crypto key generate rsa\b/.test(l))
+    );
 
     // Remap ports, then swap legacy `mls qos` port QoS for its IOS-XE equivalent.
     const tparsed = convertLegacyQos(applyInterfaceMap(unit.parsed, dcfg.ifaceMap));
@@ -899,12 +904,46 @@ async function onSave() {
         ? state.template.text
         : defaultTemplate(ucfg, unit.parsed.hostname);
 
-    const rendered =
-      ucfg.insertion === "direct"
-        ? renderDirect(templateText, slots)
-        : renderTagBased(templateText, slots);
+    // Everything Crucible generates goes in as one run of lines straight after
+    // the template's `ip domain name` line, led by the RSA key command (the
+    // hostname + domain name it needs are already set by that point). Tag-based
+    // markers are still filled where the template puts them.
+    const isDirect = ucfg.insertion === "direct";
+    const rendered = isDirect ? buildDirectSections(slots) : renderTagBased(templateText, slots);
+    const generated = [];
+    const addBlock = (title, lines) => {
+      if (lines && lines.length) generated.push("!", `! ==== ${title} ====`, ...lines);
+    };
 
-    let content = rendered.content;
+    if (global.rsaKey.enabled) generated.push(...buildRsaKey());
+    if (isDirect) generated.push(...rendered.lines);
+
+    // Global additions injected into every output (switch-only ones gated).
+    const isSwitch = isSwitchParsed(unit.parsed);
+    if (global.clock.enabled) addBlock("Clock & timezone", buildClock(global.clock));
+    if (global.banner.enabled) addBlock("Banner", buildBanner(global.banner));
+    if (global.stpHardening.enabled && isSwitch) addBlock("Spanning-tree hardening", buildStpHardening());
+    if (global.errdisable.enabled && isSwitch) addBlock("Errdisable recovery", buildErrdisable(global.errdisable));
+
+    // VTP v3 block — switch templates only (routers don't run VTP).
+    if (global.vtp && global.vtp.enabled && isSwitch) {
+      const vtpLines = buildVtp(global.vtp);
+      if (vtpLines.length) addBlock("VTP", vtpLines);
+      else allWarnings.push(`${unit.id}: VTP enabled but no domain name — skipped.`);
+    }
+
+    // Secure access block (user-supplied hardened admin + SSH login).
+    if (global.secureAccess && global.secureAccess.enabled) {
+      const secLines = buildSecureAccess(global.secureAccess);
+      if (secLines.length) addBlock("Secure access", secLines);
+      else allWarnings.push(`${unit.id}: secure access enabled but username/password missing — skipped.`);
+    }
+
+    const inserted = insertAfterDomainName(isDirect ? templateText : rendered.content, generated);
+    let content = inserted.content;
+    if (!inserted.placed && state.template && state.template.text) {
+      allWarnings.push(`${unit.id}: template has no "ip domain name" line — generated config added at the end instead.`);
+    }
 
     // VLANs the source defines but the template lacks are added (template names win).
     const vlanMerge = mergeMissingVlans(content, unit.parsed);
@@ -914,42 +953,6 @@ async function onSave() {
     }
     if (vlanMerge.undefinedUsed.length) {
       allWarnings.push(`${unit.id}: ports use VLAN ${vlanMerge.undefinedUsed.join(", ")} but neither the source nor the template defines it — not added.`);
-    }
-    const isSwitch = isSwitchParsed(unit.parsed);
-    const appendBlock = (title, lines) => {
-      if (lines && lines.length) content = content.replace(/\n*$/, "") + `\n!\n! ==== ${title} ====\n${lines.join("\n")}\n`;
-    };
-
-    // Global additions injected into every output (switch-only ones gated).
-    if (global.clock.enabled) appendBlock("Clock & timezone", buildClock(global.clock));
-    if (global.banner.enabled) appendBlock("Banner", buildBanner(global.banner));
-    if (global.stpHardening.enabled && isSwitch) appendBlock("Spanning-tree hardening", buildStpHardening());
-    if (global.errdisable.enabled && isSwitch) appendBlock("Errdisable recovery", buildErrdisable(global.errdisable));
-
-    // VTP v3 block — switch templates only (routers don't run VTP).
-    if (global.vtp && global.vtp.enabled && isSwitchParsed(unit.parsed)) {
-      const vtpLines = buildVtp(global.vtp);
-      if (vtpLines.length) {
-        content = content.replace(/\n*$/, "") + `\n!\n! ==== VTP ====\n${vtpLines.join("\n")}\n`;
-      } else {
-        allWarnings.push(`${unit.id}: VTP enabled but no domain name — skipped.`);
-      }
-    }
-
-    // Secure access block (user-supplied hardened admin + SSH login), appended to every output.
-    if (global.secureAccess && global.secureAccess.enabled) {
-      const secLines = buildSecureAccess(global.secureAccess);
-      if (secLines.length) {
-        content = content.replace(/\n*$/, "") + `\n!\n! ==== Secure access ====\n${secLines.join("\n")}\n`;
-      } else {
-        allWarnings.push(`${unit.id}: secure access enabled but username/password missing — skipped.`);
-      }
-    }
-
-    // RSA host key — last, so hostname + domain name (from the template) are already set.
-    // Skipped if a ticked hardening item has already put the same command in.
-    if (global.rsaKey.enabled && !/^crypto key generate rsa\b/m.test(content)) {
-      appendBlock("SSH host key", buildRsaKey());
     }
 
     const naming = computeOutput(unit.parsed, global.naming);

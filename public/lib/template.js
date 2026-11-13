@@ -269,27 +269,54 @@ export function renderTagBased(templateText, slots) {
   return { content: out, warnings };
 }
 
-export function renderDirect(templateText, slots) {
+/** The collected blocks as lines, each category under a `! ==== … ====` header. */
+export function buildDirectSections(slots) {
   const warnings = [];
-  const parts = [String(templateText).replace(/\s+$/, "")];
+  const lines = [];
   const byCategory = new Map();
   for (const slot of slots) {
-    if (slot.tag === "harden") continue; // hardening appended last under its own header
+    if (slot.tag === "harden") continue; // hardening goes last under its own header
     if (!byCategory.has(slot.category)) byCategory.set(slot.category, []);
     byCategory.get(slot.category).push(slot);
   }
   for (const [category, catSlots] of byCategory) {
-    parts.push("", `! ==== ${category} ====`);
+    lines.push("!", `! ==== ${category} ====`);
     for (const slot of catSlots) {
       if (!slot.found) warnings.push(`${slot.label}: data not found in source.`);
-      parts.push(...(slot.lines || []));
+      lines.push(...(slot.lines || []));
     }
   }
   const harden = slots.find((s) => s.tag === "harden");
   if (harden && (harden.lines || []).length) {
-    parts.push("", "! ==== Hardening ====", ...harden.lines);
+    lines.push("!", "! ==== Hardening ====", ...harden.lines);
   }
-  return { content: parts.join("\n") + "\n", warnings };
+  return { lines, warnings };
+}
+
+const DOMAIN_NAME_RE = /^ip domain[- ]name\s+\S/;
+
+/**
+ * Insert generated lines straight after the template's top-level
+ * `ip domain name` / `ip domain-name` line. A template without one gets them
+ * appended at the end instead (placed: false).
+ */
+export function insertAfterDomainName(templateText, genLines) {
+  const text = String(templateText);
+  if (!genLines || !genLines.length) return { content: text, placed: true };
+  const lines = text.split("\n");
+  const idx = lines.findIndex((l) => DOMAIN_NAME_RE.test(l));
+  if (idx < 0) {
+    const lead = genLines[0] === "!" ? [] : ["!"];
+    return { content: [text.replace(/\s+$/, ""), ...lead, ...genLines].join("\n") + "\n", placed: false };
+  }
+  const tail = (lines[idx + 1] || "").trim() === "!" ? [] : ["!"];
+  lines.splice(idx + 1, 0, ...genLines, ...tail);
+  return { content: lines.join("\n"), placed: true };
+}
+
+export function renderDirect(templateText, slots) {
+  const { lines, warnings } = buildDirectSections(slots);
+  return { content: insertAfterDomainName(templateText, lines).content, warnings };
 }
 
 // ------------------------------------------------------------------- naming

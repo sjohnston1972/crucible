@@ -858,7 +858,7 @@ code {
       </div>
 
       <h3 class="sub">SSH host key</h3>
-      <p class="sub-desc">Adds <code>crypto key generate rsa modulus 2048</code> to every output. The domain name it relies on comes from your template — source <code>ip domain-name</code> lines are not carried over.</p>
+      <p class="sub-desc">Adds <code>crypto key generate rsa modulus 2048</code> to every output, straight after the template’s <code>ip domain name</code> line. The domain name it relies on comes from your template — source <code>ip domain-name</code> lines are not carried over.</p>
       <label class="checkbox"><input id="rsa-enable" type="checkbox" checked /><span>Generate a 2048-bit RSA key</span></label>
 
       <h3 class="sub">Secure access</h3>
@@ -904,7 +904,7 @@ code {
       </div>
       <div class="checks" style="margin-top:1rem">
         <label class="checkbox"><input type="radio" name="insertion" value="tag" checked /><span><strong>Tag-based</strong> — fill <code>{a}</code>, <code>{b}</code>, … <code>{harden}</code> markers</span></label>
-        <label class="checkbox"><input type="radio" name="insertion" value="direct" /><span><strong>Direct</strong> — append each block under generated section headers</span></label>
+        <label class="checkbox"><input type="radio" name="insertion" value="direct" /><span><strong>Direct</strong> — insert each block under generated section headers, after the template’s <code>ip domain name</code> line</span></label>
       </div>
     </section>
 
@@ -1886,9 +1886,9 @@ code {
     }
     return { content: out, warnings };
   }
-  function renderDirect(templateText, slots) {
+  function buildDirectSections(slots) {
     const warnings = [];
-    const parts = [String(templateText).replace(/\s+$/, "")];
+    const lines = [];
     const byCategory = /* @__PURE__ */ new Map();
     for (const slot of slots) {
       if (slot.tag === "harden") continue;
@@ -1896,17 +1896,31 @@ code {
       byCategory.get(slot.category).push(slot);
     }
     for (const [category, catSlots] of byCategory) {
-      parts.push("", `! ==== ${category} ====`);
+      lines.push("!", `! ==== ${category} ====`);
       for (const slot of catSlots) {
         if (!slot.found) warnings.push(`${slot.label}: data not found in source.`);
-        parts.push(...slot.lines || []);
+        lines.push(...slot.lines || []);
       }
     }
     const harden = slots.find((s) => s.tag === "harden");
     if (harden && (harden.lines || []).length) {
-      parts.push("", "! ==== Hardening ====", ...harden.lines);
+      lines.push("!", "! ==== Hardening ====", ...harden.lines);
     }
-    return { content: parts.join("\n") + "\n", warnings };
+    return { lines, warnings };
+  }
+  var DOMAIN_NAME_RE = /^ip domain[- ]name\s+\S/;
+  function insertAfterDomainName(templateText, genLines) {
+    const text = String(templateText);
+    if (!genLines || !genLines.length) return { content: text, placed: true };
+    const lines = text.split("\n");
+    const idx = lines.findIndex((l) => DOMAIN_NAME_RE.test(l));
+    if (idx < 0) {
+      const lead = genLines[0] === "!" ? [] : ["!"];
+      return { content: [text.replace(/\s+$/, ""), ...lead, ...genLines].join("\n") + "\n", placed: false };
+    }
+    const tail = (lines[idx + 1] || "").trim() === "!" ? [] : ["!"];
+    lines.splice(idx + 1, 0, ...genLines, ...tail);
+    return { content: lines.join("\n"), placed: true };
   }
   function computeOutput(parsed, naming = {}) {
     const original = parsed.hostname || "device";
@@ -3043,7 +3057,9 @@ ip routing
       if (elected && unit.parsed.spanningTree.mode) ucfg.stp.enabled = true;
       const stpRole = !ucfg.stp.enabled ? "asis" : changingRoot ? unit.id === elected ? "root" : "nonroot" : "asis";
       const applied = unit.findings.filter((f) => f.apply);
-      const hardenLines = remediationLines(applied);
+      const hardenLines = remediationLines(applied).filter(
+        (l) => !(global.rsaKey.enabled && /^crypto key generate rsa\b/.test(l))
+      );
       const tparsed = convertLegacyQos(applyInterfaceMap(unit.parsed, dcfg.ifaceMap));
       const slots = buildBlocks(ucfg, tparsed, {
         stpRole,
@@ -3051,8 +3067,34 @@ ip routing
         hardenLines
       });
       const templateText = state.template && state.template.text ? state.template.text : defaultTemplate(ucfg, unit.parsed.hostname);
-      const rendered = ucfg.insertion === "direct" ? renderDirect(templateText, slots) : renderTagBased(templateText, slots);
-      let content = rendered.content;
+      const isDirect = ucfg.insertion === "direct";
+      const rendered = isDirect ? buildDirectSections(slots) : renderTagBased(templateText, slots);
+      const generated = [];
+      const addBlock = (title, lines) => {
+        if (lines && lines.length) generated.push("!", `! ==== ${title} ====`, ...lines);
+      };
+      if (global.rsaKey.enabled) generated.push(...buildRsaKey());
+      if (isDirect) generated.push(...rendered.lines);
+      const isSwitch = isSwitchParsed(unit.parsed);
+      if (global.clock.enabled) addBlock("Clock & timezone", buildClock(global.clock));
+      if (global.banner.enabled) addBlock("Banner", buildBanner(global.banner));
+      if (global.stpHardening.enabled && isSwitch) addBlock("Spanning-tree hardening", buildStpHardening());
+      if (global.errdisable.enabled && isSwitch) addBlock("Errdisable recovery", buildErrdisable(global.errdisable));
+      if (global.vtp && global.vtp.enabled && isSwitch) {
+        const vtpLines = buildVtp(global.vtp);
+        if (vtpLines.length) addBlock("VTP", vtpLines);
+        else allWarnings.push(`${unit.id}: VTP enabled but no domain name \u2014 skipped.`);
+      }
+      if (global.secureAccess && global.secureAccess.enabled) {
+        const secLines = buildSecureAccess(global.secureAccess);
+        if (secLines.length) addBlock("Secure access", secLines);
+        else allWarnings.push(`${unit.id}: secure access enabled but username/password missing \u2014 skipped.`);
+      }
+      const inserted = insertAfterDomainName(isDirect ? templateText : rendered.content, generated);
+      let content = inserted.content;
+      if (!inserted.placed && state.template && state.template.text) {
+        allWarnings.push(`${unit.id}: template has no "ip domain name" line \u2014 generated config added at the end instead.`);
+      }
       const vlanMerge = mergeMissingVlans(content, unit.parsed);
       content = vlanMerge.content;
       if (vlanMerge.added.length) {
@@ -3060,45 +3102,6 @@ ip routing
       }
       if (vlanMerge.undefinedUsed.length) {
         allWarnings.push(`${unit.id}: ports use VLAN ${vlanMerge.undefinedUsed.join(", ")} but neither the source nor the template defines it \u2014 not added.`);
-      }
-      const isSwitch = isSwitchParsed(unit.parsed);
-      const appendBlock = (title, lines) => {
-        if (lines && lines.length) content = content.replace(/\n*$/, "") + `
-!
-! ==== ${title} ====
-${lines.join("\n")}
-`;
-      };
-      if (global.clock.enabled) appendBlock("Clock & timezone", buildClock(global.clock));
-      if (global.banner.enabled) appendBlock("Banner", buildBanner(global.banner));
-      if (global.stpHardening.enabled && isSwitch) appendBlock("Spanning-tree hardening", buildStpHardening());
-      if (global.errdisable.enabled && isSwitch) appendBlock("Errdisable recovery", buildErrdisable(global.errdisable));
-      if (global.vtp && global.vtp.enabled && isSwitchParsed(unit.parsed)) {
-        const vtpLines = buildVtp(global.vtp);
-        if (vtpLines.length) {
-          content = content.replace(/\n*$/, "") + `
-!
-! ==== VTP ====
-${vtpLines.join("\n")}
-`;
-        } else {
-          allWarnings.push(`${unit.id}: VTP enabled but no domain name \u2014 skipped.`);
-        }
-      }
-      if (global.secureAccess && global.secureAccess.enabled) {
-        const secLines = buildSecureAccess(global.secureAccess);
-        if (secLines.length) {
-          content = content.replace(/\n*$/, "") + `
-!
-! ==== Secure access ====
-${secLines.join("\n")}
-`;
-        } else {
-          allWarnings.push(`${unit.id}: secure access enabled but username/password missing \u2014 skipped.`);
-        }
-      }
-      if (global.rsaKey.enabled && !/^crypto key generate rsa\b/m.test(content)) {
-        appendBlock("SSH host key", buildRsaKey());
       }
       const naming = computeOutput(unit.parsed, global.naming);
       content = stampHostname(content, unit.parsed, global.naming);
