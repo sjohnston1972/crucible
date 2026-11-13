@@ -30,6 +30,7 @@ import {
   mergeMissingVlans,
 } from "./lib/template.js";
 import { TARGET_MODELS, targetModel, targetPorts, autoMapInterfaces } from "./lib/targets.js";
+import { pairFiles, compareConfigs, applyHardening, hardenedName } from "./lib/verify.js";
 import { redactForAI } from "./lib/redact.js";
 import { buildZip } from "./lib/zip.js";
 
@@ -1512,6 +1513,283 @@ function renderWarnings(list) {
     `<ul>${list.map((w) => `<li>${escapeHtml(w)}</li>`).join("")}</ul>`;
 }
 
+// ----------------------------------------------------------------- verify
+//
+// Stands on its own two folders (source + outputs) — nothing from the run above
+// is used, so hand-edited configs from someone else can be checked too.
+
+const verify = { sources: [], outputs: [], records: [] };
+
+async function readVerifyFolder(event) {
+  const picked = Array.from(event.target.files || []);
+  const root = picked.length ? picked[0].webkitRelativePath.split("/")[0] || "(folder)" : "";
+  const files = [];
+  for (const f of picked) {
+    if (!isConfigFile(f.name)) continue;
+    const text = await f.text();
+    files.push({ name: f.name, path: f.webkitRelativePath || f.name, text, parsed: parse(text) });
+  }
+  files.sort((a, b) => a.path.localeCompare(b.path));
+  event.target.value = ""; // so the same folder can be picked again after edits
+  return { root, files };
+}
+
+async function onVerifyFolderPicked(kind, event) {
+  const { root, files } = await readVerifyFolder(event);
+  if (!root) return;
+  verify[kind] = files;
+  $(kind === "sources" ? "verify-src-name" : "verify-out-name").textContent =
+    `${root} · ${files.length} config file${files.length === 1 ? "" : "s"}`;
+  $("btn-verify").disabled = !(verify.sources.length && verify.outputs.length);
+  $("verify-status").textContent = "";
+}
+
+function verifyRecord(output, source, by) {
+  return {
+    output,
+    source,
+    by,
+    findings: audit(output.parsed),
+    compare: source ? compareConfigs(source.parsed, output.parsed) : null,
+    hardened: null,
+  };
+}
+
+function onVerify() {
+  const { pairs } = pairFiles(verify.sources, verify.outputs);
+  verify.records = pairs.map((p) => verifyRecord(p.output, p.source, p.by));
+  $("verify-status").textContent = "";
+  renderVerify();
+}
+
+const fixable = (f) => f.status === "missing" && f.remediation.length > 0;
+const sitePathOf = (path) => path.split("/").slice(1, -1).join("/");
+
+function renderVerify() {
+  const recs = verify.records;
+  const paired = recs.filter((r) => r.source);
+  const matching = paired.filter((r) => r.compare.ok).length;
+  const differing = paired.length - matching;
+  const unpaired = recs.length - paired.length;
+  const findingTotal = recs.reduce((n, r) => n + r.findings.filter((f) => f.status === "missing").length, 0);
+  const usedSources = new Set(paired.map((r) => r.source));
+  const unused = verify.sources.filter((s) => !usedSources.has(s));
+
+  $("verify-summary").innerHTML =
+    `<p class="verify-totals"><strong>${recs.length}</strong> output${recs.length === 1 ? "" : "s"} checked · ` +
+    `<span class="v-good">${matching} match their source</span> · ` +
+    `<span class="${differing ? "v-bad" : "muted"}">${differing} with differences</span> · ` +
+    `<span class="${unpaired ? "v-warn" : "muted"}">${unpaired} not paired</span> · ` +
+    `<span class="${findingTotal ? "v-warn" : "v-good"}">${findingTotal} hardening finding${findingTotal === 1 ? "" : "s"}</span></p>` +
+    (unused.length
+      ? `<p class="muted small">Source files with no output: ${unused.map((s) => escapeHtml(s.name)).join(", ")}</p>`
+      : "");
+
+  const root = $("verify-results");
+  root.innerHTML = "";
+  for (const rec of recs) root.appendChild(renderVerifyCard(rec));
+  const any = recs.length > 0;
+  $("btn-verify-harden").classList.toggle("hidden", !any);
+  $("btn-verify-tickall").classList.toggle("hidden", !any);
+}
+
+function verifyList(items, cls = "") {
+  const MAX = 12;
+  const shown = items.slice(0, MAX).map((t) => `<li>${t}</li>`).join("");
+  const more = items.length > MAX ? `<li class="muted">+ ${items.length - MAX} more</li>` : "";
+  return `<ul class="v-list ${cls}">${shown}${more}</ul>`;
+}
+
+function verifyCheckRow(state, title, text) {
+  const mark = { ok: "✓", bad: "✗", info: "•" }[state];
+  return `<div class="v-check v-${state}"><span class="v-mark">${mark}</span><strong>${title}</strong><span>${text}</span></div>`;
+}
+
+function renderMatchCheck(c) {
+  const e = escapeHtml;
+  let html = "";
+
+  // IP addressing
+  const total = c.ip.matched.length + c.ip.missing.length;
+  html += verifyCheckRow(
+    c.ip.ok ? "ok" : "bad",
+    "IP addressing",
+    total ? `${c.ip.matched.length} of ${total} source address${total === 1 ? "" : "es"} present` : "source has no interface addresses"
+  );
+  if (c.ip.missing.length)
+    html += verifyList(c.ip.missing.map((a) => `<code>${e(a.key)}</code> (source ${e(a.iface)}) — not in the output`), "v-bad");
+  if (c.ip.extra.length)
+    html += verifyList(c.ip.extra.map((a) => `<code>${e(a.key)}</code> on ${e(a.iface)} — in the output only`), "v-note");
+
+  // Interfaces remapped
+  const r = c.interfaces;
+  html += verifyCheckRow(
+    "info",
+    "Interfaces remapped",
+    r.remapped.length ? `${r.remapped.length} identified` : "none identified"
+  );
+  if (r.remapped.length)
+    html += verifyList(
+      r.remapped.map(
+        (m) =>
+          `<code>${e(m.from)}</code> → <code>${e(m.to)}</code> <span class="muted">` +
+          (m.basis === "address" ? `carries ${e(m.detail)}` : `same description “${e(m.detail)}”`) +
+          `</span>`
+      ),
+      "v-note"
+    );
+  if (r.onlyInSource.length)
+    html += `<p class="v-foot muted small">${r.onlyInSource.length} source interface${r.onlyInSource.length === 1 ? "" : "s"} not in the output by name: ${e(r.onlyInSource.slice(0, 12).join(", "))}${r.onlyInSource.length > 12 ? ", …" : ""}</p>`;
+  if (r.onlyInOutput.length)
+    html += `<p class="v-foot muted small">${r.onlyInOutput.length} output interface${r.onlyInOutput.length === 1 ? "" : "s"} not in the source by name: ${e(r.onlyInOutput.slice(0, 12).join(", "))}${r.onlyInOutput.length > 12 ? ", …" : ""}</p>`;
+
+  // VLANs
+  const vTotal = c.vlans.matched + c.vlans.missing.length;
+  html += verifyCheckRow(
+    c.vlans.ok ? "ok" : "bad",
+    "VLANs",
+    vTotal ? `${c.vlans.matched} of ${vTotal} source VLAN${vTotal === 1 ? "" : "s"} defined` : "source defines no VLANs"
+  );
+  if (c.vlans.missing.length)
+    html += verifyList(c.vlans.missing.map((v) => `VLAN <code>${v.id}</code>${v.name ? ` (${e(v.name)})` : ""} — not defined in the output`), "v-bad");
+  const vNotes = [
+    ...c.vlans.renamed.map((v) => `VLAN <code>${v.id}</code> name differs: ${e(v.from)} → ${e(v.to)}`),
+    ...c.vlans.extra.map((v) => `VLAN <code>${v.id}</code>${v.name ? ` (${e(v.name)})` : ""} — in the output only`),
+  ];
+  if (vNotes.length) html += verifyList(vNotes, "v-note");
+
+  // Default gateway
+  const g = c.gateway;
+  const gText = {
+    none: "neither file sets one",
+    match: `<code>${e(g.source)}</code> in both${g.converted ? " (default-gateway ↔ default route)" : ""}`,
+    added: `output adds <code>${e(g.output)}</code>; the source has none`,
+    missing: `source uses <code>${e(g.source)}</code> — the output has no default gateway or default route`,
+    mismatch: `source <code>${e(g.source)}</code>, output <code>${e(g.output)}</code>`,
+  }[g.status];
+  html += verifyCheckRow(g.ok ? (g.status === "match" ? "ok" : "info") : "bad", "Default gateway", gText);
+  return html;
+}
+
+function renderVerifyCard(rec) {
+  const e = escapeHtml;
+  const card = document.createElement("details");
+  card.className = "unit verify-unit";
+  const missing = rec.findings.filter((f) => f.status === "missing");
+  const pass = rec.findings.filter((f) => f.status === "pass").length;
+  const c = rec.compare;
+  const pill = (ok, label) => `<span class="feat-pill ${ok ? "on" : "bad"}">${ok ? "✓" : "✗"} ${label}</span>`;
+  const high = missing.filter((f) => f.severity === "High").length;
+
+  const pills = c
+    ? pill(c.ip.ok, "IP addressing") + pill(c.vlans.ok, "VLANs") + pill(c.gateway.ok, "Default gateway")
+    : `<span class="feat-pill warn">not paired with a source</span>`;
+  const hardenPill = missing.length
+    ? `<span class="feat-pill ${high ? "bad" : "warn"}">${missing.length} hardening finding${missing.length === 1 ? "" : "s"}${high ? ` · ${high} high` : ""}</span>`
+    : `<span class="feat-pill on">✓ hardening</span>`;
+
+  const site = sitePathOf(rec.output.path);
+  const options =
+    `<option value="-1">(not paired)</option>` +
+    verify.sources
+      .map((s, i) => `<option value="${i}"${s === rec.source ? " selected" : ""}>${e(s.path)}${s.parsed.hostname ? ` — ${e(s.parsed.hostname)}` : ""}</option>`)
+      .join("");
+
+  card.innerHTML =
+    `<summary class="unit-head"><span class="unit-titlebar">` +
+    (site ? `<span class="unit-site">${e(site)}</span>` : "") +
+    `<span class="unit-host">${e(rec.output.parsed.hostname || "(no hostname)")}</span>` +
+    `<span class="muted small">${e(rec.output.name)}${rec.source ? ` ← ${e(rec.source.name)}` : ""}</span></span>` +
+    `<button class="btn btn-small unit-view" type="button">⤢ view config</button>` +
+    `<span class="feat-pills verify-pills">${pills}${hardenPill}</span></summary>` +
+    `<div class="unit-body">` +
+    `<label class="field verify-source"><span>Source file${rec.by ? ` <span class="muted small">(paired by ${rec.by})</span>` : ""}</span>` +
+    `<select class="v-source">${options}</select></label>` +
+    (rec.hardened
+      ? `<p class="verify-hardened"><strong>✓ ${e(rec.hardened.name)}</strong> written — ${rec.hardened.added} line${rec.hardened.added === 1 ? "" : "s"} added` +
+        (rec.hardened.removed.length ? `, ${rec.hardened.removed.length} conflicting line${rec.hardened.removed.length === 1 ? "" : "s"} removed (${rec.hardened.removed.map((l) => `<code>${e(l)}</code>`).join(", ")})` : "") +
+        `. The checks below are for the hardened file.` +
+        (rec.hardened.placeholders.length ? ` <span class="v-warn">Fill in before use: ${rec.hardened.placeholders.map((p) => `<code>${e(p)}</code>`).join(", ")}</span>` : "") +
+        `</p>`
+      : "") +
+    `<details class="unit-sub" open><summary class="unit-sub-head"><strong>Match check</strong> ` +
+    `<span class="muted small">${c ? (c.ok ? "matches the source" : "differences found") : "pick a source file above"}</span></summary>` +
+    `<div class="v-checks">${c ? renderMatchCheck(c) : `<p class="muted small">No source is paired with this output, so addressing, VLANs and default gateway can't be compared.</p>`}</div></details>` +
+    `<details class="harden-section"${missing.length ? " open" : ""}><summary class="harden-head">` +
+    `<strong>Hardening</strong> <span class="muted small">${pass} pass · ${missing.length} missing</span>` +
+    `<label class="checkbox apply-all"><input type="checkbox" class="apply-all-cb" /><span>Tick all</span></label></summary>` +
+    `<p class="harden-desc">The same checks Crucible runs on source configs. Tick the fixes to add, then use “Add ticked hardening” below the folder pickers.</p>` +
+    `<div class="findings"></div></details>` +
+    `</div>`;
+
+  const findingsEl = card.querySelector(".findings");
+  for (const f of rec.findings) findingsEl.appendChild(renderFinding(null, f));
+
+  const allCb = card.querySelector(".apply-all-cb");
+  const fixes = rec.findings.filter(fixable);
+  allCb.checked = fixes.length > 0 && fixes.every((f) => f.apply);
+  allCb.disabled = !fixes.length;
+  allCb.addEventListener("change", (ev) => {
+    for (const f of fixes) f.apply = ev.target.checked;
+    findingsEl.querySelectorAll(".finding-apply").forEach((cb) => (cb.checked = ev.target.checked));
+  });
+  card.querySelector(".apply-all").addEventListener("click", (ev) => ev.stopPropagation());
+
+  card.querySelector(".unit-view").addEventListener("click", (ev) => {
+    ev.preventDefault();
+    const tabs = [{ name: rec.hardened ? rec.hardened.name : rec.output.name, text: rec.output.text }];
+    if (rec.source) tabs.push({ name: rec.source.name, text: rec.source.text });
+    openConfigModal(rec.output.parsed.hostname || rec.output.name, tabs);
+  });
+
+  card.querySelector(".v-source").addEventListener("change", (ev) => {
+    const src = verify.sources[Number(ev.target.value)] || null;
+    rec.source = src;
+    rec.by = src ? "hand" : null;
+    rec.compare = src ? compareConfigs(src.parsed, rec.output.parsed) : null;
+    rerenderVerifyKeepingOpen();
+  });
+  return card;
+}
+
+/** Re-render the Verify results, keeping each card open or closed as it was. */
+function rerenderVerifyKeepingOpen() {
+  const open = [...$("verify-results").children].map((el) => el.open);
+  renderVerify();
+  [...$("verify-results").children].forEach((el, i) => (el.open = !!open[i]));
+}
+
+function onVerifyTickAll() {
+  const all = verify.records.flatMap((r) => r.findings.filter(fixable));
+  const on = !all.every((f) => f.apply);
+  for (const f of all) f.apply = on;
+  rerenderVerifyKeepingOpen();
+}
+
+function onVerifyHarden() {
+  const zipFiles = [];
+  for (const rec of verify.records) {
+    if (!rec.findings.some((f) => f.apply && fixable(f))) continue;
+    const res = applyHardening(rec.output.text, rec.findings);
+    const name = hardenedName(rec.output.name);
+    const dir = sitePathOf(rec.output.path);
+    zipFiles.push({ path: (dir ? dir + "/" : "") + name, content: res.content });
+    // Re-check the hardened file so the cleared findings are visible.
+    rec.hardened = { name, added: res.added, removed: res.removed, placeholders: res.placeholders };
+    rec.output = { ...rec.output, text: res.content, parsed: parse(res.content) };
+    rec.findings = audit(rec.output.parsed);
+    rec.compare = rec.source ? compareConfigs(rec.source.parsed, rec.output.parsed) : null;
+  }
+  if (!zipFiles.length) {
+    $("verify-status").textContent = "Tick at least one hardening fix first.";
+    return;
+  }
+  downloadZip(buildZip(zipFiles), "crucible-hardened.zip");
+  rerenderVerifyKeepingOpen();
+  $("verify-status").textContent =
+    `Downloaded crucible-hardened.zip · ${zipFiles.length} hardened file${zipFiles.length === 1 ? "" : "s"}.`;
+}
+
 // ----------------------------------------------------------------- utilities
 
 function escapeHtml(s) {
@@ -1554,6 +1832,14 @@ function init() {
   $("template-input").addEventListener("change", onTemplatePicked);
   $("btn-clear-template").addEventListener("click", onClearTemplate);
   $("btn-save").addEventListener("click", onSave);
+
+  $("btn-verify-src").addEventListener("click", () => $("verify-src-input").click());
+  $("btn-verify-out").addEventListener("click", () => $("verify-out-input").click());
+  $("verify-src-input").addEventListener("change", (e) => onVerifyFolderPicked("sources", e).catch(reportError));
+  $("verify-out-input").addEventListener("change", (e) => onVerifyFolderPicked("outputs", e).catch(reportError));
+  $("btn-verify").addEventListener("click", onVerify);
+  $("btn-verify-tickall").addEventListener("click", onVerifyTickAll);
+  $("btn-verify-harden").addEventListener("click", onVerifyHarden);
 
   // Global additions affect every device's template → refresh the tag-map preview.
   $("sec-enable").addEventListener("change", () =>

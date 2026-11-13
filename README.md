@@ -22,6 +22,7 @@ I/O and config parsing happen **in the browser**.
 - `parser.js` — indentation-aware Cisco IOS parser (interfaces, routing, VRF, STP, DHCP, hostname).
 - `hardening.js` — ~19 deterministic baseline checks → pass/missing/n-a + severity + remediation.
 - `template.js` — tag map, block extraction, tag-based / direct insertion, naming + rename, STP root rewriting.
+- `verify.js` — Verify section: pairs outputs with sources (filename, then hostname), compares IP addressing / VLANs / default gateway, adds ticked hardening fixes to an output (`<name>_hardened.txt`).
 - `redact.js` — strips secrets and builds the structural digest sent to the AI endpoint.
 - `zip.js` — dependency-free STORE-method zip writer for the fallback download.
 

@@ -210,6 +210,38 @@
     </div>
   </section>
 
+  <div class="container verify-wrap">
+    <section class="card" id="step-verify">
+      <div class="card-head">
+        <h2><span class="step-num">✓</span> Verify outputs</h2>
+        <p class="step-desc">
+          Check a folder of outputs — fresh from Crucible or hand-edited — against the source configs they came
+          from. Each output is run through the hardening checks and compared with its source for
+          <strong>IP addressing</strong>, <strong>VLANs</strong> and <strong>default gateway</strong>. Files are
+          paired by filename, then by the source’s <code>hostname</code>. Nothing is uploaded.
+        </p>
+      </div>
+      <div class="actions">
+        <button id="btn-verify-src" class="btn" type="button">Browse source folder…</button>
+        <input id="verify-src-input" type="file" webkitdirectory directory multiple hidden />
+        <span id="verify-src-name" class="folder-name muted">No source folder chosen</span>
+      </div>
+      <div class="actions">
+        <button id="btn-verify-out" class="btn" type="button">Browse outputs folder…</button>
+        <input id="verify-out-input" type="file" webkitdirectory directory multiple hidden />
+        <span id="verify-out-name" class="folder-name muted">No outputs folder chosen</span>
+      </div>
+      <div class="actions">
+        <button id="btn-verify" class="btn btn-primary" type="button" disabled>Verify</button>
+        <button id="btn-verify-tickall" class="btn hidden" type="button">Tick all fixes</button>
+        <button id="btn-verify-harden" class="btn hidden" type="button">Add ticked hardening &amp; download .zip</button>
+        <span id="verify-status" class="muted small"></span>
+      </div>
+      <div id="verify-summary" class="verify-summary"></div>
+      <div id="verify-results" class="verify-results"></div>
+    </section>
+  </div>
+
   <pre id="iface-tip" class="iface-tip hidden"></pre>
 
   <div id="cfg-modal" class="modal hidden" aria-hidden="true">
