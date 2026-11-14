@@ -62,6 +62,7 @@ function interfacePo(f) {
 
 const state = {
   sites: [], // { path, name, files: [...], parsedFiles: [{ name, entry, parsed }] }
+  skip: new Set(), // "sitePath/fileName" un-ticked in the site's source-file list — not processed, no output
   mergeSel: new Map(), // sitePath -> Set(fileName) committed to merge into one template
   mergeName: new Map(), // sitePath -> custom hostname for the merged device
   units: [], // built output units
@@ -97,6 +98,7 @@ function onFallbackPicked(event) {
   const files = Array.from(event.target.files || []);
   if (!files.length) return;
   $("folder-name").textContent = files[0].webkitRelativePath.split("/")[0] || "(folder)";
+  state.skip = new Set();
   state.sites = discoverSitesFromFileList(files);
   renderSites();
 }
@@ -441,6 +443,7 @@ async function loadSampleData() {
       sites.push({ path: site.path, name: site.path, files });
     }
     state.mergeSel = new Map();
+    state.skip = new Set();
     state.sites = sites;
     $("folder-name").textContent = `Sample data · ${sites.length} sites`;
     renderSites(); // auto-analyzes
@@ -451,6 +454,7 @@ async function loadSampleData() {
 
 function clearAll() {
   state.sites = [];
+  state.skip = new Set();
   state.mergeSel = new Map();
   state.mergeName = new Map();
   state.units = [];
@@ -561,6 +565,10 @@ function isMergeCandidate(parsedFiles) {
   return types.has("switch") && types.has("router");
 }
 
+/** Source files can be un-ticked in the site's file list: those are not processed and get no output. */
+const skipKey = (site, name) => `${site.path}/${name}`;
+const activeFiles = (site) => (site.parsedFiles || []).filter((pf) => !state.skip.has(skipKey(site, pf.name)));
+
 /** Parse every file, cache results, seed default merge selections, render Step 3, build units. */
 async function onAnalyze() {
   if (!state.sites.length) return;
@@ -590,8 +598,9 @@ function rebuildUnits() {
 
   for (const site of state.sites) {
     const sel = state.mergeSel.get(site.path) || new Set();
-    const chosen = (site.parsedFiles || []).filter((pf) => sel.has(pf.name));
-    const singles = (site.parsedFiles || []).filter((pf) => !sel.has(pf.name));
+    const active = activeFiles(site); // un-ticked source files are left out entirely
+    const chosen = active.filter((pf) => sel.has(pf.name));
+    const singles = active.filter((pf) => !sel.has(pf.name));
     if (chosen.length >= 2) {
       detectStpConflicts(chosen.map((pf) => pf.parsed), site).forEach((w) => warnings.push(w));
       const merged = mergeParsed(chosen.map((pf) => pf.parsed));
@@ -630,14 +639,17 @@ function rebuildUnits() {
   computePoColors();
   renderResults();
   refreshTagMap();
-  $("run-status").textContent = `Built ${state.units.length} device template${state.units.length === 1 ? "" : "s"}.`;
-  $("btn-save").disabled = false;
+  const skipped = state.sites.reduce((n, s) => n + (s.parsedFiles || []).length - activeFiles(s).length, 0);
+  $("run-status").textContent =
+    `Built ${state.units.length} device template${state.units.length === 1 ? "" : "s"}` +
+    (skipped ? ` · ${skipped} source file${skipped === 1 ? "" : "s"} un-ticked (not processed).` : ".");
+  $("btn-save").disabled = !state.units.length;
 }
 
 /** Default name suggestion for a merged device (keep the switch's hostname). */
 function defaultMergeName(site) {
-  const sw = (site.parsedFiles || []).find((pf) => isSwitchParsed(pf.parsed));
-  const pick = sw || (site.parsedFiles || [])[0];
+  const sw = activeFiles(site).find((pf) => isSwitchParsed(pf.parsed));
+  const pick = sw || activeFiles(site)[0];
   return (pick && pick.parsed.hostname) || site.name || site.path;
 }
 
@@ -645,12 +657,13 @@ function defaultMergeName(site) {
 function renderSiteBlock(site, units) {
   const block = document.createElement("section");
   block.className = "site-block";
-  const candidate = isMergeCandidate(site.parsedFiles);
+  const candidate = isMergeCandidate(activeFiles(site));
 
   block.innerHTML =
     `<div class="site-block-head"><span class="site-name">${escapeHtml(site.path)}</span>` +
     (candidate ? `<span class="merge-flag">⚡ merge candidate</span>` : "") +
     `</div>`;
+  block.appendChild(renderSourceFiles(site));
 
   // Seed the per-site spanning-tree root default (current root if not already chosen);
   // the actual control lives inside each switch's card (see renderUnit).
@@ -662,6 +675,8 @@ function renderSiteBlock(site, units) {
     const stored = state.rootBySite.get(site.path);
     const selectedId = stored && stpUnits.some((u) => u.id === stored) ? stored : currentRootId || "";
     state.rootBySite.set(site.path, selectedId);
+  } else {
+    state.rootBySite.delete(site.path); // e.g. the elected switch's source file was un-ticked
   }
 
   for (const u of units) {
@@ -673,6 +688,67 @@ function renderSiteBlock(site, units) {
   // Merge tile — styled like a device card, at the bottom of the site (candidate sites only).
   if (candidate) block.appendChild(renderMergeTile(site));
   return block;
+}
+
+/** The site's source files, each with a "process" tick (on by default). Un-ticked files are not run and get no output. */
+function renderSourceFiles(site) {
+  const all = site.parsedFiles || [];
+  const on = activeFiles(site).length;
+  const box = document.createElement("div");
+  box.className = "src-files";
+  box.innerHTML =
+    `<div class="src-files-head"><span class="src-files-title">Source files</span>` +
+    `<span class="muted small">${on} of ${all.length} will be processed — un-tick a file to leave it out (no output file is created for it).</span>` +
+    (all.length > 1
+      ? `<button class="btn btn-ghost src-all" type="button">Tick all</button><button class="btn btn-ghost src-none" type="button">Untick all</button>`
+      : "") +
+    `</div><div class="merge-files">` +
+    all
+      .map((pf, i) => {
+        const t = deviceType(pf.parsed);
+        const checked = !state.skip.has(skipKey(site, pf.name));
+        return (
+          `<label class="merge-file src-file${checked ? "" : " src-file-off"}"><input type="checkbox" class="src-file-cb" data-i="${i}"${checked ? " checked" : ""} title="Process this file" />` +
+          `<span class="merge-file-name">${escapeHtml(pf.name)}</span>` +
+          `<span class="dev-chip dev-${t}">${t}</span>` +
+          `<span class="muted small merge-file-host">${escapeHtml(pf.parsed.hostname || "")}</span></label>`
+        );
+      })
+      .join("") +
+    `</div>`;
+
+  const setSkip = (pf, process) => {
+    if (process) state.skip.delete(skipKey(site, pf.name));
+    else state.skip.add(skipKey(site, pf.name));
+  };
+  box.querySelectorAll(".src-file-cb").forEach((cb) =>
+    cb.addEventListener("change", () => {
+      setSkip(all[Number(cb.dataset.i)], cb.checked);
+      rebuildUnitsKeepingOpen();
+    })
+  );
+  const bulk = (cls, process) => {
+    const btn = box.querySelector(cls);
+    if (btn)
+      btn.addEventListener("click", () => {
+        all.forEach((pf) => setSkip(pf, process));
+        rebuildUnitsKeepingOpen();
+      });
+  };
+  bulk(".src-all", true);
+  bulk(".src-none", false);
+  return box;
+}
+
+/** Rebuild after a source-file tick without collapsing the device cards the user has open. */
+function rebuildUnitsKeepingOpen() {
+  const open = new Set([...document.querySelectorAll("#results details.unit[open]")].map((el) => el.dataset.unit).filter(Boolean));
+  const y = window.scrollY;
+  rebuildUnits();
+  document.querySelectorAll("#results details.unit").forEach((el) => {
+    if (open.has(el.dataset.unit)) el.open = true;
+  });
+  window.scrollTo(0, y);
 }
 
 /** A compact strip listing the source devices that were merged into a unit (click to view config). */
@@ -706,7 +782,7 @@ function renderMergeTile(site) {
   const tile = document.createElement("details");
   tile.className = "unit merge-tile"; // collapsed by default; selecting doesn't rebuild, so it stays open while interacting
 
-  const files = (site.parsedFiles || [])
+  const files = activeFiles(site)
     .map((pf) => {
       const t = deviceType(pf.parsed);
       const checked = committed.size ? committed.has(pf.name) : true; // suggest all when not yet merged
@@ -849,7 +925,9 @@ function saveSanityWarnings(global, anyElectedRoot) {
 
 async function onSave() {
   const global = readGlobalConfig();
-  if (!state.units.length) return reportError(new Error("Scan a folder first (Step 1)."));
+  if (!state.units.length) {
+    return reportError(new Error(state.sites.length ? "No source files are ticked to process (Step 2)." : "Scan a folder first (Step 1)."));
+  }
 
   const anyElectedRoot = [...state.rootBySite.values()].some(Boolean);
 
@@ -1062,11 +1140,9 @@ function renderResults() {
   state.ifaceConfigs = new Map();
   const root = $("results");
   root.innerHTML = "";
-  const bySite = new Map();
-  for (const u of state.units) {
-    if (!bySite.has(u.site.path)) bySite.set(u.site.path, { site: u.site, units: [] });
-    bySite.get(u.site.path).units.push(u);
-  }
+  // Every scanned site gets a block (even with all its files un-ticked) so its file list stays reachable.
+  const bySite = new Map(state.sites.map((site) => [site.path, { site, units: [] }]));
+  for (const u of state.units) bySite.get(u.site.path).units.push(u);
   for (const { site, units } of bySite.values()) root.appendChild(renderSiteBlock(site, units));
 }
 

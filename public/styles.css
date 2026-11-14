@@ -381,6 +381,14 @@ code {
 .merge-file input { accent-color: var(--accent); }
 .merge-file-name { font-family: var(--font-mono); font-size: 0.82rem; overflow: hidden; text-overflow: ellipsis; }
 .merge-file-host { font-family: var(--font-mono); }
+/* per-site source-file list: tick = process this file */
+.src-files { display: flex; flex-direction: column; gap: 0.4rem; }
+.src-files-head { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.src-files-title { font-size: 0.74rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+.src-files-head .btn { padding: 0.15rem 0.55rem; font-size: 0.74rem; }
+.src-file-off { background: transparent; border-style: dashed; }
+.src-file-off .merge-file-name { text-decoration: line-through; color: var(--text-muted); }
+.src-file-off .dev-chip, .src-file-off .merge-file-host { opacity: 0.45; }
 .dev-chip {
   font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
   border-radius: 4px; padding: 0.08rem 0.4rem; white-space: nowrap;
