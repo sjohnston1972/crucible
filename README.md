@@ -15,7 +15,7 @@ I/O and config parsing happen **in the browser**.
 
 | Layer | Responsibility |
 |---|---|
-| **Worker** (`src/index.js`) | Serves `./public` static assets; hosts `POST /api/harden` which calls the Anthropic API (`claude-sonnet-4-6`) for advisory hardening commentary. Holds `ANTHROPIC_API_KEY` as a secret. |
+| **Worker** (`src/index.js`, entry `src/worker.js`) | Serves `./public` static assets; hosts `POST /api/harden` which calls the Anthropic API (`claude-sonnet-4-6`) for advisory hardening commentary. Holds `ANTHROPIC_API_KEY` as a secret. |
 | **Browser** (`public/`) | Folder picking (read-only `<input webkitdirectory>` upload), Cisco IOS parsing, rule-based hardening, template building, `.zip` output. |
 
 ### Client modules (`public/lib/`)
