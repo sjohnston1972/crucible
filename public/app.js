@@ -32,7 +32,17 @@ import {
   detectInterfaceMapConflicts,
   mergeMissingVlans,
 } from "./lib/template.js";
-import { TARGET_MODELS, targetModel, targetPorts, autoMapInterfaces } from "./lib/targets.js";
+import {
+  TARGET_MODELS,
+  targetModel,
+  targetPorts,
+  autoMapInterfaces,
+  sourceStack,
+  stackSize,
+  stackProvisionLines,
+  stripProvisionLines,
+  stackWarnings,
+} from "./lib/targets.js";
 import { pairFiles, compareConfigs, applyHardening, hardenedName } from "./lib/verify.js";
 import { redactForAI } from "./lib/redact.js";
 import { buildZip } from "./lib/zip.js";
@@ -201,6 +211,9 @@ function defaultDeviceCfg(p) {
     ifaceSel: new Map(), // normName -> { checked, mode }
     ifaceMap: new Map(), // normName -> { target, transform: "routed"|"svi", vlan }
     targetModel: "", // destination switch model id (lib/targets.js); "" = map by hand
+    targetModule: "", // uplink module id on a modular-uplink model
+    stackMembers: Math.max(...sourceStack(p).members, 1), // members in the new stack (highest source member number)
+    provisionKeyword: "", // exact model for `switch N provision …`; "" = don't write them
     routing: {
       defaultGateway: !!p.defaultGateway,
       allStatic: p.staticRoutes.length > 0,
@@ -944,6 +957,16 @@ async function onSave() {
     if (global.stpHardening.enabled && isSwitch) addBlock("Spanning-tree hardening", buildStpHardening());
     if (global.errdisable.enabled && isSwitch) addBlock("Errdisable recovery", buildErrdisable(global.errdisable));
 
+    // Stack: one `switch N provision <model>` line per member of the new stack.
+    const tModel = targetModel(dcfg.targetModel);
+    const provisionLines = tModel && isSwitch ? stackProvisionLines(tModel, dcfg.stackMembers, dcfg.provisionKeyword) : [];
+    if (tModel && isSwitch) {
+      allWarnings.push(
+        ...stackWarnings(unit.parsed, tModel, { members: dcfg.stackMembers, keyword: dcfg.provisionKeyword, label: unit.id })
+      );
+    }
+    addBlock("Stack", provisionLines);
+
     // VTP v3 block — switch templates only (routers don't run VTP).
     if (global.vtp && global.vtp.enabled && isSwitch) {
       const vtpLines = buildVtp(global.vtp);
@@ -958,7 +981,9 @@ async function onSave() {
       else allWarnings.push(`${unit.id}: secure access enabled but username/password missing — skipped.`);
     }
 
-    const inserted = insertAfterDomainName(isDirect ? templateText : rendered.content, generated);
+    // The template's own `switch N provision` lines give way to the ones generated above.
+    const baseText = isDirect ? templateText : rendered.content;
+    const inserted = insertAfterDomainName(provisionLines.length ? stripProvisionLines(baseText) : baseText, generated);
     let content = inserted.content;
     if (!inserted.placed && state.template && state.template.text) {
       allWarnings.push(`${unit.id}: template has no "ip domain name" line — generated config added at the end instead.`);
@@ -1134,13 +1159,19 @@ function renderUnit(unit, currentRootId = null) {
   // Target dropdown: the selected destination model's ports (or the common uplinks) + sibling ports.
   const portOptionsHtml = () => {
     const model = targetModel(d.targetModel);
-    const names = [...new Set((model ? targetPorts(model) : TARGET_UPLINK_PORTS).concat(siblingPorts))];
+    const names = [
+      ...new Set(
+        (model ? targetPorts(model, { members: d.stackMembers, module: d.targetModule }) : TARGET_UPLINK_PORTS).concat(siblingPorts)
+      ),
+    ];
     names.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
     return names.map((n) => `<option value="${escapeHtml(n)}">`).join("");
   };
   const knownVlans = [
     ...new Set((p.interfaces || []).map((f) => (f.normName.match(/^Vlan(\d+)$/i) || [])[1]).filter(Boolean)),
   ];
+  const srcStack = sourceStack(p);
+  const varId = `variants-${unit.id}`;
   const dlId = `ports-${unit.id}`;
   const vlId = `vlans-${unit.id}`;
   const mappedCount = ifaces.filter((f) => (d.ifaceMap.get(f.normName)?.target || "").trim()).length;
@@ -1170,9 +1201,26 @@ function renderUnit(unit, currentRootId = null) {
     `</ul>` +
     `<div class="ifmap-model"><label>Destination switch ` +
     `<select class="ifmap-model-sel"><option value="">(none — map by hand)</option>` +
-    TARGET_MODELS.map((m) => `<option value="${m.id}"${d.targetModel === m.id ? " selected" : ""}>${escapeHtml(m.label)}</option>`).join("") +
+    [...new Set(TARGET_MODELS.map((m) => m.family))]
+      .map(
+        (fam) =>
+          `<optgroup label="${escapeHtml(fam)}">` +
+          TARGET_MODELS.filter((m) => m.family === fam)
+            .map((m) => `<option value="${m.id}"${d.targetModel === m.id ? " selected" : ""}>${escapeHtml(m.label)}</option>`)
+            .join("") +
+          `</optgroup>`
+      )
+      .join("") +
     `</select></label>` +
-    `<span class="muted small">Picking a model auto-fills the targets below (replacing the current mapping); every row stays editable.</span></div>` +
+    `<label class="ifmap-module-wrap hidden">Uplink module <select class="ifmap-module-sel"></select></label>` +
+    `<label class="ifmap-stack-wrap hidden">Stack members <input class="ifmap-stack" type="number" min="1" step="1" /></label>` +
+    `<label class="ifmap-variant-wrap hidden">Exact model <input class="ifmap-variant" list="${varId}" placeholder="for switch N provision" autocomplete="off" /></label>` +
+    `<datalist id="${varId}"></datalist>` +
+    `<span class="muted small">Picking a model auto-fills the targets below (replacing the current mapping); every row stays editable.` +
+    (srcStack.members.length > 1
+      ? ` This source is a stack of ${srcStack.members.length} (members ${srcStack.members.join(", ")}).`
+      : "") +
+    `</span></div>` +
     `<div class="ifmap-rows">${ifmapRows}</div>` +
     `<datalist id="${dlId}">${portOptionsHtml()}</datalist>` +
     `<datalist id="${vlId}">${knownVlans.map((n) => `<option value="${escapeHtml(n)}">`).join("")}</datalist>` +
@@ -1287,12 +1335,35 @@ function renderUnit(unit, currentRootId = null) {
 
   // Destination model: auto-fill the whole map, then sync the rows to it.
   const modelSel = card.querySelector(".ifmap-model-sel");
-  modelSel.addEventListener("change", () => {
-    d.targetModel = modelSel.value;
+  const moduleSel = card.querySelector(".ifmap-module-sel");
+  const stackIn = card.querySelector(".ifmap-stack");
+  const variantIn = card.querySelector(".ifmap-variant");
+  // Show the uplink-module / stack-size / exact-model controls the chosen model supports.
+  const syncModelControls = () => {
+    const model = targetModel(d.targetModel);
+    const mods = (model && model.modules) || [];
+    card.querySelector(".ifmap-module-wrap").classList.toggle("hidden", !mods.length);
+    moduleSel.innerHTML = mods
+      .map((x) => `<option value="${x.id}"${x.id === d.targetModule ? " selected" : ""}>${escapeHtml(x.label)}</option>`)
+      .join("");
+    const stackable = !!model && model.maxStack > 1;
+    card.querySelector(".ifmap-stack-wrap").classList.toggle("hidden", !stackable);
+    if (stackable) {
+      stackIn.max = model.maxStack;
+      stackIn.value = stackSize(model, d.stackMembers);
+    }
+    card.querySelector(".ifmap-variant-wrap").classList.toggle("hidden", !model);
+    card.querySelector(`datalist[id="${CSS.escape(varId)}"]`).innerHTML = ((model && model.variants) || [])
+      .map((v) => `<option value="${escapeHtml(v)}">`)
+      .join("");
+    variantIn.value = d.provisionKeyword || "";
+  };
+  // Re-run the automatic mapping for the current model / module / stack size.
+  const remapToModel = () => {
     const model = targetModel(d.targetModel);
     card.querySelector(`datalist[id="${CSS.escape(dlId)}"]`).innerHTML = portOptionsHtml();
     if (model) {
-      d.ifaceMap = autoMapInterfaces(p, model);
+      d.ifaceMap = autoMapInterfaces(p, model, { members: d.stackMembers, module: d.targetModule });
       card.querySelectorAll(".ifmap-row").forEach((row) => {
         const m = d.ifaceMap.get(row.dataset.name);
         row.querySelector(".ifmap-target").value = m ? m.target : "";
@@ -1304,7 +1375,29 @@ function renderUnit(unit, currentRootId = null) {
     }
     refreshMapCount();
     refreshTagMap();
+  };
+  modelSel.addEventListener("change", () => {
+    d.targetModel = modelSel.value;
+    const model = targetModel(d.targetModel);
+    d.targetModule = model && model.modules && model.modules.length ? model.modules[0].id : "";
+    d.provisionKeyword = "";
+    syncModelControls();
+    remapToModel();
   });
+  moduleSel.addEventListener("change", () => {
+    d.targetModule = moduleSel.value;
+    remapToModel();
+  });
+  stackIn.addEventListener("change", () => {
+    const model = targetModel(d.targetModel);
+    d.stackMembers = model ? stackSize(model, stackIn.value) : 1;
+    stackIn.value = d.stackMembers;
+    remapToModel();
+  });
+  variantIn.addEventListener("input", () => {
+    d.provisionKeyword = variantIn.value.trim();
+  });
+  syncModelControls();
 
   // --- routing & services ---
   card.querySelectorAll(".coll-cb").forEach((cb) =>

@@ -568,6 +568,9 @@ code {
 .ifmap-help code { font-family: var(--font-mono, monospace); background: var(--bg-alt, rgba(127,127,127,0.12)); padding: 0 0.25rem; border-radius: 3px; }
 .ifmap-model { padding: 0.2rem 0.85rem 0.5rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.8rem; }
 .ifmap-model label { font-weight: 600; font-size: 0.86rem; display: flex; align-items: center; gap: 0.5rem; }
+.ifmap-model .ifmap-stack { width: 4rem; }
+.ifmap-model .ifmap-variant { width: 13rem; }
+.ifmap-model input { font: inherit; font-weight: 400; padding: 0.15rem 0.35rem; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: inherit; }
 .ifmap-model select { font: inherit; font-weight: 400; padding: 0.15rem 0.35rem; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: inherit; }
 .ifmap-rows { padding: 0.2rem 0.85rem 0.7rem; display: flex; flex-direction: column; gap: 0.3rem; }
 .ifmap-row {

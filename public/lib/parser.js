@@ -15,6 +15,9 @@ const CANON_INTERFACES = [
   "TenGigabitEthernet",
   "TwentyFiveGigE",
   "HundredGigE",
+  "TwoGigabitEthernet",
+  "FiveGigabitEthernet",
+  "AppGigabitEthernet",
   "GigabitEthernet",
   "FastEthernet",
   "Ethernet",
@@ -42,6 +45,10 @@ const INTERFACE_ABBR = {
   lo: "Loopback",
   tu: "Tunnel",
   se: "Serial",
+  tw: "TwoGigabitEthernet",
+  fi: "FiveGigabitEthernet",
+  fiv: "FiveGigabitEthernet",
+  ap: "AppGigabitEthernet",
   twe: "TwentyFiveGigE",
   hu: "HundredGigE",
   mgmt: "Management",
@@ -166,6 +173,7 @@ export function parse(text) {
     logging: [], // logging ... lines
     ntp: [], // ntp ... lines
     dns: [], // ip name-server lines (domain name/list lines are left to the template)
+    stackMembers: [], // { member, model } from `switch N provision <model>` lines
     isL3: false, // `ip routing` present
     vlans: parseVlans(lines).vlans, // { id, name, block } layer-2 VLAN definitions
     lines: normalized ? lines : [],
@@ -184,6 +192,13 @@ export function parse(text) {
         result.hostname = h[1];
         continue;
       }
+    }
+
+    // stack members (one line per provisioned switch in a stack)
+    const prov = !isIndented(raw) && line.match(/^switch\s+(\d+)\s+provision\s+(\S+)/);
+    if (prov) {
+      result.stackMembers.push({ member: Number(prov[1]), model: prov[2] });
+      continue;
     }
 
     if (/^ip routing\b/.test(line)) {

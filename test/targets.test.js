@@ -10,8 +10,12 @@ const cfg = (names) => parse(names.map((n) => `interface ${n}\n switchport mode 
 const range = (prefix, from, to) => Array.from({ length: to - from + 1 }, (_, i) => `${prefix}${from + i}`);
 const targets = (map) => Object.fromEntries([...map].map(([k, v]) => [k, v.target]));
 
-test("three destination models are offered", () => {
-  assert.deepEqual(TARGET_MODELS.map((m) => m.id), ["c9200cx-12p-2x2g", "c9200l-24-4x", "c9200l-48-4x"]);
+test("the original three destination models are still offered, alongside the wider Catalyst range", () => {
+  const ids = TARGET_MODELS.map((m) => m.id);
+  for (const id of ["c9200cx-12p-2x2g", "c9200l-24-4x", "c9200l-48-4x"]) assert.ok(ids.includes(id), id);
+  for (const fam of ["9200CX", "9200L", "9300L", "9300 ", "9300X", "9500"]) {
+    assert.ok(TARGET_MODELS.some((m) => m.family.includes(fam)), fam);
+  }
   assert.equal(targetModel("nope"), null);
 });
 
