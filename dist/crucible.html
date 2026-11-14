@@ -387,6 +387,14 @@ code {
 .merge-file input { accent-color: var(--accent); }
 .merge-file-name { font-family: var(--font-mono); font-size: 0.82rem; overflow: hidden; text-overflow: ellipsis; }
 .merge-file-host { font-family: var(--font-mono); }
+/* per-site source-file list: tick = process this file */
+.src-files { display: flex; flex-direction: column; gap: 0.4rem; }
+.src-files-head { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.src-files-title { font-size: 0.74rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+.src-files-head .btn { padding: 0.15rem 0.55rem; font-size: 0.74rem; }
+.src-file-off { background: transparent; border-style: dashed; }
+.src-file-off .merge-file-name { text-decoration: line-through; color: var(--text-muted); }
+.src-file-off .dev-chip, .src-file-off .merge-file-host { opacity: 0.45; }
 .dev-chip {
   font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
   border-radius: 4px; padding: 0.08rem 0.4rem; white-space: nowrap;
@@ -3167,6 +3175,8 @@ ${newLines.join("\n")}
   var state = {
     sites: [],
     // { path, name, files: [...], parsedFiles: [{ name, entry, parsed }] }
+    skip: /* @__PURE__ */ new Set(),
+    // "sitePath/fileName" un-ticked in the site's source-file list — not processed, no output
     mergeSel: /* @__PURE__ */ new Map(),
     // sitePath -> Set(fileName) committed to merge into one template
     mergeName: /* @__PURE__ */ new Map(),
@@ -3195,6 +3205,7 @@ ${newLines.join("\n")}
     const files = Array.from(event.target.files || []);
     if (!files.length) return;
     $("folder-name").textContent = files[0].webkitRelativePath.split("/")[0] || "(folder)";
+    state.skip = /* @__PURE__ */ new Set();
     state.sites = discoverSitesFromFileList(files);
     renderSites();
   }
@@ -3472,6 +3483,7 @@ ${info.text || "(no config captured)"}`;
         sites.push({ path: site.path, name: site.path, files });
       }
       state.mergeSel = /* @__PURE__ */ new Map();
+      state.skip = /* @__PURE__ */ new Set();
       state.sites = sites;
       $("folder-name").textContent = `Sample data \xB7 ${sites.length} sites`;
       renderSites();
@@ -3481,6 +3493,7 @@ ${info.text || "(no config captured)"}`;
   }
   function clearAll() {
     state.sites = [];
+    state.skip = /* @__PURE__ */ new Set();
     state.mergeSel = /* @__PURE__ */ new Map();
     state.mergeName = /* @__PURE__ */ new Map();
     state.units = [];
@@ -3563,6 +3576,8 @@ ${info.text || "(no config captured)"}`;
     const types = new Set(parsedFiles.map((pf) => deviceType(pf.parsed)));
     return types.has("switch") && types.has("router");
   }
+  var skipKey = (site, name) => `${site.path}/${name}`;
+  var activeFiles = (site) => (site.parsedFiles || []).filter((pf) => !state.skip.has(skipKey(site, pf.name)));
   async function onAnalyze() {
     if (!state.sites.length) return;
     $("run-status").textContent = "Parsing\u2026";
@@ -3587,8 +3602,9 @@ ${info.text || "(no config captured)"}`;
     const warnings = [];
     for (const site of state.sites) {
       const sel = state.mergeSel.get(site.path) || /* @__PURE__ */ new Set();
-      const chosen = (site.parsedFiles || []).filter((pf) => sel.has(pf.name));
-      const singles = (site.parsedFiles || []).filter((pf) => !sel.has(pf.name));
+      const active = activeFiles(site);
+      const chosen = active.filter((pf) => sel.has(pf.name));
+      const singles = active.filter((pf) => !sel.has(pf.name));
       if (chosen.length >= 2) {
         detectStpConflicts(chosen.map((pf) => pf.parsed), site).forEach((w) => warnings.push(w));
         const merged = mergeParsed(chosen.map((pf) => pf.parsed));
@@ -3621,19 +3637,21 @@ ${info.text || "(no config captured)"}`;
     computePoColors();
     renderResults();
     refreshTagMap();
-    $("run-status").textContent = `Built ${state.units.length} device template${state.units.length === 1 ? "" : "s"}.`;
-    $("btn-save").disabled = false;
+    const skipped = state.sites.reduce((n, s) => n + (s.parsedFiles || []).length - activeFiles(s).length, 0);
+    $("run-status").textContent = `Built ${state.units.length} device template${state.units.length === 1 ? "" : "s"}` + (skipped ? ` \xB7 ${skipped} source file${skipped === 1 ? "" : "s"} un-ticked (not processed).` : ".");
+    $("btn-save").disabled = !state.units.length;
   }
   function defaultMergeName(site) {
-    const sw = (site.parsedFiles || []).find((pf) => isSwitchParsed(pf.parsed));
-    const pick = sw || (site.parsedFiles || [])[0];
+    const sw = activeFiles(site).find((pf) => isSwitchParsed(pf.parsed));
+    const pick = sw || activeFiles(site)[0];
     return pick && pick.parsed.hostname || site.name || site.path;
   }
   function renderSiteBlock(site, units) {
     const block = document.createElement("section");
     block.className = "site-block";
-    const candidate = isMergeCandidate(site.parsedFiles);
+    const candidate = isMergeCandidate(activeFiles(site));
     block.innerHTML = `<div class="site-block-head"><span class="site-name">${escapeHtml(site.path)}</span>` + (candidate ? `<span class="merge-flag">\u26A1 merge candidate</span>` : "") + `</div>`;
+    block.appendChild(renderSourceFiles(site));
     const stpUnits = units.filter((u) => u.parsed.spanningTree.mode);
     let currentRootId = null;
     if (stpUnits.length) {
@@ -3642,6 +3660,8 @@ ${info.text || "(no config captured)"}`;
       const stored = state.rootBySite.get(site.path);
       const selectedId = stored && stpUnits.some((u) => u.id === stored) ? stored : currentRootId || "";
       state.rootBySite.set(site.path, selectedId);
+    } else {
+      state.rootBySite.delete(site.path);
     }
     for (const u of units) {
       block.appendChild(renderUnit(u, currentRootId));
@@ -3649,6 +3669,47 @@ ${info.text || "(no config captured)"}`;
     }
     if (candidate) block.appendChild(renderMergeTile(site));
     return block;
+  }
+  function renderSourceFiles(site) {
+    const all = site.parsedFiles || [];
+    const on = activeFiles(site).length;
+    const box = document.createElement("div");
+    box.className = "src-files";
+    box.innerHTML = `<div class="src-files-head"><span class="src-files-title">Source files</span><span class="muted small">${on} of ${all.length} will be processed \u2014 un-tick a file to leave it out (no output file is created for it).</span>` + (all.length > 1 ? `<button class="btn btn-ghost src-all" type="button">Tick all</button><button class="btn btn-ghost src-none" type="button">Untick all</button>` : "") + `</div><div class="merge-files">` + all.map((pf, i) => {
+      const t = deviceType(pf.parsed);
+      const checked = !state.skip.has(skipKey(site, pf.name));
+      return `<label class="merge-file src-file${checked ? "" : " src-file-off"}"><input type="checkbox" class="src-file-cb" data-i="${i}"${checked ? " checked" : ""} title="Process this file" /><span class="merge-file-name">${escapeHtml(pf.name)}</span><span class="dev-chip dev-${t}">${t}</span><span class="muted small merge-file-host">${escapeHtml(pf.parsed.hostname || "")}</span></label>`;
+    }).join("") + `</div>`;
+    const setSkip = (pf, process) => {
+      if (process) state.skip.delete(skipKey(site, pf.name));
+      else state.skip.add(skipKey(site, pf.name));
+    };
+    box.querySelectorAll(".src-file-cb").forEach(
+      (cb) => cb.addEventListener("change", () => {
+        setSkip(all[Number(cb.dataset.i)], cb.checked);
+        rebuildUnitsKeepingOpen();
+      })
+    );
+    const bulk = (cls, process) => {
+      const btn = box.querySelector(cls);
+      if (btn)
+        btn.addEventListener("click", () => {
+          all.forEach((pf) => setSkip(pf, process));
+          rebuildUnitsKeepingOpen();
+        });
+    };
+    bulk(".src-all", true);
+    bulk(".src-none", false);
+    return box;
+  }
+  function rebuildUnitsKeepingOpen() {
+    const open = new Set([...document.querySelectorAll("#results details.unit[open]")].map((el) => el.dataset.unit).filter(Boolean));
+    const y = window.scrollY;
+    rebuildUnits();
+    document.querySelectorAll("#results details.unit").forEach((el) => {
+      if (open.has(el.dataset.unit)) el.open = true;
+    });
+    window.scrollTo(0, y);
   }
   function renderMergedFromStrip(unit) {
     const strip = document.createElement("div");
@@ -3670,7 +3731,7 @@ ${info.text || "(no config captured)"}`;
     const merged = committed.size >= 2;
     const tile = document.createElement("details");
     tile.className = "unit merge-tile";
-    const files = (site.parsedFiles || []).map((pf) => {
+    const files = activeFiles(site).map((pf) => {
       const t = deviceType(pf.parsed);
       const checked = committed.size ? committed.has(pf.name) : true;
       return `<label class="merge-file"><input type="checkbox" class="merge-file-cb" data-file="${escapeHtml(pf.name)}"${checked ? " checked" : ""} /><span class="merge-file-name">${escapeHtml(pf.name)}</span><span class="dev-chip dev-${t}">${t}</span><span class="muted small merge-file-host">${escapeHtml(pf.parsed.hostname || "")}</span></label>`;
@@ -3780,7 +3841,9 @@ ip routing
   }
   async function onSave() {
     const global = readGlobalConfig();
-    if (!state.units.length) return reportError(new Error("Scan a folder first (Step 1)."));
+    if (!state.units.length) {
+      return reportError(new Error(state.sites.length ? "No source files are ticked to process (Step 2)." : "Scan a folder first (Step 1)."));
+    }
     const anyElectedRoot = [...state.rootBySite.values()].some(Boolean);
     const sanity = saveSanityWarnings(global, anyElectedRoot);
     if (sanity.length >= 2) {
@@ -3930,11 +3993,8 @@ ip routing
     state.ifaceConfigs = /* @__PURE__ */ new Map();
     const root = $("results");
     root.innerHTML = "";
-    const bySite = /* @__PURE__ */ new Map();
-    for (const u of state.units) {
-      if (!bySite.has(u.site.path)) bySite.set(u.site.path, { site: u.site, units: [] });
-      bySite.get(u.site.path).units.push(u);
-    }
+    const bySite = new Map(state.sites.map((site) => [site.path, { site, units: [] }]));
+    for (const u of state.units) bySite.get(u.site.path).units.push(u);
     for (const { site, units } of bySite.values()) root.appendChild(renderSiteBlock(site, units));
   }
   var getPath = (o, path) => path.split(".").reduce((a, k) => a == null ? a : a[k], o);
