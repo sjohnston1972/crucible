@@ -434,6 +434,111 @@ export function stampHostname(content, parsed, naming = {}) {
   return applyHostname(content, computeOutput(parsed, naming).hostname);
 }
 
+// ------------------------------------------- pre-encrypted template passwords
+
+const USERNAME_ENCRYPTED_RE = /^username\s+(\S+)\s.*?\b(secret|password)\s+([1-9])\s+\S/;
+
+/**
+ * Find `username` lines in a template whose password/secret is already
+ * encrypted or hashed (an encryption type digit other than 0 before the value),
+ * e.g. `username admin privilege 15 secret 9 $9$…`. A value pasted in that form
+ * was not encrypted by the switch receiving the config, so the login may not work.
+ * Returns [{ username, type, keyword, line }] (line is 1-based).
+ */
+export function findEncryptedUsernames(templateText) {
+  const hits = [];
+  String(templateText || "")
+    .split("\n")
+    .forEach((l, i) => {
+      const m = l.match(USERNAME_ENCRYPTED_RE);
+      if (m) hits.push({ username: m[1], type: Number(m[3]), keyword: m[2], line: i + 1 });
+    });
+  return hits;
+}
+
+/** One plain-language warning per hit from findEncryptedUsernames. */
+export function encryptedUsernameWarnings(templateText, templateName = "template") {
+  return findEncryptedUsernames(templateText).map(
+    (h) =>
+      `${templateName} line ${h.line}: username "${h.username}" has a pre-encrypted ${h.keyword} (type ${h.type}) — ` +
+      `logins will not work unless the switch itself encrypted it. Put the password in as plain text and let the switch encrypt it.`
+  );
+}
+
+// ------------------------------------------------------- portfast wording
+
+const PORTFAST_EDGE_RE = /^(\s*(?:no\s+)?spanning-tree portfast) edge\b/;
+
+/**
+ * Swap the old `spanning-tree portfast edge …` wording for the target's
+ * `spanning-tree portfast …` on every line of a finished config — per-port
+ * (plain and `trunk`) and the global `default` / `bpduguard default` forms.
+ * `portfast network` and everything else is left alone.
+ * Returns { content, changed: count }.
+ */
+export function modernisePortfast(content) {
+  let changed = 0;
+  const lines = String(content)
+    .split("\n")
+    .map((l) => {
+      if (!PORTFAST_EDGE_RE.test(l)) return l;
+      changed++;
+      return l.replace(PORTFAST_EDGE_RE, "$1");
+    });
+  return { content: lines.join("\n"), changed };
+}
+
+// --------------------------------------------------------- duplicate lines
+
+const BANNER_RE = /^banner\s+\S+\s+(\^C|\S)(.*)$/;
+
+/**
+ * Remove repeated top-level commands from a finished config, keeping the first
+ * occurrence (merging template + source data can produce the same line twice).
+ * Only standalone top-level lines are candidates: `!` separators, blank lines,
+ * anything indented, block headers that own child lines, and banner text are
+ * always left exactly as they are.
+ * Returns { content, removed: [lines] }.
+ */
+export function removeDuplicateLines(content) {
+  const lines = String(content).split("\n");
+  const out = [];
+  const removed = [];
+  const seen = new Set();
+  let bannerDelim = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const line = raw.trimEnd(); // ignores a CRLF's trailing \r
+
+    if (bannerDelim) {
+      if (line.includes(bannerDelim)) bannerDelim = null;
+      out.push(raw);
+      continue;
+    }
+    const banner = line.match(BANNER_RE);
+    if (banner) {
+      if (!banner[2].includes(banner[1])) bannerDelim = banner[1]; // multi-line banner
+      out.push(raw);
+      continue;
+    }
+
+    const next = lines[i + 1];
+    const ownsChildren = next !== undefined && /^\s+\S/.test(next);
+    if (line === "" || line.startsWith("!") || /^\s/.test(line) || ownsChildren) {
+      out.push(raw);
+      continue;
+    }
+    if (seen.has(line)) {
+      removed.push(line);
+      continue;
+    }
+    seen.add(line);
+    out.push(raw);
+  }
+  return { content: out.join("\n"), removed };
+}
+
 // ------------------------------------------------------------------- vlans
 
 const DEFAULT_VLANS = new Set([1, 1002, 1003, 1004, 1005]); // always exist on the switch

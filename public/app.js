@@ -17,6 +17,9 @@ import {
   insertAfterDomainName,
   computeOutput,
   stampHostname,
+  removeDuplicateLines,
+  modernisePortfast,
+  encryptedUsernameWarnings,
   convertLegacyQos,
   buildSecureAccess,
   buildVtp,
@@ -378,10 +381,20 @@ async function onTemplatePicked(event) {
   state.template = { name: file.name, text };
   $("template-name").textContent = file.name;
   $("btn-clear-template").classList.remove("hidden");
+  renderTemplateNote();
+}
+
+/** Warn straight away when the uploaded template carries a pre-encrypted username password. */
+function renderTemplateNote() {
+  const el = $("template-note");
+  const warnings = state.template ? encryptedUsernameWarnings(state.template.text, state.template.name) : [];
+  el.textContent = warnings.join("\n");
+  el.classList.toggle("hidden", !warnings.length);
 }
 
 function onClearTemplate() {
   state.template = null;
+  renderTemplateNote();
   $("template-input").value = "";
   $("template-name").textContent = "Using auto-generated template";
   $("btn-clear-template").classList.add("hidden");
@@ -431,6 +444,7 @@ function clearAll() {
   state.deviceCfg = new Map();
   state.rootBySite = new Map();
   state.template = null;
+  renderTemplateNote();
   state.ifaceConfigs = new Map();
   state.stpVlans = null;
   $("folder-name").textContent = "";
@@ -857,6 +871,10 @@ async function onSave() {
 
   const zipFiles = [];
   const allWarnings = [];
+  // A pre-encrypted username password in the uploaded template ends up in every output.
+  if (state.template && state.template.text) {
+    allWarnings.push(...encryptedUsernameWarnings(state.template.text, state.template.name));
+  }
 
   for (const unit of state.units) {
     const ucfg = unitConfig(unit, global);
@@ -959,6 +977,20 @@ async function onSave() {
     const naming = computeOutput(unit.parsed, global.naming);
     // Always carry the source hostname into the template; rename (if ticked) applies on top.
     content = stampHostname(content, unit.parsed, global.naming);
+
+    // Old `spanning-tree portfast edge` wording → `spanning-tree portfast`.
+    const portfast = modernisePortfast(content);
+    content = portfast.content;
+    if (portfast.changed) {
+      allWarnings.push(`${unit.id}: changed ${portfast.changed} "spanning-tree portfast edge" line(s) to "spanning-tree portfast".`);
+    }
+
+    // Template + source data can repeat the same top-level command — keep the first.
+    const deduped = removeDuplicateLines(content);
+    content = deduped.content;
+    if (deduped.removed.length) {
+      allWarnings.push(`${unit.id}: removed ${deduped.removed.length} duplicate line(s): ${[...new Set(deduped.removed)].join("; ")}.`);
+    }
 
     rendered.warnings.forEach((w) => allWarnings.push(`${unit.id}: ${w}`));
 

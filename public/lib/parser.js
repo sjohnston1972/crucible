@@ -271,7 +271,9 @@ export function parse(text) {
       result.snmp.push(line);
       continue;
     }
-    if (/^logging\b/.test(line)) {
+    // Top level only: ` logging synchronous` under `line con/vty` and
+    // `logging enable` under `archive` are sub-mode commands, not global logging.
+    if (/^logging\b/.test(line) && !isIndented(raw)) {
       result.logging.push(line);
       continue;
     }
