@@ -1,6 +1,6 @@
 # 802.1X implementation check and config generation — design
 
-Date: 2026-11-21. Status: awaiting Steven's approval.
+Date: 2026-11-21. Status: approved by Steven 2026-11-21.
 
 Throughout, "Steven said" marks what was asked for. "My call" marks a decision
 I made to fill a gap; each is open to correction.
@@ -277,14 +277,12 @@ changes file carries a `!` comment directly above the line saying it changes
 how administrators log in and to confirm a local user or TACACS login works
 before pasting.
 
-**Platform** (my call, open question in section 14): the check reads the
-`version` line. A backup on IOS-XE 16 or later is treated as a Catalyst 9000
-class switch. An older-IOS backup (15.x and below, e.g. a 2960, 4500 or 6500)
-is still checked and shown, with older syntax recognised as present
-(`radius-server host`, `dot1x port-control auto`, `ip device tracking`), but
-its card is marked "older IOS — report only" and no changes or full-config
-file is written for it, since the generated commands are Catalyst 9000 syntax.
-A backup with no `version` line is treated as a Catalyst 9000 and flagged.
+**Platform.** Steven said (2026-11-21): the bottom section is only for
+Catalyst 9000 series; older models go through the main flow. So there is no
+older command set and no recognition of older syntax. As a guard (my call) the
+check reads the `version` line: a backup on 15.x or below gets a card saying
+"not a Catalyst 9000 — use the main flow at the top" and no output file. A
+backup with no `version` line is treated as a Catalyst 9000.
 
 The parser needs extending so the check can see this: the `version` line, RADIUS server blocks,
 `aaa group server radius` blocks, the relevant `aaa` lines, and per-interface
@@ -391,9 +389,6 @@ implementation check" with a step badge.
 
 None block the build. Each is listed with what changing it later would cost.
 
-- **Older-IOS backups in the bottom section.** Built as report only, no files.
-  If files are wanted for them, that needs a second, older command set per
-  style: a large addition.
 - **Is there an existing standard (a done switch or an ISE team template)?** If
   one turns up, the command sets in section 8 change; the check and UI do not.
 - **Fixed object names.** Making them input boxes later is a small change.
