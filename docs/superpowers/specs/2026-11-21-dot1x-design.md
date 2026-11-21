@@ -143,6 +143,23 @@ the builder must confirm each against Cisco's current IOS-XE 17.x documentation
 (IBNS 2.0 deployment guide and the Catalyst 9000 security configuration guide)
 before fixing them in tests, and correct this section if anything differs.
 
+**As built (2026-11-21).** The command sets were checked against Cisco's ISE
+Secure Wired Access Prescriptive Deployment Guide and the Catalyst 9300 17.12
+security configuration guide, and `public/lib/dot1x.js` is now the reference.
+Differences from the sketch below: policy-based style uses
+`aaa accounting identity`; `aaa accounting update newinfo periodic 2880` and
+`radius-server attribute 31 send nas-port-detail mac-only` are added;
+dead-criteria is `time 10 tries 3`; the probe line carries `ignore-acct-port`;
+the device-tracking policy has `no protocol udp`; the pre-auth ACL has no tftp
+line; the critical voice service-template is defined explicitly. Two things
+could not be confirmed from a Cisco page and need a lab test: the MAB-first
+control policy (adapted from Cisco's 802.1X-first one) and
+`authentication event server alive action reinitialize`. One behaviour differs
+from section 9: selecting **Closed** does move ports that are already running
+802.1X in open mode to closed, with a warning in the card and the changes file,
+because monitor-then-closed is the normal rollout path. The parser was not
+changed; `dot1x.js` reads the parsed lines itself.
+
 **Global block, both styles**
 
 ```

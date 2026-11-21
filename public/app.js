@@ -46,6 +46,8 @@ import {
 import { pairFiles, compareConfigs, applyHardening, hardenedName } from "./lib/verify.js";
 import { redactForAI } from "./lib/redact.js";
 import { buildZip } from "./lib/zip.js";
+import { validateSettings as validateDot1x, addDot1xToOutput } from "./lib/dot1x.js";
+import { initDot1xSection, readDot1xSettings } from "./dot1x-ui.js";
 
 const CONFIG_EXT = /\.(txt|cfg)$/i;
 const isConfigFile = (name) => CONFIG_EXT.test(name);
@@ -192,6 +194,7 @@ function readGlobalConfig() {
     stpHardening: { enabled: $("stph-enable").checked },
     errdisable: { enabled: $("errd-enable").checked, interval: $("errd-interval").value.trim() },
     banner: { enabled: $("banner-enable").checked, text: $("banner-text").value },
+    dot1x: { enabled: $("dot1x-enable").checked, settings: readDot1xSettings() },
     insertion: document.querySelector('input[name="insertion"]:checked').value,
     naming: {
       rename: $("rename").checked,
@@ -917,7 +920,7 @@ function saveSanityWarnings(global, anyElectedRoot) {
   } else if (empties.length) {
     w.push(`${empties.length} device(s) have nothing selected: ${empties.map((u) => u.parsed.hostname || u.sourceNames[0]).join(", ")}`);
   }
-  if (!global.secureAccess.enabled && !global.vtp.enabled && !anyElectedRoot) {
+  if (!global.secureAccess.enabled && !global.vtp.enabled && !global.dot1x.enabled && !anyElectedRoot) {
     w.push("no global additions (VTP / secure access / root election)");
   }
   return w;
@@ -930,6 +933,14 @@ async function onSave() {
   }
 
   const anyElectedRoot = [...state.rootBySite.values()].some(Boolean);
+
+  // 802.1X is ticked but its settings (bottom section) are incomplete: stop and name the box.
+  if (global.dot1x.enabled) {
+    const problems = validateDot1x(global.dot1x.settings);
+    if (problems.length) {
+      return reportError(new Error(`802.1X is ticked under Global additions but its settings (802.1X section at the bottom) need fixing: ${problems.join(" ")}`));
+    }
+  }
 
   // Pre-generation sanity check: if no device collects much, confirm intent.
   const sanity = saveSanityWarnings(global, anyElectedRoot);
@@ -1093,6 +1104,15 @@ async function onSave() {
     content = deduped.content;
     if (deduped.removed.length) {
       allWarnings.push(`${unit.id}: removed ${deduped.removed.length} duplicate line(s): ${[...new Set(deduped.removed)].join("; ")}.`);
+    }
+
+    // 802.1X: global config plus the port config on every access port of a switch
+    // output. Runs last so it sees the final port names and the template's own AAA.
+    if (global.dot1x.enabled && isSwitch) {
+      const dx = addDot1xToOutput(content, global.dot1x.settings);
+      content = dx.content;
+      if (dx.ports) allWarnings.push(`${unit.id}: added 802.1X to ${dx.ports} access port${dx.ports === 1 ? "" : "s"}.`);
+      dx.warnings.forEach((w) => allWarnings.push(`${unit.id}: ${w}`));
     }
 
     rendered.warnings.forEach((w) => allWarnings.push(`${unit.id}: ${w}`));
@@ -2041,6 +2061,8 @@ function init() {
   $("btn-verify").addEventListener("click", onVerify);
   $("btn-verify-tickall").addEventListener("click", onVerifyTickAll);
   $("btn-verify-harden").addEventListener("click", onVerifyHarden);
+
+  initDot1xSection({ escapeHtml, openConfigModal, downloadZip, reportError, isConfigFile, isSwitchParsed });
 
   // Global additions affect every device's template → refresh the tag-map preview.
   $("sec-enable").addEventListener("change", () =>

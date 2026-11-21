@@ -792,6 +792,34 @@ code {
   .container { padding: 1.5rem 1rem 3rem; }
 }
 
+/* ---- 802.1X implementation check ---- */
+#step-dot1x { margin-top: 1.5rem; }
+.dx-file-list { margin-top: 0.9rem; }
+.dx-stale { opacity: 0.45; }
+.dx-unit .v-check { grid-template-columns: 1.2rem 19rem 1fr; }
+@media (max-width: 640px) { .dx-unit .v-check { grid-template-columns: 1.2rem 1fr; } }
+.v-check.v-warn .v-mark, .v-check.v-warn > span:last-child { color: var(--warn); }
+.dx-warnings {
+  margin: 0 0 0.8rem; padding: 0.55rem 0.75rem 0.55rem 1.8rem; font-size: 0.84rem; border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+  background: color-mix(in srgb, var(--warn) 9%, transparent);
+}
+.dx-ports-body { padding: 0.6rem 0.85rem 0.7rem; }
+.dx-ports-body > p { margin: 0.5rem 0 0; }
+.dx-port-actions { display: flex; gap: 0.4rem; margin-bottom: 0.5rem; }
+.dx-ports { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.dx-port {
+  display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.15rem 0.5rem; cursor: pointer;
+  font-family: var(--font-mono); font-size: 0.76rem; border-radius: 7px;
+  border: 1px solid var(--border); background: var(--surface-2);
+}
+.dx-port input { accent-color: var(--accent); margin: 0; }
+.dx-port-todo { border-color: color-mix(in srgb, var(--warn) 55%, transparent); }
+.dx-port-done { border-color: color-mix(in srgb, var(--good) 55%, transparent); color: var(--good); }
+.dx-port-conflict { border-color: color-mix(in srgb, var(--bad) 55%, transparent); color: var(--bad); }
+.dx-port-off { border-style: dashed; color: var(--text-muted); text-decoration: line-through; }
+.dx-port-flag { color: var(--warn); font-weight: 700; }
+
 
 /* standalone build: features that need the server are hidden */
 .ai-btn, .ai-out, #btn-sample { display: none !important; }
@@ -887,6 +915,10 @@ code {
       <div id="errd-rows" class="grid3 hidden" style="margin-top:0.5rem">
         <label class="field"><span>Recovery interval (seconds)</span><input id="errd-interval" type="number" min="30" value="300" /></label>
       </div>
+
+      <h3 class="sub">802.1X (switches)</h3>
+      <p class="sub-desc">Adds the 802.1X global config to every <strong>switch</strong> output and the port config to every access port, using the settings in the <a href="#step-dot1x">802.1X section</a> at the bottom of the page. Old 802.1X lines carried over from the source ports are replaced.</p>
+      <label class="checkbox"><input id="dot1x-enable" type="checkbox" /><span>Add 802.1X to switch outputs</span></label>
 
       <h3 class="sub">Clock &amp; timezone</h3>
       <p class="sub-desc">Set a consistent timezone and clock on every device (router and switch).</p>
@@ -1028,6 +1060,110 @@ code {
       </div>
       <div id="verify-summary" class="verify-summary"></div>
       <div id="verify-results" class="verify-results"></div>
+    </section>
+
+    <section class="card" id="step-dot1x">
+      <div class="card-head">
+        <h2><span class="step-num">⚿</span> 802.1X implementation check</h2>
+        <p class="step-desc">
+          For <strong>Catalyst 9000</strong> switches. Fill in the settings, load a folder of switch backups, and
+          Crucible reports how much of the 802.1X configuration each one already has, then writes the
+          <strong>changes</strong> needed to finish it — or the full config with the changes merged in. Older
+          switches go through the main flow at the top instead: tick “Add 802.1X” under Global additions and
+          these same settings are used. Nothing is uploaded.
+        </p>
+      </div>
+
+      <h3 class="sub">Settings</h3>
+      <div class="grid3">
+        <label class="field"><span>Style</span>
+          <select id="dx-style">
+            <option value="policy" selected>Policy-based (IBNS 2.0)</option>
+            <option value="classic">Classic (per-port authentication commands)</option>
+          </select>
+        </label>
+        <label class="field"><span>Deployment mode</span>
+          <select id="dx-mode">
+            <option value="monitor" selected>Monitor — open, nothing blocked</option>
+            <option value="low">Low impact — open, with a pre-auth ACL</option>
+            <option value="closed">Closed — no access until authenticated</option>
+          </select>
+        </label>
+        <label class="field"><span>Authentication order</span>
+          <select id="dx-order">
+            <option value="dot1x" selected>802.1X then MAB</option>
+            <option value="mab">MAB then 802.1X</option>
+          </select>
+        </label>
+      </div>
+
+      <h3 class="sub">RADIUS servers</h3>
+      <div class="grid3">
+        <label class="field"><span>Server 1 name</span><input id="dx-s1-name" type="text" value="ISE-1" autocomplete="off" /></label>
+        <label class="field"><span>Server 1 IP <span class="muted small">(required)</span></span><input id="dx-s1-ip" type="text" placeholder="10.1.1.10" autocomplete="off" /></label>
+        <label class="field"><span>Shared key <span class="muted small">(required)</span></span>
+          <div class="secret-input">
+            <input id="dx-key" type="password" placeholder="RADIUS shared key" autocomplete="new-password" />
+            <button type="button" class="secret-toggle" data-target="dx-key" aria-label="Show shared key">👁</button>
+          </div>
+        </label>
+        <label class="field"><span>Server 2 name <span class="muted small">(optional)</span></span><input id="dx-s2-name" type="text" value="ISE-2" autocomplete="off" /></label>
+        <label class="field"><span>Server 2 IP <span class="muted small">(optional)</span></span><input id="dx-s2-ip" type="text" placeholder="10.1.1.11" autocomplete="off" /></label>
+        <label class="field"><span>Server group name</span><input id="dx-group" type="text" value="ISE-RADIUS" autocomplete="off" /></label>
+        <label class="field"><span>Auth port</span><input id="dx-auth-port" type="number" min="1" max="65535" value="1812" /></label>
+        <label class="field"><span>Accounting port</span><input id="dx-acct-port" type="number" min="1" max="65535" value="1813" /></label>
+        <label class="field"><span>RADIUS source interface <span class="muted small">(optional)</span></span><input id="dx-source" type="text" placeholder="Vlan10" autocomplete="off" /></label>
+        <label class="field"><span>Server probe username <span class="muted small">(optional)</span></span><input id="dx-probe" type="text" placeholder="radius-probe" autocomplete="off" /></label>
+        <label class="field"><span>CoA key <span class="muted small">(optional — defaults to shared key)</span></span>
+          <div class="secret-input">
+            <input id="dx-coa-key" type="password" placeholder="(reuse shared key)" autocomplete="new-password" />
+            <button type="button" class="secret-toggle" data-target="dx-coa-key" aria-label="Show CoA key">👁</button>
+          </div>
+        </label>
+      </div>
+      <div class="checks" style="margin-top:0.75rem">
+        <label class="checkbox"><input id="dx-coa" type="checkbox" checked /><span>Allow change of authorisation (CoA) from the RADIUS servers</span></label>
+      </div>
+      <p class="muted small" style="margin-top:0.5rem">The keys are written into the generated files in clear text, exactly as typed.</p>
+
+      <h3 class="sub">Ports</h3>
+      <div class="grid3">
+        <label class="field"><span>Host mode</span>
+          <select id="dx-host-mode">
+            <option value="multi-auth" selected>multi-auth</option>
+            <option value="multi-domain">multi-domain</option>
+            <option value="multi-host">multi-host</option>
+            <option value="single-host">single-host</option>
+          </select>
+        </label>
+        <label class="field"><span>802.1X tx-period (seconds)</span><input id="dx-tx" type="number" min="1" max="65535" value="10" /></label>
+        <label class="field"><span>Critical VLAN <span class="muted small">(optional)</span></span><input id="dx-critical" type="number" min="1" max="4094" placeholder="e.g. 100" /></label>
+      </div>
+      <div class="checks" style="margin-top:0.75rem">
+        <label class="checkbox"><input id="dx-reauth" type="checkbox" checked /><span>Re-authenticate periodically (timer set by the RADIUS server)</span></label>
+        <label class="checkbox"><input id="dx-critical-voice" type="checkbox" checked /><span>Keep voice working when RADIUS is unreachable <span class="muted small">(needs a critical VLAN)</span></span></label>
+      </div>
+      <label class="field" style="margin-top:0.75rem; max-width:560px"><span>Skip ports whose description contains <span class="muted small">(comma-separated)</span></span>
+        <input id="dx-skip" type="text" placeholder="AP, UPLINK, PRINTER" autocomplete="off" />
+      </label>
+      <p class="muted small" style="margin-top:0.5rem">802.1X goes on access ports only — trunks, routed ports and port-channel members are always left alone.</p>
+
+      <h3 class="sub">Backups</h3>
+      <div class="actions">
+        <button id="btn-dx-folder" class="btn" type="button">Browse backups folder…</button>
+        <input id="dx-folder-input" type="file" webkitdirectory directory multiple hidden />
+        <span id="dx-folder-name" class="folder-name muted">No backups folder chosen</span>
+      </div>
+      <div id="dx-files"></div>
+      <div class="actions">
+        <button id="btn-dx-check" class="btn btn-primary" type="button" disabled>Check</button>
+        <label class="checkbox"><input id="dx-out-changes" type="checkbox" checked /><span>Changes file</span></label>
+        <label class="checkbox"><input id="dx-out-full" type="checkbox" /><span>Full config</span></label>
+        <button id="btn-dx-download" class="btn" type="button" disabled>Download .zip</button>
+        <span id="dx-status" class="muted small"></span>
+      </div>
+      <div id="dx-summary" class="verify-summary"></div>
+      <div id="dx-results" class="verify-results"></div>
     </section>
   </div>
 
@@ -3163,6 +3299,1002 @@ ${newLines.join("\n")}
     return w.concat();
   }
 
+  // public/lib/dot1x.js
+  var POLICY_NAME = "DOT1X-MAB-POLICY";
+  var PREAUTH_ACL = "ACL-PREAUTH";
+  var IPDT_POLICY = "DOT1X-IPDT";
+  var CRITICAL_TEMPLATE = "CRITICAL_AUTH_ACCESS";
+  var CRITICAL_VOICE_TEMPLATE = "DEFAULT_CRITICAL_VOICE_TEMPLATE";
+  var STYLE_LABEL = { policy: "Policy-based (IBNS 2.0)", classic: "Classic (per-port authentication commands)" };
+  var MODE_LABEL = { monitor: "Monitor", low: "Low impact", closed: "Closed" };
+  var DOT1X_DEFAULTS = Object.freeze({
+    style: "policy",
+    // "policy" | "classic"
+    server1Name: "ISE-1",
+    server1Ip: "",
+    server2Name: "ISE-2",
+    server2Ip: "",
+    key: "",
+    authPort: 1812,
+    acctPort: 1813,
+    group: "ISE-RADIUS",
+    sourceInterface: "",
+    coa: true,
+    coaKey: "",
+    // blank = reuse the shared key
+    mode: "monitor",
+    // "monitor" | "low" | "closed"
+    order: "dot1x",
+    // "dot1x" (802.1X then MAB) | "mab" (MAB then 802.1X)
+    hostMode: "multi-auth",
+    txPeriod: 10,
+    reauth: true,
+    criticalVlan: "",
+    criticalVoice: true,
+    probeUser: "",
+    skipWords: ""
+    // comma-separated; ports whose description contains one are left alone
+  });
+  var HOST_MODES = ["multi-auth", "multi-domain", "multi-host", "single-host"];
+  var str = (v) => String(v == null ? "" : v).trim();
+  var pick = (v, allowed, fallback) => allowed.includes(v) ? v : fallback;
+  var num = (v, fallback) => str(v) === "" ? fallback : Number(v);
+  function normalizeSettings(raw = {}) {
+    const d = DOT1X_DEFAULTS;
+    const r = { ...d, ...raw };
+    return {
+      style: pick(r.style, ["policy", "classic"], d.style),
+      server1Name: str(r.server1Name),
+      server1Ip: str(r.server1Ip),
+      server2Name: str(r.server2Name),
+      server2Ip: str(r.server2Ip),
+      key: str(r.key),
+      authPort: num(r.authPort, d.authPort),
+      acctPort: num(r.acctPort, d.acctPort),
+      group: str(r.group),
+      sourceInterface: str(r.sourceInterface),
+      coa: !!r.coa,
+      coaKey: str(r.coaKey),
+      mode: pick(r.mode, ["monitor", "low", "closed"], d.mode),
+      order: pick(r.order, ["dot1x", "mab"], d.order),
+      hostMode: pick(r.hostMode, HOST_MODES, d.hostMode),
+      txPeriod: num(r.txPeriod, d.txPeriod),
+      reauth: !!r.reauth,
+      criticalVlan: str(r.criticalVlan),
+      criticalVoice: !!r.criticalVoice,
+      probeUser: str(r.probeUser),
+      skipWords: str(r.skipWords)
+    };
+  }
+  var isIpv4 = (s) => {
+    const m = String(s).match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    return !!m && m.slice(1).every((o) => Number(o) <= 255);
+  };
+  var isPort = (n) => Number.isInteger(n) && n >= 1 && n <= 65535;
+  var isWord = (s) => /^\S+$/.test(s);
+  function validateSettings(raw) {
+    const s = normalizeSettings(raw);
+    const out = [];
+    if (!s.server1Name) out.push("RADIUS server 1 name is blank.");
+    else if (!isWord(s.server1Name)) out.push("RADIUS server 1 name must not contain spaces.");
+    if (!s.server1Ip) out.push("RADIUS server 1 IP is blank.");
+    else if (!isIpv4(s.server1Ip)) out.push(`RADIUS server 1 IP "${s.server1Ip}" is not an IPv4 address.`);
+    if (s.server2Ip) {
+      if (!isIpv4(s.server2Ip)) out.push(`RADIUS server 2 IP "${s.server2Ip}" is not an IPv4 address.`);
+      if (!s.server2Name) out.push("RADIUS server 2 name is blank.");
+      else if (!isWord(s.server2Name)) out.push("RADIUS server 2 name must not contain spaces.");
+      if (s.server2Ip === s.server1Ip) out.push("RADIUS server 2 IP is the same as server 1.");
+      if (s.server2Name && s.server2Name === s.server1Name) out.push("RADIUS server 2 name is the same as server 1.");
+    }
+    if (!s.key) out.push("Shared key is blank.");
+    else if (/\s/.test(s.key)) out.push("Shared key must not contain spaces.");
+    if (/\s/.test(s.coaKey)) out.push("CoA key must not contain spaces.");
+    if (!isPort(s.authPort)) out.push("Auth port must be a number from 1 to 65535.");
+    if (!isPort(s.acctPort)) out.push("Accounting port must be a number from 1 to 65535.");
+    if (!s.group) out.push("Server group name is blank.");
+    else if (!isWord(s.group)) out.push("Server group name must not contain spaces.");
+    if (!Number.isInteger(s.txPeriod) || s.txPeriod < 1 || s.txPeriod > 65535) out.push("802.1X tx-period must be a number from 1 to 65535.");
+    if (s.criticalVlan && !(/^\d+$/.test(s.criticalVlan) && Number(s.criticalVlan) >= 1 && Number(s.criticalVlan) <= 4094)) {
+      out.push("Critical VLAN must be a number from 1 to 4094.");
+    }
+    if (s.probeUser && !isWord(s.probeUser)) out.push("Server probe username must not contain spaces.");
+    return out;
+  }
+  var serversOf = (s) => [
+    { name: s.server1Name, ip: s.server1Ip },
+    { name: s.server2Name, ip: s.server2Ip }
+  ].filter((x) => x.ip);
+  var isIndented3 = (l) => /^[ \t]/.test(l);
+  function topBlocks(lines) {
+    const out = [];
+    let cur = null;
+    for (const raw of lines || []) {
+      const t = raw.trim();
+      if (t === "") continue;
+      if (isIndented3(raw)) {
+        if (cur && t !== "!") cur.children.push(t);
+        continue;
+      }
+      cur = t === "!" ? null : { head: t, children: [] };
+      if (cur) out.push(cur);
+    }
+    return out;
+  }
+  var PORT_STYLE_CLASSIC = /^authentication port-control\b/;
+  var PORT_STYLE_POLICY = /^(access-session port-control\b|service-policy type control subscriber\b)/;
+  var ifaceChildren = (f) => (f.block || []).slice(1).map((l) => l.trim()).filter((l) => l && l !== "!");
+  function scanDot1x(parsed) {
+    const blocks = topBlocks(parsed.lines);
+    const scan = {
+      version: null,
+      supported: true,
+      aaaNewModel: false,
+      servers: [],
+      // { name, ip, authPort, acctPort }
+      groups: [],
+      // { name, servers: [names], sourceInterface }
+      top: [],
+      // every top-level line
+      coaClients: [],
+      hasCoaBlock: false,
+      systemAuthControl: false,
+      dtPolicies: /* @__PURE__ */ new Set(),
+      acls: /* @__PURE__ */ new Set(),
+      policyMaps: /* @__PURE__ */ new Set(),
+      classMaps: /* @__PURE__ */ new Set(),
+      serviceTemplates: /* @__PURE__ */ new Set(),
+      style: null
+    };
+    let m;
+    for (const b of blocks) {
+      const h = b.head;
+      scan.top.push(h);
+      if (scan.version === null && (m = h.match(/^version\s+(\d+)\.(\d+)/))) {
+        scan.version = `${m[1]}.${m[2]}`;
+        scan.supported = Number(m[1]) >= 16;
+      } else if (/^aaa new-model\b/.test(h)) scan.aaaNewModel = true;
+      else if (m = h.match(/^radius server\s+(\S+)/)) {
+        const srv = { name: m[1], ip: null, authPort: null, acctPort: null };
+        for (const c of b.children) {
+          const a = c.match(/^address ipv4\s+(\S+)(?:\s+auth-port\s+(\d+))?(?:\s+acct-port\s+(\d+))?/);
+          if (a) Object.assign(srv, { ip: a[1], authPort: a[2] ? Number(a[2]) : null, acctPort: a[3] ? Number(a[3]) : null });
+        }
+        scan.servers.push(srv);
+      } else if (m = h.match(/^aaa group server radius\s+(\S+)/)) {
+        let g = scan.groups.find((x) => x.name === m[1]);
+        if (!g) scan.groups.push(g = { name: m[1], servers: [], sourceInterface: null });
+        for (const c of b.children) {
+          let k;
+          if (k = c.match(/^server name\s+(\S+)/)) g.servers.push(k[1]);
+          else if (k = c.match(/^ip radius source-interface\s+(\S+)/)) g.sourceInterface = k[1];
+        }
+      } else if (/^aaa server radius dynamic-author\b/.test(h)) {
+        scan.hasCoaBlock = true;
+        for (const c of b.children) {
+          const k = c.match(/^client\s+(\S+)/);
+          if (k) scan.coaClients.push(k[1]);
+        }
+      } else if (/^dot1x system-auth-control\b/.test(h)) scan.systemAuthControl = true;
+      else if (m = h.match(/^device-tracking policy\s+(\S+)/)) scan.dtPolicies.add(m[1]);
+      else if (m = h.match(/^ip access-list extended\s+(\S+)/)) scan.acls.add(m[1]);
+      else if (m = h.match(/^policy-map type control subscriber\s+(\S+)/)) scan.policyMaps.add(m[1]);
+      else if (m = h.match(/^class-map type control subscriber\s+\S+\s+(\S+)/)) scan.classMaps.add(m[1]);
+      else if (m = h.match(/^service-template\s+(\S+)/)) scan.serviceTemplates.add(m[1]);
+    }
+    for (const f of parsed.interfaces || []) {
+      const kids = ifaceChildren(f);
+      if (kids.some((c) => PORT_STYLE_POLICY.test(c))) {
+        scan.style = "policy";
+        break;
+      }
+      if (kids.some((c) => PORT_STYLE_CLASSIC.test(c))) scan.style = "classic";
+    }
+    return scan;
+  }
+  var PHYSICAL_RE = /^(FastEthernet|GigabitEthernet|TwoGigabitEthernet|FiveGigabitEthernet|TenGigabitEthernet|TwentyFiveGigE|FortyGigabitEthernet|HundredGigE|Ethernet)\d/;
+  var skipList = (s) => str(s.skipWords).split(",").map((w) => w.trim().toLowerCase()).filter(Boolean);
+  function qualifyingPorts(parsed, settings) {
+    const words = skipList(normalizeSettings(settings));
+    const ports = [];
+    const skipped = [];
+    for (const f of parsed.interfaces || []) {
+      if (!PHYSICAL_RE.test(f.normName)) continue;
+      if (f.channelGroup != null || f.hasIp) continue;
+      const sw = f.switchportLines || [];
+      const trunk = sw.some((l) => /^switchport mode (trunk|dynamic)/.test(l));
+      const access = sw.some((l) => /^switchport mode access\b/.test(l)) || !trunk && sw.some((l) => /^switchport access vlan\b/.test(l));
+      if (!access || sw.some((l) => /^no switchport\b/.test(l))) continue;
+      const desc = (f.description || "").toLowerCase();
+      const word = words.find((w) => desc.includes(w));
+      if (word) skipped.push({ name: f.name, normName: f.normName, description: f.description, word });
+      else ports.push({ name: f.name, normName: f.normName, description: f.description, iface: f });
+    }
+    return { ports, skipped };
+  }
+  function radiusServerBlock(s, srv) {
+    const lines = [`radius server ${srv.name}`, ` address ipv4 ${srv.ip} auth-port ${s.authPort} acct-port ${s.acctPort}`, ` key ${s.key}`];
+    if (s.probeUser) lines.push(` automate-tester username ${s.probeUser} ignore-acct-port probe-on`);
+    return lines;
+  }
+  var RADIUS_ATTRIBUTES = [
+    "radius-server attribute 6 on-for-login-auth",
+    "radius-server attribute 8 include-in-access-req",
+    "radius-server attribute 25 access-request include",
+    "radius-server attribute 31 mac format ietf upper-case",
+    "radius-server attribute 31 send nas-port-detail mac-only"
+  ];
+  var RADIUS_DEAD = [
+    { line: "aaa accounting update newinfo periodic 2880", key: /^aaa accounting update\b/ },
+    { line: "radius-server dead-criteria time 10 tries 3", key: /^radius-server dead-criteria\b/ },
+    { line: "radius-server deadtime 15", key: /^radius-server deadtime\b/ }
+  ];
+  var PREAUTH_ACL_LINES = [
+    `ip access-list extended ${PREAUTH_ACL}`,
+    " permit udp any eq bootpc any eq bootps",
+    " permit udp any any eq domain",
+    " deny ip any any"
+  ];
+  function controlPolicyLines(s, scan) {
+    const critical = !!s.criticalVlan;
+    const out = [];
+    if (critical && !scan.serviceTemplates.has(CRITICAL_TEMPLATE)) {
+      out.push(`service-template ${CRITICAL_TEMPLATE}`, ` vlan ${s.criticalVlan}`, "!");
+    }
+    if (critical && s.criticalVoice && !scan.serviceTemplates.has(CRITICAL_VOICE_TEMPLATE)) {
+      out.push(`service-template ${CRITICAL_VOICE_TEMPLATE}`, " voice vlan", "!");
+    }
+    const cmap = (name, match, body) => {
+      if (scan.classMaps.has(name)) return;
+      out.push(`class-map type control subscriber ${match} ${name}`, ...body.map((l) => " " + l), "!");
+    };
+    const criticalTemplates = [CRITICAL_TEMPLATE, ...s.criticalVoice ? [CRITICAL_VOICE_TEMPLATE] : []];
+    if (critical) {
+      cmap("AAA_SVR_DOWN_UNAUTHD_HOST", "match-all", ["match result-type aaa-timeout", "match authorization-status unauthorized"]);
+    }
+    cmap("AAA_SVR_DOWN_AUTHD_HOST", "match-all", ["match result-type aaa-timeout", "match authorization-status authorized"]);
+    cmap("DOT1X_FAILED", "match-all", ["match method dot1x", "match result-type method dot1x authoritative"]);
+    cmap("DOT1X_NO_RESP", "match-all", ["match method dot1x", "match result-type method dot1x agent-not-found"]);
+    cmap("MAB_FAILED", "match-all", ["match method mab", "match result-type method mab authoritative"]);
+    if (critical) {
+      const m = criticalTemplates.map((t) => `match activated-service-template ${t}`);
+      cmap("IN_CRITICAL_AUTH", "match-any", m);
+      cmap("NOT_IN_CRITICAL_AUTH", "match-none", m);
+    }
+    const p = [`policy-map type control subscriber ${POLICY_NAME}`];
+    const event = (name, how) => p.push(` event ${name} ${how}`);
+    const cls = (n, name, actions) => {
+      p.push(`  ${n} class ${name} do-until-failure`);
+      actions.forEach((a, i) => p.push(`   ${(i + 1) * 10} ${a}`));
+    };
+    const DOT1X = "authenticate using dot1x priority 10";
+    const MAB = "authenticate using mab priority 20";
+    const dot1xFirst = s.order === "dot1x";
+    event("session-started", "match-all");
+    cls(10, "always", [dot1xFirst ? DOT1X : MAB]);
+    event("authentication-failure", "match-first");
+    if (dot1xFirst) cls(5, "DOT1X_FAILED", ["terminate dot1x", MAB]);
+    else cls(5, "MAB_FAILED", ["terminate mab", DOT1X]);
+    if (critical) {
+      cls(10, "AAA_SVR_DOWN_UNAUTHD_HOST", [
+        "clear-authenticated-data-hosts-on-port",
+        ...criticalTemplates.map((t) => `activate service-template ${t}`),
+        "authorize",
+        "pause reauthentication"
+      ]);
+    }
+    cls(20, "AAA_SVR_DOWN_AUTHD_HOST", ["pause reauthentication", "authorize"]);
+    if (dot1xFirst) {
+      cls(30, "DOT1X_NO_RESP", ["terminate dot1x", MAB]);
+      cls(40, "MAB_FAILED", ["terminate mab", "authentication-restart 60"]);
+    } else {
+      cls(30, "DOT1X_FAILED", ["terminate dot1x", "authentication-restart 60"]);
+      cls(40, "DOT1X_NO_RESP", ["terminate dot1x", "authentication-restart 60"]);
+    }
+    cls(60, "always", ["terminate dot1x", "terminate mab", "authentication-restart 60"]);
+    event("aaa-available", "match-all");
+    if (critical) {
+      cls(10, "IN_CRITICAL_AUTH", ["clear-session"]);
+      cls(20, "NOT_IN_CRITICAL_AUTH", ["resume reauthentication"]);
+    } else {
+      cls(10, "always", ["resume reauthentication"]);
+    }
+    event("agent-found", "match-all");
+    cls(10, "always", ["terminate mab", DOT1X]);
+    event("inactivity-timeout", "match-all");
+    cls(10, "always", ["clear-session"]);
+    return [...out, ...p];
+  }
+  function globalItems(s, scan, need) {
+    const items = [];
+    const names = { servers: [], group: s.group };
+    const add = (id, label, state2, detail = "", lines = []) => items.push({ id, label, state: state2, detail, lines: state2 === "missing" ? lines : [] });
+    const has = (line) => scan.top.includes(line);
+    add(
+      "aaa",
+      "aaa new-model",
+      scan.aaaNewModel ? "present" : "missing",
+      scan.aaaNewModel ? "" : "Changes how administrators log in - confirm a local user or TACACS login works before pasting.",
+      ["aaa new-model"]
+    );
+    for (const srv of serversOf(s)) {
+      const byIp = scan.servers.find((x) => x.ip === srv.ip);
+      const byName = scan.servers.find((x) => x.name === srv.name);
+      const label = `RADIUS server ${srv.ip}`;
+      if (byIp) {
+        names.servers.push(byIp.name);
+        const portsDiffer = byIp.authPort != null && byIp.authPort !== s.authPort || byIp.acctPort != null && byIp.acctPort !== s.acctPort;
+        if (portsDiffer) {
+          add(`server:${srv.ip}`, label, "differs", `"${byIp.name}" uses ports ${byIp.authPort}/${byIp.acctPort}, settings say ${s.authPort}/${s.acctPort}.`);
+        } else {
+          add(`server:${srv.ip}`, label, "present", byIp.name !== srv.name ? `defined as "${byIp.name}" - that name is reused.` : "");
+        }
+      } else if (byName) {
+        names.servers.push(byName.name);
+        add(`server:${srv.ip}`, label, "differs", `radius server ${byName.name} is ${byName.ip || "(no address)"}, settings say ${srv.ip}.`);
+      } else {
+        names.servers.push(srv.name);
+        add(`server:${srv.ip}`, label, "missing", "", radiusServerBlock(s, srv));
+      }
+    }
+    const want = names.servers;
+    const g = scan.groups.find((x) => want.every((n) => x.servers.includes(n))) || scan.groups.find((x) => x.name === s.group) || scan.groups.find((x) => want.some((n) => x.servers.includes(n)));
+    if (g) names.group = g.name;
+    const groupLines = [];
+    const missingMembers = g ? want.filter((n) => !g.servers.includes(n)) : want;
+    groupLines.push(...missingMembers.map((n) => ` server name ${n}`));
+    const sameIface = (a, b) => normalizeInterfaceName(a).toLowerCase() === normalizeInterfaceName(b).toLowerCase();
+    let ifaceDiffers = null;
+    if (s.sourceInterface) {
+      if (!g || !g.sourceInterface) groupLines.push(` ip radius source-interface ${s.sourceInterface}`);
+      else if (!sameIface(g.sourceInterface, s.sourceInterface)) ifaceDiffers = g.sourceInterface;
+    }
+    if (groupLines.length) {
+      add(
+        "group",
+        `RADIUS server group ${names.group}`,
+        "missing",
+        g ? `the group exists; ${groupLines.length} line${groupLines.length === 1 ? "" : "s"} to add.` : "",
+        [`aaa group server radius ${names.group}`, ...groupLines]
+      );
+    } else {
+      add("group", `RADIUS server group ${names.group}`, "present", g && g.name !== s.group ? `that name is reused (settings say "${s.group}").` : "");
+    }
+    if (ifaceDiffers) {
+      add("group-source", "RADIUS source interface", "differs", `group ${names.group} uses ${ifaceDiffers}, settings say ${s.sourceInterface}.`);
+    }
+    const method = (id, label, re, line) => {
+      const existing = scan.top.find((l) => re.test(l));
+      if (!existing) return add(id, label, "missing", "", [line]);
+      if (new RegExp(`\\bgroup ${names.group.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s|$)`).test(existing)) return add(id, label, "present");
+      add(id, label, "differs", `is "${existing}", settings would use group ${names.group}.`);
+    };
+    method("authn", "aaa authentication dot1x", /^aaa authentication dot1x default\b/, `aaa authentication dot1x default group ${names.group}`);
+    method("authz", "aaa authorization network", /^aaa authorization network default\b/, `aaa authorization network default group ${names.group}`);
+    if ((need.acctStyle || s.style) === "policy") {
+      method("acct", "aaa accounting identity", /^aaa accounting (identity|dot1x) default\b/i, `aaa accounting identity default start-stop group ${names.group}`);
+    } else {
+      method("acct", "aaa accounting dot1x", /^aaa accounting dot1x default\b/, `aaa accounting dot1x default start-stop group ${names.group}`);
+    }
+    if (s.coa) {
+      const coaKey = s.coaKey || s.key;
+      const missing = serversOf(s).filter((x) => !scan.coaClients.includes(x.ip));
+      add(
+        "coa",
+        "CoA (dynamic authorisation) clients",
+        missing.length ? "missing" : "present",
+        missing.length ? missing.map((x) => x.ip).join(", ") : "",
+        ["aaa server radius dynamic-author", ...missing.map((x) => ` client ${x.ip} server-key ${coaKey}`)]
+      );
+    }
+    const attrMissing = RADIUS_ATTRIBUTES.filter((l) => !has(l));
+    for (const d of RADIUS_DEAD) {
+      const existing = scan.top.find((l) => d.key.test(l));
+      if (!existing) attrMissing.push(d.line);
+      else if (existing !== d.line) add(`dead:${d.line}`, d.line.replace(/\s+\d.*$/, ""), "differs", `is "${existing}", settings would use "${d.line}".`);
+    }
+    add(
+      "radius-attrs",
+      "RADIUS attributes and dead-server detection",
+      attrMissing.length ? "missing" : "present",
+      attrMissing.length ? `${attrMissing.length} line${attrMissing.length === 1 ? "" : "s"} to add.` : "",
+      attrMissing
+    );
+    add("sysauth", "dot1x system-auth-control", scan.systemAuthControl ? "present" : "missing", "", ["dot1x system-auth-control"]);
+    if (need.ipdt) {
+      add("ipdt", `device-tracking policy ${IPDT_POLICY}`, scan.dtPolicies.has(IPDT_POLICY) ? "present" : "missing", "", [
+        `device-tracking policy ${IPDT_POLICY}`,
+        " no protocol udp",
+        " tracking enable"
+      ]);
+    }
+    if (s.mode === "low") {
+      add("preauth-acl", `pre-auth ACL ${PREAUTH_ACL}`, scan.acls.has(PREAUTH_ACL) ? "present" : "missing", "", PREAUTH_ACL_LINES);
+    }
+    if (s.style === "policy" && need.policy) {
+      add(
+        "policy",
+        `control policy ${POLICY_NAME}`,
+        scan.policyMaps.has(POLICY_NAME) ? "present" : "missing",
+        "",
+        controlPolicyLines(s, scan)
+      );
+    }
+    return items;
+  }
+  function joinBlocks(blocks) {
+    const out = [];
+    for (const b of blocks) {
+      if (!b.length) continue;
+      if (out.length) out.push("!");
+      out.push(...b[b.length - 1] === "!" ? b.slice(0, -1) : b);
+    }
+    return out;
+  }
+  function wantedPortLines(s) {
+    const w = [];
+    const one = (line, key) => w.push({ line, key, single: true });
+    const flag = (line) => w.push({ line, key: null, single: false });
+    const classic = s.style === "classic";
+    const order = s.order === "dot1x" ? "dot1x mab" : "mab dot1x";
+    if (classic) {
+      w.push({ line: `authentication host-mode ${s.hostMode}`, key: /^authentication host-mode\b/, single: true, role: "host" });
+      one(`authentication order ${order}`, /^authentication order\b/);
+      one("authentication priority dot1x mab", /^authentication priority\b/);
+      one("authentication port-control auto", /^authentication port-control\b/);
+    } else {
+      w.push({ line: `access-session host-mode ${s.hostMode}`, key: /^access-session host-mode\b/, single: true, role: "host" });
+      one("access-session port-control auto", /^access-session port-control\b/);
+    }
+    if (s.reauth) {
+      flag("authentication periodic");
+      one("authentication timer reauthenticate server", /^authentication timer reauthenticate\b/);
+    }
+    if (classic && s.criticalVlan) {
+      one(`authentication event server dead action authorize vlan ${s.criticalVlan}`, /^authentication event server dead action (authorize|reinitialize) vlan\b/);
+      if (s.criticalVoice) flag("authentication event server dead action authorize voice");
+      one("authentication event server alive action reinitialize", /^authentication event server alive action\b/);
+    }
+    flag("mab");
+    flag("dot1x pae authenticator");
+    one(`dot1x timeout tx-period ${s.txPeriod}`, /^dot1x timeout tx-period\b/);
+    if (s.mode === "low") one(`ip access-group ${PREAUTH_ACL} in`, /^ip access-group \S+ in\b/);
+    one(`device-tracking attach-policy ${IPDT_POLICY}`, /^device-tracking attach-policy\b/);
+    if (!classic) one(`service-policy type control subscriber ${POLICY_NAME}`, /^service-policy type control subscriber\b/);
+    return w;
+  }
+  var DEFAULT_HOST_MODE = { classic: "single-host", policy: "multi-auth" };
+  function checkPort(iface, s) {
+    const have = ifaceChildren(iface);
+    const classic = s.style === "classic";
+    const configured = have.some((c) => (classic ? PORT_STYLE_CLASSIC : /^access-session port-control\b/).test(c));
+    const add = [];
+    const remove = [];
+    const differs = [];
+    for (const w of wantedPortLines(s)) {
+      if (have.includes(w.line)) continue;
+      const existing = w.key ? have.find((c) => w.key.test(c)) : null;
+      if (existing) {
+        differs.push(`has "${existing}", settings say "${w.line}"`);
+        continue;
+      }
+      if (w.role === "host" && configured) {
+        const dflt = DEFAULT_HOST_MODE[s.style];
+        if (s.hostMode !== dflt) differs.push(`host mode is the default (${dflt}), settings say "${s.hostMode}"`);
+        continue;
+      }
+      add.push(w.line);
+    }
+    let closing = false;
+    const openLine = "authentication open";
+    const closedLine = "access-session closed";
+    const place = (line, after) => {
+      const at = add.findIndex((l) => after.test(l));
+      add.splice(at < 0 ? add.length : at + 1, 0, line);
+    };
+    if (classic) {
+      const open = have.includes(openLine);
+      if (s.mode === "closed") {
+        if (open) {
+          remove.push(openLine);
+          closing = true;
+        }
+      } else if (!open) {
+        if (configured) differs.push(`port is in closed mode - left closed (settings say ${MODE_LABEL[s.mode]})`);
+        else place(openLine, /^authentication port-control\b/);
+      }
+    } else {
+      const closed = have.includes(closedLine);
+      if (s.mode === "closed") {
+        if (!closed) {
+          place(closedLine, /^access-session host-mode\b/);
+          closing = configured;
+        }
+      } else if (closed) {
+        differs.push(`port is in closed mode - left closed (settings say ${MODE_LABEL[s.mode]})`);
+      }
+    }
+    return { add, remove, differs, configured, closing };
+  }
+  function checkDot1x(parsed, settings, opts = {}) {
+    const s = normalizeSettings(settings);
+    const scan = scanDot1x(parsed);
+    const base = { supported: true, version: scan.version, style: scan.style, conflict: false, items: [], ports: [], skipped: [], global: [], warnings: [], complete: false };
+    const counts = { globalsPresent: 0, globalsTotal: 0, portsDone: 0, portsTotal: 0 };
+    if (!scan.supported && !opts.ignoreVersion) {
+      return { ...base, supported: false, counts, warnings: [`IOS ${scan.version} is not a Catalyst 9000 - use the main flow at the top.`] };
+    }
+    const conflict = !!scan.style && scan.style !== s.style;
+    const q = qualifyingPorts(parsed, s);
+    const chosen = q.ports.filter((p) => !opts.ports || opts.ports.has(p.normName));
+    const warnings = [];
+    const ports = chosen.map((p) => {
+      if (conflict) return { name: p.name, normName: p.normName, description: p.description, state: "conflict", add: [], remove: [], differs: [], closing: false };
+      const r = checkPort(p.iface, s);
+      const state2 = !r.add.length && !r.remove.length ? "done" : r.configured ? "partial" : "missing";
+      return { name: p.name, normName: p.normName, description: p.description, state: state2, add: r.add, remove: r.remove, differs: r.differs, closing: r.closing };
+    });
+    const attach = `device-tracking attach-policy ${IPDT_POLICY}`;
+    const service = `service-policy type control subscriber ${POLICY_NAME}`;
+    const need = {
+      ipdt: ports.some((p) => p.add.includes(attach)),
+      policy: !conflict && ports.some((p) => p.add.includes(service)),
+      // On a switch already running the other style, keep to the accounting form that style uses.
+      acctStyle: conflict ? scan.style : s.style
+    };
+    const items = globalItems(s, scan, need);
+    if (conflict) {
+      warnings.push(
+        `Ports already use the ${STYLE_LABEL[scan.style]} style but the settings select ${STYLE_LABEL[s.style]}. The two cannot be mixed, so no port lines were generated - only the global lines both styles share.`
+      );
+    }
+    const aaa = items.find((i) => i.id === "aaa");
+    if (aaa.state === "missing") warnings.push("aaa new-model is not enabled. Adding it changes how administrators log in - confirm a local user or TACACS login works before pasting.");
+    const closing = ports.filter((p) => p.closing).length;
+    if (closing) warnings.push(`${closing} port${closing === 1 ? "" : "s"} already running 802.1X in open mode will move to CLOSED mode.`);
+    if (s.style === "policy" && s.order === "mab" && need.policy) {
+      warnings.push("The MAB-first control policy is adapted from Cisco's 802.1X-first reference policy, not taken from a Cisco example - lab-test it before rollout.");
+    }
+    if (!q.ports.length) warnings.push("No access ports qualify for 802.1X on this switch.");
+    counts.globalsTotal = items.length;
+    counts.globalsPresent = items.filter((i) => i.state === "present").length;
+    counts.portsTotal = ports.length;
+    counts.portsDone = ports.filter((p) => p.state === "done").length;
+    return {
+      ...base,
+      conflict,
+      items,
+      ports,
+      skipped: q.skipped,
+      global: joinBlocks(items.map((i) => i.lines)),
+      warnings,
+      counts,
+      complete: !conflict && items.every((i) => i.state !== "missing") && ports.every((p) => p.state === "done")
+    };
+  }
+  function changesText(check, { hostname = "", settings } = {}) {
+    const s = normalizeSettings(settings);
+    const out = [
+      `! 802.1X changes for ${hostname || "(no hostname)"}`,
+      `! Generated by Crucible - style: ${STYLE_LABEL[s.style]}, mode: ${MODE_LABEL[s.mode]}`
+    ];
+    if (!check.supported) {
+      out.push(...check.warnings.map((w) => `! ${w}`), "! No changes generated.");
+      return out.join("\n") + "\n";
+    }
+    for (const w of check.warnings) out.push(`! WARNING: ${w}`);
+    for (const i of check.items.filter((x) => x.state === "differs")) out.push(`! NOT CHANGED: ${i.label} - ${i.detail}`);
+    for (const p of check.ports) for (const d of p.differs) out.push(`! NOT CHANGED: ${p.normName} - ${d}`);
+    const portWork = check.ports.filter((p) => p.add.length || p.remove.length);
+    if (!check.global.length && !portWork.length) {
+      out.push("!", "! No changes needed.");
+      return out.join("\n") + "\n";
+    }
+    if (check.global.length) out.push("!", ...check.global);
+    for (const p of portWork) {
+      out.push("!", `interface ${p.name}`, ...p.remove.map((l) => ` no ${l}`), ...p.add.map((l) => ` ${l}`));
+    }
+    out.push("!");
+    return out.join("\n") + "\n";
+  }
+  function applyDot1x(text, check) {
+    const crlf = /\r\n/.test(String(text));
+    const lines = String(text).replace(/\r\n?/g, "\n").split("\n");
+    let added = 0;
+    for (const p of check.ports || []) {
+      if (!p.add.length && !p.remove.length) continue;
+      const at = lines.findIndex((l) => {
+        const m = l.match(/^interface\s+(\S+)/);
+        return m && normalizeInterfaceName(m[1]) === p.normName;
+      });
+      if (at < 0) continue;
+      let end = at;
+      while (end + 1 < lines.length && isIndented3(lines[end + 1]) && lines[end + 1].trim() !== "") end++;
+      const kept = lines.slice(at + 1, end + 1).filter((l) => !p.remove.includes(l.trim()));
+      const have = new Set(kept.map((l) => l.trim()));
+      const fresh = p.add.filter((l) => !have.has(l)).map((l) => ` ${l}`);
+      lines.splice(at + 1, end - at, ...kept, ...fresh);
+      added += fresh.length;
+    }
+    if ((check.global || []).length) {
+      const block = [...check.global];
+      const domainIdx = lines.findIndex((l) => /^ip domain[- ]name\s+\S/.test(l));
+      const firstIface = lines.findIndex((l) => /^interface\s+\S/.test(l));
+      let at;
+      if (domainIdx >= 0) at = domainIdx + 1;
+      else if (firstIface >= 0) at = firstIface;
+      else at = lines.length;
+      const aaaIdx = lines.findIndex((l) => /^aaa new-model\b/.test(l));
+      if (aaaIdx >= at && block[0] !== "aaa new-model") block.unshift("aaa new-model", "!");
+      const lead = at > 0 && lines[at - 1].trim() === "!" ? [] : ["!"];
+      const tail = (lines[at] || "").trim() === "!" ? [] : ["!"];
+      lines.splice(at, 0, ...lead, "! ==== 802.1X ====", ...block, ...tail);
+      added += block.filter((l) => l !== "!").length;
+    }
+    const content = lines.join("\n");
+    return { content: crlf ? content.replace(/\n/g, "\r\n") : content, added };
+  }
+  var PORT_DOT1X_RE = /^(authentication\s|dot1x\s|mab(\s|$)|access-session\s|service-policy type control subscriber\s)/;
+  function stripPortDot1x(text) {
+    const crlf = /\r\n/.test(String(text));
+    const lines = String(text).replace(/\r\n?/g, "\n").split("\n");
+    const ports = [];
+    const out = [];
+    let current = null;
+    for (const l of lines) {
+      if (!isIndented3(l)) {
+        const m = l.match(/^interface\s+(\S+)/);
+        current = m ? m[1] : null;
+      } else if (current && PORT_DOT1X_RE.test(l.trim())) {
+        if (!ports.includes(current)) ports.push(current);
+        continue;
+      }
+      out.push(l);
+    }
+    const content = out.join("\n");
+    return { content: crlf ? content.replace(/\n/g, "\r\n") : content, ports };
+  }
+  function addDot1xToOutput(text, settings) {
+    const s = normalizeSettings(settings);
+    const warnings = [];
+    const stripped = stripPortDot1x(text);
+    if (stripped.ports.length) {
+      warnings.push(`replaced the old 802.1X lines on ${stripped.ports.length} port${stripped.ports.length === 1 ? "" : "s"} with the ${STYLE_LABEL[s.style]} style.`);
+    }
+    const check = checkDot1x(parse(stripped.content), s, { ignoreVersion: true });
+    for (const w of check.warnings) {
+      if (/^aaa new-model/.test(w)) continue;
+      if (/^No access ports qualify/.test(w)) {
+        warnings.push("no access ports in this output, so only the global 802.1X config was added - tick the device's interfaces in Step 2 if ports were expected.");
+      } else warnings.push(w);
+    }
+    for (const i of check.items.filter((x) => x.state === "differs")) warnings.push(`802.1X not changed: ${i.label} - ${i.detail}`);
+    for (const p of check.ports) for (const d of p.differs) warnings.push(`802.1X not changed: ${p.normName} - ${d}`);
+    const res = applyDot1x(stripped.content, check);
+    return { content: res.content, warnings, ports: check.ports.filter((p) => p.add.length).length };
+  }
+
+  // public/dot1x-ui.js
+  var $ = (id) => document.getElementById(id);
+  var SETTING_IDS = [
+    "dx-style",
+    "dx-mode",
+    "dx-order",
+    "dx-s1-name",
+    "dx-s1-ip",
+    "dx-key",
+    "dx-s2-name",
+    "dx-s2-ip",
+    "dx-group",
+    "dx-auth-port",
+    "dx-acct-port",
+    "dx-source",
+    "dx-probe",
+    "dx-coa-key",
+    "dx-coa",
+    "dx-host-mode",
+    "dx-tx",
+    "dx-critical",
+    "dx-reauth",
+    "dx-critical-voice",
+    "dx-skip"
+  ];
+  function readDot1xSettings() {
+    return {
+      style: $("dx-style").value,
+      mode: $("dx-mode").value,
+      order: $("dx-order").value,
+      server1Name: $("dx-s1-name").value,
+      server1Ip: $("dx-s1-ip").value,
+      server2Name: $("dx-s2-name").value,
+      server2Ip: $("dx-s2-ip").value,
+      key: $("dx-key").value,
+      group: $("dx-group").value,
+      authPort: $("dx-auth-port").value,
+      acctPort: $("dx-acct-port").value,
+      sourceInterface: $("dx-source").value,
+      probeUser: $("dx-probe").value,
+      coa: $("dx-coa").checked,
+      coaKey: $("dx-coa-key").value,
+      hostMode: $("dx-host-mode").value,
+      txPeriod: $("dx-tx").value,
+      criticalVlan: $("dx-critical").value,
+      reauth: $("dx-reauth").checked,
+      criticalVoice: $("dx-critical-voice").checked,
+      skipWords: $("dx-skip").value
+    };
+  }
+  var dx = {
+    files: [],
+    // { name, path, text, parsed, isSwitch }
+    skip: /* @__PURE__ */ new Set(),
+    // paths un-ticked in the backups list
+    records: [],
+    // { file, portsOff: Set(normName), check, settings }
+    stale: false
+    // settings changed since the last check
+  };
+  var deps;
+  var SHORT = [
+    ["TwentyFiveGigE", "Twe"],
+    ["HundredGigE", "Hu"],
+    ["FortyGigabitEthernet", "Fo"],
+    ["TenGigabitEthernet", "Te"],
+    ["FiveGigabitEthernet", "Fi"],
+    ["TwoGigabitEthernet", "Tw"],
+    ["GigabitEthernet", "Gi"],
+    ["FastEthernet", "Fa"]
+  ];
+  var shortName = (n) => {
+    const hit = SHORT.find(([long]) => n.startsWith(long));
+    return hit ? hit[1] + n.slice(hit[0].length) : n;
+  };
+  var plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  var baseName2 = (name) => String(name).replace(/\.[^.]+$/, "");
+  var dirOf = (path) => path.split("/").slice(1, -1).join("/");
+  async function onFolderPicked(event) {
+    const picked = Array.from(event.target.files || []);
+    if (!picked.length) return;
+    const root = picked[0].webkitRelativePath.split("/")[0] || "(folder)";
+    const files = [];
+    for (const f of picked) {
+      if (!deps.isConfigFile(f.name)) continue;
+      const text = await f.text();
+      const parsed = parse(text);
+      files.push({ name: f.name, path: f.webkitRelativePath || f.name, text, parsed, isSwitch: deps.isSwitchParsed(parsed) });
+    }
+    files.sort((a, b) => a.path.localeCompare(b.path));
+    event.target.value = "";
+    dx.files = files;
+    dx.skip = new Set(files.filter((f) => !f.isSwitch).map((f) => f.path));
+    dx.records = [];
+    $("dx-folder-name").textContent = `${root} \xB7 ${plural(files.length, "config file")}`;
+    renderFiles();
+    renderResults();
+    setStatus("");
+  }
+  function renderFiles() {
+    const e = deps.escapeHtml;
+    const box = $("dx-files");
+    box.innerHTML = "";
+    const all = dx.files;
+    const on = all.filter((f) => !dx.skip.has(f.path)).length;
+    $("btn-dx-check").disabled = on === 0;
+    if (!all.length) return;
+    const wrap = document.createElement("div");
+    wrap.className = "src-files dx-file-list";
+    wrap.innerHTML = `<div class="src-files-head"><span class="src-files-title">Backups</span><span class="muted small">${on} of ${all.length} will be processed \u2014 un-tick a file to leave it out (no output file is created for it).</span>` + (all.length > 1 ? `<button class="btn btn-ghost src-all" type="button">Tick all</button><button class="btn btn-ghost src-none" type="button">Untick all</button>` : "") + `</div><div class="merge-files">` + all.map((f, i) => {
+      const checked = !dx.skip.has(f.path);
+      const t = f.isSwitch ? "switch" : "router";
+      const dir = dirOf(f.path);
+      return `<label class="merge-file src-file${checked ? "" : " src-file-off"}"><input type="checkbox" class="src-file-cb" data-i="${i}"${checked ? " checked" : ""} title="Process this file" /><span class="merge-file-name">${e(dir ? dir + "/" : "")}${e(f.name)}</span><span class="dev-chip dev-${t}">${t}</span><span class="muted small merge-file-host">${e(f.parsed.hostname || "")}</span></label>`;
+    }).join("") + `</div>`;
+    wrap.querySelectorAll(".src-file-cb").forEach(
+      (cb) => cb.addEventListener("change", () => {
+        const f = all[Number(cb.dataset.i)];
+        if (cb.checked) dx.skip.delete(f.path);
+        else dx.skip.add(f.path);
+        renderFiles();
+        markStale();
+      })
+    );
+    const bulk = (cls, process) => {
+      const btn = wrap.querySelector(cls);
+      if (btn)
+        btn.addEventListener("click", () => {
+          dx.skip = new Set(process ? [] : all.map((f) => f.path));
+          renderFiles();
+          markStale();
+        });
+    };
+    bulk(".src-all", true);
+    bulk(".src-none", false);
+    box.appendChild(wrap);
+  }
+  function setStatus(text, bad = false) {
+    const el = $("dx-status");
+    el.textContent = text;
+    el.className = bad ? "v-bad small" : "muted small";
+  }
+  function markStale() {
+    if (!dx.records.length || dx.stale) return;
+    dx.stale = true;
+    $("dx-results").classList.add("dx-stale");
+    $("dx-summary").classList.add("dx-stale");
+    setStatus("Settings or file ticks changed \u2014 press Check again.", true);
+    refreshDownload();
+  }
+  function refreshDownload() {
+    const anyType = $("dx-out-changes").checked || $("dx-out-full").checked;
+    const anyOutput = dx.records.some((r) => r.check.supported);
+    $("btn-dx-download").disabled = dx.stale || !anyType || !anyOutput;
+  }
+  function runCheck(rec) {
+    const all = qualifyingPorts(rec.file.parsed, rec.settings).ports.map((p) => p.normName);
+    rec.check = checkDot1x(rec.file.parsed, rec.settings, { ports: new Set(all.filter((n) => !rec.portsOff.has(n))) });
+  }
+  function onCheck() {
+    const settings = readDot1xSettings();
+    const problems = validateSettings(settings);
+    if (problems.length) {
+      setStatus(problems.join(" "), true);
+      return;
+    }
+    dx.records = dx.files.filter((f) => !dx.skip.has(f.path)).map((file) => {
+      const rec = { file, portsOff: /* @__PURE__ */ new Set(), check: null, settings };
+      runCheck(rec);
+      return rec;
+    });
+    dx.stale = false;
+    $("dx-results").classList.remove("dx-stale");
+    $("dx-summary").classList.remove("dx-stale");
+    setStatus("");
+    renderResults();
+  }
+  var changesName = (rec) => `${baseName2(rec.file.name)}_dot1x_changes.txt`;
+  var fullName = (rec) => `${baseName2(rec.file.name)}_dot1x_full.txt`;
+  var changesOf = (rec) => changesText(rec.check, { hostname: rec.file.parsed.hostname || rec.file.name, settings: rec.settings });
+  var fullOf = (rec) => applyDot1x(rec.file.text, rec.check).content;
+  function recState(rec) {
+    const c = rec.check;
+    if (!c.supported) return { cls: "warn", label: "not a Catalyst 9000" };
+    if (c.conflict) return { cls: "bad", label: "other style" };
+    if (c.complete) return { cls: "on", label: "\u2713 complete" };
+    return { cls: "warn", label: "needs changes" };
+  }
+  function renderResults() {
+    const recs = dx.records;
+    const root = $("dx-results");
+    const open = new Map([...root.children].map((el) => [el.dataset.path, el.open]));
+    root.innerHTML = "";
+    if (!recs.length) {
+      $("dx-summary").innerHTML = "";
+      refreshDownload();
+      return;
+    }
+    const complete = recs.filter((r) => r.check.supported && r.check.complete).length;
+    const conflict = recs.filter((r) => r.check.conflict).length;
+    const unsupported = recs.filter((r) => !r.check.supported).length;
+    const needs = recs.length - complete - conflict - unsupported;
+    $("dx-summary").innerHTML = `<p class="verify-totals"><strong>${recs.length}</strong> checked \xB7 <span class="${complete ? "v-good" : "muted"}">${complete} already complete</span> \xB7 <span class="${needs ? "v-warn" : "muted"}">${needs} need changes</span> \xB7 <span class="${conflict ? "v-bad" : "muted"}">${conflict} in the other style</span>` + (unsupported ? ` \xB7 <span class="v-warn">${unsupported} not a Catalyst 9000</span>` : "") + `</p>`;
+    for (const rec of recs) {
+      const card = renderCard(rec);
+      if (open.get(rec.file.path)) card.open = true;
+      root.appendChild(card);
+    }
+    refreshDownload();
+  }
+  var MARK = { present: ["v-ok", "\u2713"], missing: ["v-bad", "\u2717"], differs: ["v-warn", "!"], conflict: ["v-bad", "\u2717"] };
+  var STATE_TEXT = { present: "present", missing: "missing, will be added", differs: "different, not changed", conflict: "conflict" };
+  function renderCard(rec) {
+    const e = deps.escapeHtml;
+    const c = rec.check;
+    const card = document.createElement("details");
+    card.className = "unit verify-unit dx-unit";
+    card.dataset.path = rec.file.path;
+    const st = recState(rec);
+    const dir = dirOf(rec.file.path);
+    let pills = `<span class="feat-pill ${st.cls}">${st.label}</span>`;
+    if (c.supported) {
+      const gOk = c.counts.globalsPresent === c.counts.globalsTotal;
+      const pOk = c.counts.portsDone === c.counts.portsTotal;
+      pills += `<span class="feat-pill ${gOk ? "on" : "warn"}">globals ${c.counts.globalsPresent}/${c.counts.globalsTotal}</span><span class="feat-pill ${c.conflict ? "bad" : pOk ? "on" : "warn"}">ports ${c.counts.portsDone}/${c.counts.portsTotal}</span>`;
+    }
+    let body = "";
+    if (c.warnings.length) {
+      body += `<ul class="dx-warnings">${c.warnings.map((w) => `<li>${e(w)}</li>`).join("")}</ul>`;
+    }
+    if (c.supported) {
+      body += `<details class="unit-sub" open><summary class="unit-sub-head"><strong>Global config</strong> <span class="muted small">${c.counts.globalsPresent} of ${c.counts.globalsTotal} present` + (c.style ? ` \xB7 ports already use the ${e(STYLE_LABEL[c.style])} style` : " \xB7 no 802.1X on any port yet") + `</span></summary><div class="v-checks">` + c.items.map((i) => {
+        const [cls, mark] = MARK[i.state];
+        return `<div class="v-check ${cls}"><span class="v-mark">${mark}</span><strong>${e(i.label)}</strong><span>${STATE_TEXT[i.state]}${i.detail ? `: ${e(i.detail)}` : ""}</span></div>`;
+      }).join("") + `</div></details>`;
+      const allPorts = qualifyingPorts(rec.file.parsed, rec.settings);
+      const byName = new Map(c.ports.map((p) => [p.normName, p]));
+      const chips = allPorts.ports.map((p) => {
+        const r = byName.get(p.normName);
+        const on = !!r;
+        const cls = !on ? "off" : r.state === "done" ? "done" : r.state === "conflict" ? "conflict" : "todo";
+        const note = !on ? "left out" : r.state === "done" ? "already configured" : r.state === "conflict" ? "other style \u2014 not changed" : `${plural(r.add.length + r.remove.length, "line")} to change`;
+        const title = [p.normName, p.description, note, ...r ? r.differs : []].filter(Boolean).join("\n");
+        return `<label class="dx-port dx-port-${cls}" title="${e(title)}"><input type="checkbox" class="dx-port-cb" data-port="${e(p.normName)}"${on ? " checked" : ""} /><span>${e(shortName(p.normName))}</span>${r && r.differs.length ? `<span class="dx-port-flag">!</span>` : ""}</label>`;
+      }).join("");
+      const differing = c.ports.filter((p) => p.differs.length);
+      body += `<details class="unit-sub" open><summary class="unit-sub-head"><strong>Access ports</strong> <span class="muted small">${c.counts.portsDone} of ${c.counts.portsTotal} configured \u2014 un-tick a port to leave it out</span></summary><div class="dx-ports-body">` + (allPorts.ports.length ? `<div class="dx-port-actions"><button class="btn btn-ghost btn-small dx-ports-all" type="button">Tick all</button><button class="btn btn-ghost btn-small dx-ports-none" type="button">Untick all</button></div><div class="dx-ports">${chips}</div>` : `<p class="muted small">No access ports qualify on this switch.</p>`) + (allPorts.skipped.length ? `<p class="muted small">Skipped by description: ${allPorts.skipped.map((p) => `${e(shortName(p.normName))} \u201C${e(p.description || "")}\u201D`).join(", ")}</p>` : "") + (differing.length ? `<ul class="v-list v-note">${differing.flatMap((p) => p.differs.map((d) => `<li><code>${e(shortName(p.normName))}</code> ${e(d)} \u2014 not changed</li>`)).join("")}</ul>` : "") + `</div></details>`;
+    }
+    card.innerHTML = `<summary class="unit-head"><span class="unit-titlebar">` + (dir ? `<span class="unit-site">${e(dir)}</span>` : "") + `<span class="unit-host">${e(rec.file.parsed.hostname || "(no hostname)")}</span><span class="muted small">${e(rec.file.name)}${c.version ? ` \xB7 IOS ${e(c.version)}` : ""}</span></span>` + (c.supported ? `<button class="btn btn-small unit-view" type="button">\u2922 view changes</button>` : "") + `<span class="feat-pills verify-pills">${pills}</span></summary><div class="unit-body">${body}</div>`;
+    const view = card.querySelector(".unit-view");
+    if (view)
+      view.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        deps.openConfigModal(rec.file.parsed.hostname || rec.file.name, [
+          { name: changesName(rec), text: changesOf(rec) },
+          { name: fullName(rec), text: fullOf(rec) },
+          { name: rec.file.name, text: rec.file.text }
+        ]);
+      });
+    const retick = (fn) => {
+      fn();
+      runCheck(rec);
+      renderResults();
+    };
+    card.querySelectorAll(".dx-port-cb").forEach(
+      (cb) => cb.addEventListener(
+        "change",
+        () => retick(() => {
+          if (cb.checked) rec.portsOff.delete(cb.dataset.port);
+          else rec.portsOff.add(cb.dataset.port);
+        })
+      )
+    );
+    const all = card.querySelector(".dx-ports-all");
+    if (all) all.addEventListener("click", () => retick(() => rec.portsOff.clear()));
+    const none = card.querySelector(".dx-ports-none");
+    if (none)
+      none.addEventListener(
+        "click",
+        () => retick(() => {
+          rec.portsOff = new Set(qualifyingPorts(rec.file.parsed, rec.settings).ports.map((p) => p.normName));
+        })
+      );
+    return card;
+  }
+  function onDownload() {
+    const wantChanges = $("dx-out-changes").checked;
+    const wantFull = $("dx-out-full").checked;
+    const zipFiles = [];
+    let switches = 0;
+    for (const rec of dx.records) {
+      if (!rec.check.supported) continue;
+      switches++;
+      const dir = dirOf(rec.file.path);
+      const at = (name) => (dir ? dir + "/" : "") + name;
+      if (wantChanges) zipFiles.push({ path: at(changesName(rec)), content: changesOf(rec) });
+      if (wantFull) zipFiles.push({ path: at(fullName(rec)), content: fullOf(rec) });
+    }
+    if (!zipFiles.length) {
+      setStatus("Nothing to download \u2014 tick an output type and run a check first.", true);
+      return;
+    }
+    deps.downloadZip(buildZip(zipFiles), "crucible-dot1x.zip");
+    setStatus(`Downloaded crucible-dot1x.zip \xB7 ${plural(zipFiles.length, "file")} for ${switches} switch${switches === 1 ? "" : "es"}.`);
+  }
+  function initDot1xSection(helpers) {
+    deps = helpers;
+    $("btn-dx-folder").addEventListener("click", () => $("dx-folder-input").click());
+    $("dx-folder-input").addEventListener("change", (e) => onFolderPicked(e).catch(deps.reportError));
+    $("btn-dx-check").addEventListener("click", onCheck);
+    $("btn-dx-download").addEventListener("click", onDownload);
+    $("dx-out-changes").addEventListener("change", refreshDownload);
+    $("dx-out-full").addEventListener("change", refreshDownload);
+    for (const id of SETTING_IDS) {
+      $(id).addEventListener("input", markStale);
+      $(id).addEventListener("change", markStale);
+    }
+    const syncVoice = () => $("dx-critical-voice").disabled = !$("dx-critical").value.trim();
+    $("dx-critical").addEventListener("input", syncVoice);
+    syncVoice();
+  }
+
   // public/app.js
   var CONFIG_EXT = /\.(txt|cfg)$/i;
   var isConfigFile = (name) => CONFIG_EXT.test(name);
@@ -3191,20 +4323,20 @@ ${newLines.join("\n")}
     // port-channel number -> colour (computed per scan)
     stpVlans: null
   };
-  var $ = (id) => document.getElementById(id);
+  var $2 = (id) => document.getElementById(id);
   function initModeBadge() {
-    const badge = $("mode-badge");
+    const badge = $2("mode-badge");
     badge.dataset.mode = "fallback";
     badge.textContent = "Read-only \xB7 saves .zip";
-    $("fallback-note").classList.remove("hidden");
+    $2("fallback-note").classList.remove("hidden");
   }
   function onBrowse() {
-    $("fallback-input").click();
+    $2("fallback-input").click();
   }
   function onFallbackPicked(event) {
     const files = Array.from(event.target.files || []);
     if (!files.length) return;
-    $("folder-name").textContent = files[0].webkitRelativePath.split("/")[0] || "(folder)";
+    $2("folder-name").textContent = files[0].webkitRelativePath.split("/")[0] || "(folder)";
     state.skip = /* @__PURE__ */ new Set();
     state.sites = discoverSitesFromFileList(files);
     renderSites();
@@ -3229,44 +4361,45 @@ ${newLines.join("\n")}
   }
   function renderSites() {
     if (!state.sites.length) {
-      $("sites-summary").textContent = "No sites found \u2014 no folder directly contains a .txt/.cfg file.";
+      $2("sites-summary").textContent = "No sites found \u2014 no folder directly contains a .txt/.cfg file.";
       return;
     }
     const fileTotal = state.sites.reduce((n, s) => n + s.files.length, 0);
-    $("sites-summary").textContent = `${state.sites.length} site${state.sites.length === 1 ? "" : "s"} \xB7 ${fileTotal} config file${fileTotal === 1 ? "" : "s"} \u2014 analysed below.`;
+    $2("sites-summary").textContent = `${state.sites.length} site${state.sites.length === 1 ? "" : "s"} \xB7 ${fileTotal} config file${fileTotal === 1 ? "" : "s"} \u2014 analysed below.`;
     onAnalyze().catch(reportError);
   }
   function readGlobalConfig() {
     return {
       secureAccess: {
-        enabled: $("sec-enable").checked,
-        username: $("sec-user").value.trim(),
-        password: $("sec-pass").value.trim(),
-        enableSecret: $("sec-enable-secret").value.trim(),
-        configKey: $("sec-configkey").value.trim()
+        enabled: $2("sec-enable").checked,
+        username: $2("sec-user").value.trim(),
+        password: $2("sec-pass").value.trim(),
+        enableSecret: $2("sec-enable-secret").value.trim(),
+        configKey: $2("sec-configkey").value.trim()
       },
       vtp: {
-        enabled: $("vtp-enable").checked,
-        domain: $("vtp-domain").value.trim(),
-        password: $("vtp-password").value.trim(),
-        mode: $("vtp-mode").value
+        enabled: $2("vtp-enable").checked,
+        domain: $2("vtp-domain").value.trim(),
+        password: $2("vtp-password").value.trim(),
+        mode: $2("vtp-mode").value
       },
       clock: {
-        enabled: $("clock-enable").checked,
-        timezone: $("clock-tz").value.trim(),
-        offset: $("clock-offset").value.trim(),
-        summerTime: $("clock-summer").value.trim()
+        enabled: $2("clock-enable").checked,
+        timezone: $2("clock-tz").value.trim(),
+        offset: $2("clock-offset").value.trim(),
+        summerTime: $2("clock-summer").value.trim()
       },
-      rsaKey: { enabled: $("rsa-enable").checked },
-      stpHardening: { enabled: $("stph-enable").checked },
-      errdisable: { enabled: $("errd-enable").checked, interval: $("errd-interval").value.trim() },
-      banner: { enabled: $("banner-enable").checked, text: $("banner-text").value },
+      rsaKey: { enabled: $2("rsa-enable").checked },
+      stpHardening: { enabled: $2("stph-enable").checked },
+      errdisable: { enabled: $2("errd-enable").checked, interval: $2("errd-interval").value.trim() },
+      banner: { enabled: $2("banner-enable").checked, text: $2("banner-text").value },
+      dot1x: { enabled: $2("dot1x-enable").checked, settings: readDot1xSettings() },
       insertion: document.querySelector('input[name="insertion"]:checked').value,
       naming: {
-        rename: $("rename").checked,
-        method: $("rename-method").value,
-        find: $("rename-find").value,
-        replace: $("rename-replace").value
+        rename: $2("rename").checked,
+        method: $2("rename-method").value,
+        find: $2("rename-find").value,
+        replace: $2("rename-replace").value
       }
     };
   }
@@ -3359,7 +4492,7 @@ ${newLines.join("\n")}
     };
   }
   function refreshTagMap() {
-    const el = $("tagmap");
+    const el = $2("tagmap");
     el.innerHTML = "";
     const rep = state.units[0];
     if (!rep) {
@@ -3419,7 +4552,7 @@ ${newLines.join("\n")}
   }
   function showIfaceTip(key, anchor) {
     const info = state.ifaceConfigs && state.ifaceConfigs.get(key);
-    const tip = $("iface-tip");
+    const tip = $2("iface-tip");
     if (!info) return;
     tip.textContent = `! from ${info.host}
 ${info.text || "(no config captured)"}`;
@@ -3433,22 +4566,22 @@ ${info.text || "(no config captured)"}`;
     tip.style.left = `${left}px`;
   }
   function hideIfaceTip() {
-    $("iface-tip").classList.add("hidden");
+    $2("iface-tip").classList.add("hidden");
   }
   async function onChooseTemplateFSA() {
-    $("template-input").click();
+    $2("template-input").click();
   }
   async function onTemplatePicked(event) {
     const file = event.target.files && event.target.files[0];
     if (!file) return;
     const text = await file.text();
     state.template = { name: file.name, text };
-    $("template-name").textContent = file.name;
-    $("btn-clear-template").classList.remove("hidden");
+    $2("template-name").textContent = file.name;
+    $2("btn-clear-template").classList.remove("hidden");
     renderTemplateNote();
   }
   function renderTemplateNote() {
-    const el = $("template-note");
+    const el = $2("template-note");
     const warnings = state.template ? encryptedUsernameWarnings(state.template.text, state.template.name) : [];
     el.textContent = warnings.join("\n");
     el.classList.toggle("hidden", !warnings.length);
@@ -3456,9 +4589,9 @@ ${info.text || "(no config captured)"}`;
   function onClearTemplate() {
     state.template = null;
     renderTemplateNote();
-    $("template-input").value = "";
-    $("template-name").textContent = "Using auto-generated template";
-    $("btn-clear-template").classList.add("hidden");
+    $2("template-input").value = "";
+    $2("template-name").textContent = "Using auto-generated template";
+    $2("btn-clear-template").classList.add("hidden");
   }
   async function readEntryText(entry) {
     if (entry.text != null) return entry.text;
@@ -3467,7 +4600,7 @@ ${info.text || "(no config captured)"}`;
     return "";
   }
   async function loadSampleData() {
-    $("sites-summary").textContent = "Loading sample data\u2026";
+    $2("sites-summary").textContent = "Loading sample data\u2026";
     try {
       const res = await fetch("/sample-data/manifest.json");
       if (!res.ok) throw new Error(`could not load sample manifest (${res.status})`);
@@ -3485,7 +4618,7 @@ ${info.text || "(no config captured)"}`;
       state.mergeSel = /* @__PURE__ */ new Map();
       state.skip = /* @__PURE__ */ new Set();
       state.sites = sites;
-      $("folder-name").textContent = `Sample data \xB7 ${sites.length} sites`;
+      $2("folder-name").textContent = `Sample data \xB7 ${sites.length} sites`;
       renderSites();
     } catch (err) {
       reportError(err);
@@ -3503,20 +4636,20 @@ ${info.text || "(no config captured)"}`;
     renderTemplateNote();
     state.ifaceConfigs = /* @__PURE__ */ new Map();
     state.stpVlans = null;
-    $("folder-name").textContent = "";
-    $("sites-summary").textContent = "No folder selected yet.";
-    $("results").innerHTML = "";
-    $("template-name").textContent = "Using auto-generated template";
-    $("template-input").value = "";
-    $("btn-clear-template").classList.add("hidden");
-    $("warnings").innerHTML = "";
-    $("run-status").textContent = "";
-    $("btn-save").disabled = true;
+    $2("folder-name").textContent = "";
+    $2("sites-summary").textContent = "No folder selected yet.";
+    $2("results").innerHTML = "";
+    $2("template-name").textContent = "Using auto-generated template";
+    $2("template-input").value = "";
+    $2("btn-clear-template").classList.add("hidden");
+    $2("warnings").innerHTML = "";
+    $2("run-status").textContent = "";
+    $2("btn-save").disabled = true;
     refreshTagMap();
   }
   function applyTheme(theme) {
     document.documentElement.dataset.theme = theme;
-    $("theme-toggle").textContent = theme === "dark" ? "\u2600" : "\u263E";
+    $2("theme-toggle").textContent = theme === "dark" ? "\u2600" : "\u263E";
     try {
       localStorage.setItem("crucible-theme", theme);
     } catch {
@@ -3580,8 +4713,8 @@ ${info.text || "(no config captured)"}`;
   var activeFiles = (site) => (site.parsedFiles || []).filter((pf) => !state.skip.has(skipKey(site, pf.name)));
   async function onAnalyze() {
     if (!state.sites.length) return;
-    $("run-status").textContent = "Parsing\u2026";
-    $("warnings").innerHTML = "";
+    $2("run-status").textContent = "Parsing\u2026";
+    $2("warnings").innerHTML = "";
     try {
       for (const site of state.sites) {
         site.parsedFiles = [];
@@ -3592,7 +4725,7 @@ ${info.text || "(no config captured)"}`;
         if (!state.mergeSel.has(site.path)) state.mergeSel.set(site.path, /* @__PURE__ */ new Set());
       }
     } catch (err) {
-      $("run-status").textContent = "";
+      $2("run-status").textContent = "";
       return reportError(err);
     }
     rebuildUnits();
@@ -3635,16 +4768,16 @@ ${info.text || "(no config captured)"}`;
     }
     state.stpVlans = [...vlanSet].filter(Boolean).join(",") || null;
     computePoColors();
-    renderResults();
+    renderResults2();
     refreshTagMap();
     const skipped = state.sites.reduce((n, s) => n + (s.parsedFiles || []).length - activeFiles(s).length, 0);
-    $("run-status").textContent = `Built ${state.units.length} device template${state.units.length === 1 ? "" : "s"}` + (skipped ? ` \xB7 ${skipped} source file${skipped === 1 ? "" : "s"} un-ticked (not processed).` : ".");
-    $("btn-save").disabled = !state.units.length;
+    $2("run-status").textContent = `Built ${state.units.length} device template${state.units.length === 1 ? "" : "s"}` + (skipped ? ` \xB7 ${skipped} source file${skipped === 1 ? "" : "s"} un-ticked (not processed).` : ".");
+    $2("btn-save").disabled = !state.units.length;
   }
   function defaultMergeName(site) {
     const sw = activeFiles(site).find((pf) => isSwitchParsed(pf.parsed));
-    const pick = sw || activeFiles(site)[0];
-    return pick && pick.parsed.hostname || site.name || site.path;
+    const pick2 = sw || activeFiles(site)[0];
+    return pick2 && pick2.parsed.hostname || site.name || site.path;
   }
   function renderSiteBlock(site, units) {
     const block = document.createElement("section");
@@ -3834,7 +4967,7 @@ ip routing
     } else if (empties.length) {
       w.push(`${empties.length} device(s) have nothing selected: ${empties.map((u) => u.parsed.hostname || u.sourceNames[0]).join(", ")}`);
     }
-    if (!global.secureAccess.enabled && !global.vtp.enabled && !anyElectedRoot) {
+    if (!global.secureAccess.enabled && !global.vtp.enabled && !global.dot1x.enabled && !anyElectedRoot) {
       w.push("no global additions (VTP / secure access / root election)");
     }
     return w;
@@ -3845,6 +4978,12 @@ ip routing
       return reportError(new Error(state.sites.length ? "No source files are ticked to process (Step 2)." : "Scan a folder first (Step 1)."));
     }
     const anyElectedRoot = [...state.rootBySite.values()].some(Boolean);
+    if (global.dot1x.enabled) {
+      const problems = validateSettings(global.dot1x.settings);
+      if (problems.length) {
+        return reportError(new Error(`802.1X is ticked under Global additions but its settings (802.1X section at the bottom) need fixing: ${problems.join(" ")}`));
+      }
+    }
     const sanity = saveSanityWarnings(global, anyElectedRoot);
     if (sanity.length >= 2) {
       const ok = await styledConfirm({
@@ -3855,11 +4994,11 @@ ip routing
         cancelLabel: "Go back"
       });
       if (!ok) {
-        $("run-status").textContent = "Cancelled \u2014 nothing generated.";
+        $2("run-status").textContent = "Cancelled \u2014 nothing generated.";
         return;
       }
     }
-    $("run-status").textContent = "Building & saving\u2026";
+    $2("run-status").textContent = "Building & saving\u2026";
     const siteCurrentRoot = /* @__PURE__ */ new Map();
     for (const u of state.units) {
       if (!u.parsed.spanningTree.mode) continue;
@@ -3958,6 +5097,12 @@ ip routing
       if (deduped.removed.length) {
         allWarnings.push(`${unit.id}: removed ${deduped.removed.length} duplicate line(s): ${[...new Set(deduped.removed)].join("; ")}.`);
       }
+      if (global.dot1x.enabled && isSwitch) {
+        const dx2 = addDot1xToOutput(content, global.dot1x.settings);
+        content = dx2.content;
+        if (dx2.ports) allWarnings.push(`${unit.id}: added 802.1X to ${dx2.ports} access port${dx2.ports === 1 ? "" : "s"}.`);
+        dx2.warnings.forEach((w) => allWarnings.push(`${unit.id}: ${w}`));
+      }
       rendered.warnings.forEach((w) => allWarnings.push(`${unit.id}: ${w}`));
       try {
         const filename = await writeOutput(unit, naming.filename, content, zipFiles);
@@ -3971,7 +5116,7 @@ ip routing
       downloadZip(buildZip(zipFiles), "crucible-output.zip");
     }
     renderWarnings(allWarnings);
-    $("run-status").textContent = `Saved ${state.units.filter((u) => u.output).length} file(s).`;
+    $2("run-status").textContent = `Saved ${state.units.filter((u) => u.output).length} file(s).`;
   }
   function writeOutput(unit, filename, content, zipFiles) {
     const path = `${unit.site.path}/${filename}`.replace(/^[^/]*\//, "");
@@ -3989,9 +5134,9 @@ ip routing
     a.remove();
     URL.revokeObjectURL(url);
   }
-  function renderResults() {
+  function renderResults2() {
     state.ifaceConfigs = /* @__PURE__ */ new Map();
-    const root = $("results");
+    const root = $2("results");
     root.innerHTML = "";
     const bySite = new Map(state.sites.map((site) => [site.path, { site, units: [] }]));
     for (const u of state.units) bySite.get(u.site.path).units.push(u);
@@ -4258,8 +5403,8 @@ ip routing
   var modalText = "";
   function openConfigModal(title, sources) {
     state.modalSources = sources && sources.length ? sources : [{ name: "", text: "" }];
-    $("cfg-modal-title").textContent = title || "Device config";
-    const tabs = $("cfg-tabs");
+    $2("cfg-modal-title").textContent = title || "Device config";
+    const tabs = $2("cfg-tabs");
     if (state.modalSources.length > 1) {
       tabs.innerHTML = state.modalSources.map((s, i) => `<button class="cfg-tab${i === 0 ? " active" : ""}" type="button" data-i="${i}">${escapeHtml(s.name)}</button>`).join("");
       tabs.classList.remove("hidden");
@@ -4268,36 +5413,36 @@ ip routing
       tabs.classList.add("hidden");
     }
     showModalSource(0);
-    const copyBtn = $("cfg-copy");
+    const copyBtn = $2("cfg-copy");
     copyBtn.textContent = "Copy code";
     copyBtn.classList.remove("copied");
-    const modal = $("cfg-modal");
+    const modal = $2("cfg-modal");
     modal.classList.remove("hidden");
     modal.setAttribute("aria-hidden", "false");
   }
   function showModalSource(i) {
     const s = state.modalSources[i] || { name: "", text: "" };
     modalText = s.text || "";
-    $("cfg-modal-sub").textContent = s.name ? `source: ${s.name}` : "";
-    $("cfg-code").textContent = modalText;
-    $("cfg-tabs").querySelectorAll(".cfg-tab").forEach((b) => b.classList.toggle("active", Number(b.dataset.i) === i));
+    $2("cfg-modal-sub").textContent = s.name ? `source: ${s.name}` : "";
+    $2("cfg-code").textContent = modalText;
+    $2("cfg-tabs").querySelectorAll(".cfg-tab").forEach((b) => b.classList.toggle("active", Number(b.dataset.i) === i));
   }
   function closeConfigModal() {
-    const modal = $("cfg-modal");
+    const modal = $2("cfg-modal");
     modal.classList.add("hidden");
     modal.setAttribute("aria-hidden", "true");
   }
   function styledConfirm({ title, message, items = [], confirmLabel = "Confirm", cancelLabel = "Cancel" }) {
     return new Promise((resolve) => {
-      const modal = $("confirm-modal");
-      $("confirm-title-text").textContent = title;
-      $("confirm-message").textContent = message;
-      const list = $("confirm-list");
+      const modal = $2("confirm-modal");
+      $2("confirm-title-text").textContent = title;
+      $2("confirm-message").textContent = message;
+      const list = $2("confirm-list");
       list.innerHTML = items.map((i) => `<li>${escapeHtml(i)}</li>`).join("");
       list.classList.toggle("hidden", !items.length);
-      const okBtn = $("confirm-ok");
+      const okBtn = $2("confirm-ok");
       okBtn.textContent = confirmLabel;
-      $("confirm-cancel").textContent = cancelLabel;
+      $2("confirm-cancel").textContent = cancelLabel;
       modal.classList.remove("hidden");
       modal.setAttribute("aria-hidden", "false");
       const cleanup = (result) => {
@@ -4323,7 +5468,7 @@ ip routing
     });
   }
   async function copyModalConfig() {
-    const btn = $("cfg-copy");
+    const btn = $2("cfg-copy");
     try {
       await navigator.clipboard.writeText(modalText);
     } catch {
@@ -4391,7 +5536,7 @@ ip routing
     }
   }
   function renderWarnings(list) {
-    const el = $("warnings");
+    const el = $2("warnings");
     el.innerHTML = "";
     if (!list.length) return;
     el.innerHTML = `<p class="warn-title">${list.length} warning${list.length === 1 ? "" : "s"}:</p><ul>${list.map((w) => `<li>${escapeHtml(w)}</li>`).join("")}</ul>`;
@@ -4414,9 +5559,9 @@ ip routing
     const { root, files } = await readVerifyFolder(event);
     if (!root) return;
     verify[kind] = files;
-    $(kind === "sources" ? "verify-src-name" : "verify-out-name").textContent = `${root} \xB7 ${files.length} config file${files.length === 1 ? "" : "s"}`;
-    $("btn-verify").disabled = !(verify.sources.length && verify.outputs.length);
-    $("verify-status").textContent = "";
+    $2(kind === "sources" ? "verify-src-name" : "verify-out-name").textContent = `${root} \xB7 ${files.length} config file${files.length === 1 ? "" : "s"}`;
+    $2("btn-verify").disabled = !(verify.sources.length && verify.outputs.length);
+    $2("verify-status").textContent = "";
   }
   function verifyRecord(output, source, by) {
     return {
@@ -4431,7 +5576,7 @@ ip routing
   function onVerify() {
     const { pairs } = pairFiles(verify.sources, verify.outputs);
     verify.records = pairs.map((p) => verifyRecord(p.output, p.source, p.by));
-    $("verify-status").textContent = "";
+    $2("verify-status").textContent = "";
     renderVerify();
   }
   var fixable = (f) => f.status === "missing" && f.remediation.length > 0;
@@ -4445,13 +5590,13 @@ ip routing
     const findingTotal = recs.reduce((n, r) => n + r.findings.filter((f) => f.status === "missing").length, 0);
     const usedSources = new Set(paired.map((r) => r.source));
     const unused = verify.sources.filter((s) => !usedSources.has(s));
-    $("verify-summary").innerHTML = `<p class="verify-totals"><strong>${recs.length}</strong> output${recs.length === 1 ? "" : "s"} checked \xB7 <span class="v-good">${matching} match their source</span> \xB7 <span class="${differing ? "v-bad" : "muted"}">${differing} with differences</span> \xB7 <span class="${unpaired ? "v-warn" : "muted"}">${unpaired} not paired</span> \xB7 <span class="${findingTotal ? "v-warn" : "v-good"}">${findingTotal} hardening finding${findingTotal === 1 ? "" : "s"}</span></p>` + (unused.length ? `<p class="muted small">Source files with no output: ${unused.map((s) => escapeHtml(s.name)).join(", ")}</p>` : "");
-    const root = $("verify-results");
+    $2("verify-summary").innerHTML = `<p class="verify-totals"><strong>${recs.length}</strong> output${recs.length === 1 ? "" : "s"} checked \xB7 <span class="v-good">${matching} match their source</span> \xB7 <span class="${differing ? "v-bad" : "muted"}">${differing} with differences</span> \xB7 <span class="${unpaired ? "v-warn" : "muted"}">${unpaired} not paired</span> \xB7 <span class="${findingTotal ? "v-warn" : "v-good"}">${findingTotal} hardening finding${findingTotal === 1 ? "" : "s"}</span></p>` + (unused.length ? `<p class="muted small">Source files with no output: ${unused.map((s) => escapeHtml(s.name)).join(", ")}</p>` : "");
+    const root = $2("verify-results");
     root.innerHTML = "";
     for (const rec of recs) root.appendChild(renderVerifyCard(rec));
     const any = recs.length > 0;
-    $("btn-verify-harden").classList.toggle("hidden", !any);
-    $("btn-verify-tickall").classList.toggle("hidden", !any);
+    $2("btn-verify-harden").classList.toggle("hidden", !any);
+    $2("btn-verify-tickall").classList.toggle("hidden", !any);
   }
   function verifyList(items, cls = "") {
     const MAX = 12;
@@ -4558,9 +5703,9 @@ ip routing
     return card;
   }
   function rerenderVerifyKeepingOpen() {
-    const open = [...$("verify-results").children].map((el) => el.open);
+    const open = [...$2("verify-results").children].map((el) => el.open);
     renderVerify();
-    [...$("verify-results").children].forEach((el, i) => el.open = !!open[i]);
+    [...$2("verify-results").children].forEach((el, i) => el.open = !!open[i]);
   }
   function onVerifyTickAll() {
     const all = verify.records.flatMap((r) => r.findings.filter(fixable));
@@ -4582,12 +5727,12 @@ ip routing
       rec.compare = rec.source ? compareConfigs(rec.source.parsed, rec.output.parsed) : null;
     }
     if (!zipFiles.length) {
-      $("verify-status").textContent = "Tick at least one hardening fix first.";
+      $2("verify-status").textContent = "Tick at least one hardening fix first.";
       return;
     }
     downloadZip(buildZip(zipFiles), "crucible-hardened.zip");
     rerenderVerifyKeepingOpen();
-    $("verify-status").textContent = `Downloaded crucible-hardened.zip \xB7 ${zipFiles.length} hardened file${zipFiles.length === 1 ? "" : "s"}.`;
+    $2("verify-status").textContent = `Downloaded crucible-hardened.zip \xB7 ${zipFiles.length} hardened file${zipFiles.length === 1 ? "" : "s"}.`;
   }
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -4597,7 +5742,7 @@ ip routing
   }
   function reportError(err) {
     console.error(err);
-    $("warnings").innerHTML = `<p class="warn-title">Error: ${escapeHtml(err.message || String(err))}</p>`;
+    $2("warnings").innerHTML = `<p class="warn-title">Error: ${escapeHtml(err.message || String(err))}</p>`;
   }
   function init() {
     initModeBadge();
@@ -4606,56 +5751,57 @@ ip routing
     } catch {
       applyTheme("light");
     }
-    $("theme-toggle").addEventListener("click", toggleTheme);
-    $("btn-sample").addEventListener("click", loadSampleData);
-    $("btn-clear").addEventListener("click", clearAll);
-    $("cfg-copy").addEventListener("click", copyModalConfig);
-    $("cfg-tabs").addEventListener("click", (e) => {
+    $2("theme-toggle").addEventListener("click", toggleTheme);
+    $2("btn-sample").addEventListener("click", loadSampleData);
+    $2("btn-clear").addEventListener("click", clearAll);
+    $2("cfg-copy").addEventListener("click", copyModalConfig);
+    $2("cfg-tabs").addEventListener("click", (e) => {
       const b = e.target.closest(".cfg-tab");
       if (b) showModalSource(Number(b.dataset.i));
     });
-    $("cfg-modal").addEventListener("click", (e) => {
+    $2("cfg-modal").addEventListener("click", (e) => {
       if (e.target.hasAttribute("data-close")) closeConfigModal();
     });
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && !$("cfg-modal").classList.contains("hidden")) closeConfigModal();
+      if (e.key === "Escape" && !$2("cfg-modal").classList.contains("hidden")) closeConfigModal();
     });
-    $("btn-browse").addEventListener("click", onBrowse);
-    $("fallback-input").addEventListener("change", onFallbackPicked);
-    $("btn-template").addEventListener("click", onChooseTemplateFSA);
-    $("template-input").addEventListener("change", onTemplatePicked);
-    $("btn-clear-template").addEventListener("click", onClearTemplate);
-    $("btn-save").addEventListener("click", onSave);
-    $("btn-verify-src").addEventListener("click", () => $("verify-src-input").click());
-    $("btn-verify-out").addEventListener("click", () => $("verify-out-input").click());
-    $("verify-src-input").addEventListener("change", (e) => onVerifyFolderPicked("sources", e).catch(reportError));
-    $("verify-out-input").addEventListener("change", (e) => onVerifyFolderPicked("outputs", e).catch(reportError));
-    $("btn-verify").addEventListener("click", onVerify);
-    $("btn-verify-tickall").addEventListener("click", onVerifyTickAll);
-    $("btn-verify-harden").addEventListener("click", onVerifyHarden);
-    $("sec-enable").addEventListener(
+    $2("btn-browse").addEventListener("click", onBrowse);
+    $2("fallback-input").addEventListener("change", onFallbackPicked);
+    $2("btn-template").addEventListener("click", onChooseTemplateFSA);
+    $2("template-input").addEventListener("change", onTemplatePicked);
+    $2("btn-clear-template").addEventListener("click", onClearTemplate);
+    $2("btn-save").addEventListener("click", onSave);
+    $2("btn-verify-src").addEventListener("click", () => $2("verify-src-input").click());
+    $2("btn-verify-out").addEventListener("click", () => $2("verify-out-input").click());
+    $2("verify-src-input").addEventListener("change", (e) => onVerifyFolderPicked("sources", e).catch(reportError));
+    $2("verify-out-input").addEventListener("change", (e) => onVerifyFolderPicked("outputs", e).catch(reportError));
+    $2("btn-verify").addEventListener("click", onVerify);
+    $2("btn-verify-tickall").addEventListener("click", onVerifyTickAll);
+    $2("btn-verify-harden").addEventListener("click", onVerifyHarden);
+    initDot1xSection({ escapeHtml, openConfigModal, downloadZip, reportError, isConfigFile, isSwitchParsed });
+    $2("sec-enable").addEventListener(
       "change",
-      () => $("sec-rows").classList.toggle("hidden", !$("sec-enable").checked)
+      () => $2("sec-rows").classList.toggle("hidden", !$2("sec-enable").checked)
     );
-    $("vtp-enable").addEventListener(
+    $2("vtp-enable").addEventListener(
       "change",
-      () => $("vtp-rows").classList.toggle("hidden", !$("vtp-enable").checked)
+      () => $2("vtp-rows").classList.toggle("hidden", !$2("vtp-enable").checked)
     );
-    $("errd-enable").addEventListener(
+    $2("errd-enable").addEventListener(
       "change",
-      () => $("errd-rows").classList.toggle("hidden", !$("errd-enable").checked)
+      () => $2("errd-rows").classList.toggle("hidden", !$2("errd-enable").checked)
     );
-    $("clock-enable").addEventListener(
+    $2("clock-enable").addEventListener(
       "change",
-      () => $("clock-rows").classList.toggle("hidden", !$("clock-enable").checked)
+      () => $2("clock-rows").classList.toggle("hidden", !$2("clock-enable").checked)
     );
-    $("banner-enable").addEventListener(
+    $2("banner-enable").addEventListener(
       "change",
-      () => $("banner-rows").classList.toggle("hidden", !$("banner-enable").checked)
+      () => $2("banner-rows").classList.toggle("hidden", !$2("banner-enable").checked)
     );
     document.querySelectorAll(".secret-toggle").forEach(
       (btn) => btn.addEventListener("click", () => {
-        const inp = $(btn.dataset.target);
+        const inp = $2(btn.dataset.target);
         const reveal = inp.type === "password";
         inp.type = reveal ? "text" : "password";
         btn.textContent = reveal ? "\u{1F648}" : "\u{1F441}";
@@ -4663,7 +5809,7 @@ ip routing
       })
     );
     document.querySelectorAll('input[name="insertion"]').forEach((el) => el.addEventListener("change", refreshTagMap));
-    $("rename").addEventListener("change", () => $("rename-rows").classList.toggle("hidden", !$("rename").checked));
+    $2("rename").addEventListener("change", () => $2("rename-rows").classList.toggle("hidden", !$2("rename").checked));
     refreshTagMap();
   }
   init();

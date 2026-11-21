@@ -1,10 +1,10 @@
 /* 802.1X for Catalyst 9000 (IOS-XE 16+): settings, what a config already has,
  * which ports qualify, the config to add in either style, and the merge into
- * an existing config. Pure — browser- and Node-importable.
+ * an existing config. Pure - browser- and Node-importable.
  *
  * Two styles, never mixed on one switch:
- *   classic — per-port `authentication …` commands
- *   policy  — IBNS 2.0: `access-session …` + a control policy-map on each port
+ *   classic - per-port `authentication …` commands
+ *   policy  - IBNS 2.0: `access-session …` + a control policy-map on each port
  *
  * Existing config is matched by what it does, not by name: a RADIUS server at
  * the same IP under another name counts as present and its name is reused. A
@@ -381,11 +381,11 @@ function globalItems(s, scan, need) {
     "aaa",
     "aaa new-model",
     scan.aaaNewModel ? "present" : "missing",
-    scan.aaaNewModel ? "" : "Changes how administrators log in — confirm a local user or TACACS login works before pasting.",
+    scan.aaaNewModel ? "" : "Changes how administrators log in - confirm a local user or TACACS login works before pasting.",
     ["aaa new-model"]
   );
 
-  // RADIUS servers — matched by IP, the existing name is reused
+  // RADIUS servers - matched by IP, the existing name is reused
   for (const srv of serversOf(s)) {
     const byIp = scan.servers.find((x) => x.ip === srv.ip);
     const byName = scan.servers.find((x) => x.name === srv.name);
@@ -397,7 +397,7 @@ function globalItems(s, scan, need) {
       if (portsDiffer) {
         add(`server:${srv.ip}`, label, "differs", `"${byIp.name}" uses ports ${byIp.authPort}/${byIp.acctPort}, settings say ${s.authPort}/${s.acctPort}.`);
       } else {
-        add(`server:${srv.ip}`, label, "present", byIp.name !== srv.name ? `defined as "${byIp.name}" — that name is reused.` : "");
+        add(`server:${srv.ip}`, label, "present", byIp.name !== srv.name ? `defined as "${byIp.name}" - that name is reused.` : "");
       }
     } else if (byName) {
       names.servers.push(byName.name);
@@ -408,7 +408,7 @@ function globalItems(s, scan, need) {
     }
   }
 
-  // Server group — matched by its members
+  // Server group - matched by its members
   const want = names.servers;
   const g =
     scan.groups.find((x) => want.every((n) => x.servers.includes(n))) ||
@@ -429,7 +429,7 @@ function globalItems(s, scan, need) {
       "group",
       `RADIUS server group ${names.group}`,
       "missing",
-      g ? `exists — ${groupLines.length} line${groupLines.length === 1 ? "" : "s"} to add.` : "",
+      g ? `the group exists; ${groupLines.length} line${groupLines.length === 1 ? "" : "s"} to add.` : "",
       [`aaa group server radius ${names.group}`, ...groupLines]
     );
   } else {
@@ -449,7 +449,7 @@ function globalItems(s, scan, need) {
   method("authn", "aaa authentication dot1x", /^aaa authentication dot1x default\b/, `aaa authentication dot1x default group ${names.group}`);
   method("authz", "aaa authorization network", /^aaa authorization network default\b/, `aaa authorization network default group ${names.group}`);
   // New-style switches show accounting as `aaa accounting Identity`; either form does the job there.
-  if (s.style === "policy") {
+  if ((need.acctStyle || s.style) === "policy") {
     method("acct", "aaa accounting identity", /^aaa accounting (identity|dot1x) default\b/i, `aaa accounting identity default start-stop group ${names.group}`);
   } else {
     method("acct", "aaa accounting dot1x", /^aaa accounting dot1x default\b/, `aaa accounting dot1x default start-stop group ${names.group}`);
@@ -612,7 +612,7 @@ function checkPort(iface, s) {
         closing = true;
       }
     } else if (!open) {
-      if (configured) differs.push(`port is in closed mode — left closed (settings say ${MODE_LABEL[s.mode]})`);
+      if (configured) differs.push(`port is in closed mode - left closed (settings say ${MODE_LABEL[s.mode]})`);
       else place(openLine, /^authentication port-control\b/);
     }
   } else {
@@ -623,7 +623,7 @@ function checkPort(iface, s) {
         closing = configured;
       }
     } else if (closed) {
-      differs.push(`port is in closed mode — left closed (settings say ${MODE_LABEL[s.mode]})`);
+      differs.push(`port is in closed mode - left closed (settings say ${MODE_LABEL[s.mode]})`);
     }
   }
   return { add, remove, differs, configured, closing };
@@ -633,8 +633,8 @@ function checkPort(iface, s) {
 
 /**
  * Check a parsed config against the settings.
- *   opts.ports         — Set of normNames to include (null = every qualifying port)
- *   opts.ignoreVersion — skip the Catalyst 9000 version guard (main flow)
+ *   opts.ports         - Set of normNames to include (null = every qualifying port)
+ *   opts.ignoreVersion - skip the Catalyst 9000 version guard (main flow)
  * Item / port states: present | missing | differs | conflict (ports: done | partial | missing | conflict).
  */
 export function checkDot1x(parsed, settings, opts = {}) {
@@ -643,7 +643,7 @@ export function checkDot1x(parsed, settings, opts = {}) {
   const base = { supported: true, version: scan.version, style: scan.style, conflict: false, items: [], ports: [], skipped: [], global: [], warnings: [], complete: false };
   const counts = { globalsPresent: 0, globalsTotal: 0, portsDone: 0, portsTotal: 0 };
   if (!scan.supported && !opts.ignoreVersion) {
-    return { ...base, supported: false, counts, warnings: [`IOS ${scan.version} is not a Catalyst 9000 — use the main flow at the top.`] };
+    return { ...base, supported: false, counts, warnings: [`IOS ${scan.version} is not a Catalyst 9000 - use the main flow at the top.`] };
   }
 
   const conflict = !!scan.style && scan.style !== s.style;
@@ -663,17 +663,19 @@ export function checkDot1x(parsed, settings, opts = {}) {
   const need = {
     ipdt: ports.some((p) => p.add.includes(attach)),
     policy: !conflict && ports.some((p) => p.add.includes(service)),
+    // On a switch already running the other style, keep to the accounting form that style uses.
+    acctStyle: conflict ? scan.style : s.style,
   };
   const items = globalItems(s, scan, need);
 
   if (conflict) {
     warnings.push(
       `Ports already use the ${STYLE_LABEL[scan.style]} style but the settings select ${STYLE_LABEL[s.style]}. ` +
-        `The two cannot be mixed, so no port lines were generated — only the global lines both styles share.`
+        `The two cannot be mixed, so no port lines were generated - only the global lines both styles share.`
     );
   }
   const aaa = items.find((i) => i.id === "aaa");
-  if (aaa.state === "missing") warnings.push("aaa new-model is not enabled. Adding it changes how administrators log in — confirm a local user or TACACS login works before pasting.");
+  if (aaa.state === "missing") warnings.push("aaa new-model is not enabled. Adding it changes how administrators log in - confirm a local user or TACACS login works before pasting.");
   const closing = ports.filter((p) => p.closing).length;
   if (closing) warnings.push(`${closing} port${closing === 1 ? "" : "s"} already running 802.1X in open mode will move to CLOSED mode.`);
   if (s.style === "policy" && s.order === "mab" && need.policy) {
@@ -825,7 +827,12 @@ export function addDot1xToOutput(text, settings) {
     warnings.push(`replaced the old 802.1X lines on ${stripped.ports.length} port${stripped.ports.length === 1 ? "" : "s"} with the ${STYLE_LABEL[s.style]} style.`);
   }
   const check = checkDot1x(parse(stripped.content), s, { ignoreVersion: true });
-  for (const w of check.warnings) if (!/^aaa new-model/.test(w)) warnings.push(w);
+  for (const w of check.warnings) {
+    if (/^aaa new-model/.test(w)) continue; // a new switch: nobody is logged in to lock out
+    if (/^No access ports qualify/.test(w)) {
+      warnings.push("no access ports in this output, so only the global 802.1X config was added - tick the device's interfaces in Step 2 if ports were expected.");
+    } else warnings.push(w);
+  }
   for (const i of check.items.filter((x) => x.state === "differs")) warnings.push(`802.1X not changed: ${i.label} - ${i.detail}`);
   for (const p of check.ports) for (const d of p.differs) warnings.push(`802.1X not changed: ${p.normName} - ${d}`);
   const res = applyDot1x(stripped.content, check);

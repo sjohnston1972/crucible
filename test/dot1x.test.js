@@ -471,3 +471,17 @@ test("addDot1xToOutput: old classic port lines are replaced with the selected st
   // the result is complete: a check of it finds nothing left to add
   assert.equal(checkDot1x(parse(out), SET, { ignoreVersion: true }).complete, true);
 });
+
+test("check: a classic-style switch checked with policy settings keeps the classic accounting form", () => {
+  const classic = SWITCH.replace(" spanning-tree portfast", " authentication port-control auto\n authentication open");
+  const c = checkDot1x(parse(classic), SET);
+  assert.ok(c.global.includes("aaa accounting dot1x default start-stop group ISE-RADIUS"));
+  assert.ok(!c.global.some((l) => /accounting identity/.test(l)));
+});
+
+test("generated files are plain ASCII", () => {
+  for (const cfg of [SWITCH, SWITCH.replace(" spanning-tree portfast", " authentication port-control auto")]) {
+    const c = checkDot1x(parse(cfg), { ...SET, order: "mab", mode: "closed" });
+    assert.ok(!/[^\x00-\x7f]/.test(changesText(c, { hostname: "x", settings: SET })));
+  }
+});

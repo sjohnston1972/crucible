@@ -100,6 +100,10 @@
         <label class="field"><span>Recovery interval (seconds)</span><input id="errd-interval" type="number" min="30" value="300" /></label>
       </div>
 
+      <h3 class="sub">802.1X (switches)</h3>
+      <p class="sub-desc">Adds the 802.1X global config to every <strong>switch</strong> output and the port config to every access port, using the settings in the <a href="#step-dot1x">802.1X section</a> at the bottom of the page. Old 802.1X lines carried over from the source ports are replaced.</p>
+      <label class="checkbox"><input id="dot1x-enable" type="checkbox" /><span>Add 802.1X to switch outputs</span></label>
+
       <h3 class="sub">Clock &amp; timezone</h3>
       <p class="sub-desc">Set a consistent timezone and clock on every device (router and switch).</p>
       <label class="checkbox"><input id="clock-enable" type="checkbox" /><span>Set clock / timezone</span></label>
@@ -240,6 +244,110 @@
       </div>
       <div id="verify-summary" class="verify-summary"></div>
       <div id="verify-results" class="verify-results"></div>
+    </section>
+
+    <section class="card" id="step-dot1x">
+      <div class="card-head">
+        <h2><span class="step-num">⚿</span> 802.1X implementation check</h2>
+        <p class="step-desc">
+          For <strong>Catalyst 9000</strong> switches. Fill in the settings, load a folder of switch backups, and
+          Crucible reports how much of the 802.1X configuration each one already has, then writes the
+          <strong>changes</strong> needed to finish it — or the full config with the changes merged in. Older
+          switches go through the main flow at the top instead: tick “Add 802.1X” under Global additions and
+          these same settings are used. Nothing is uploaded.
+        </p>
+      </div>
+
+      <h3 class="sub">Settings</h3>
+      <div class="grid3">
+        <label class="field"><span>Style</span>
+          <select id="dx-style">
+            <option value="policy" selected>Policy-based (IBNS 2.0)</option>
+            <option value="classic">Classic (per-port authentication commands)</option>
+          </select>
+        </label>
+        <label class="field"><span>Deployment mode</span>
+          <select id="dx-mode">
+            <option value="monitor" selected>Monitor — open, nothing blocked</option>
+            <option value="low">Low impact — open, with a pre-auth ACL</option>
+            <option value="closed">Closed — no access until authenticated</option>
+          </select>
+        </label>
+        <label class="field"><span>Authentication order</span>
+          <select id="dx-order">
+            <option value="dot1x" selected>802.1X then MAB</option>
+            <option value="mab">MAB then 802.1X</option>
+          </select>
+        </label>
+      </div>
+
+      <h3 class="sub">RADIUS servers</h3>
+      <div class="grid3">
+        <label class="field"><span>Server 1 name</span><input id="dx-s1-name" type="text" value="ISE-1" autocomplete="off" /></label>
+        <label class="field"><span>Server 1 IP <span class="muted small">(required)</span></span><input id="dx-s1-ip" type="text" placeholder="10.1.1.10" autocomplete="off" /></label>
+        <label class="field"><span>Shared key <span class="muted small">(required)</span></span>
+          <div class="secret-input">
+            <input id="dx-key" type="password" placeholder="RADIUS shared key" autocomplete="new-password" />
+            <button type="button" class="secret-toggle" data-target="dx-key" aria-label="Show shared key">👁</button>
+          </div>
+        </label>
+        <label class="field"><span>Server 2 name <span class="muted small">(optional)</span></span><input id="dx-s2-name" type="text" value="ISE-2" autocomplete="off" /></label>
+        <label class="field"><span>Server 2 IP <span class="muted small">(optional)</span></span><input id="dx-s2-ip" type="text" placeholder="10.1.1.11" autocomplete="off" /></label>
+        <label class="field"><span>Server group name</span><input id="dx-group" type="text" value="ISE-RADIUS" autocomplete="off" /></label>
+        <label class="field"><span>Auth port</span><input id="dx-auth-port" type="number" min="1" max="65535" value="1812" /></label>
+        <label class="field"><span>Accounting port</span><input id="dx-acct-port" type="number" min="1" max="65535" value="1813" /></label>
+        <label class="field"><span>RADIUS source interface <span class="muted small">(optional)</span></span><input id="dx-source" type="text" placeholder="Vlan10" autocomplete="off" /></label>
+        <label class="field"><span>Server probe username <span class="muted small">(optional)</span></span><input id="dx-probe" type="text" placeholder="radius-probe" autocomplete="off" /></label>
+        <label class="field"><span>CoA key <span class="muted small">(optional — defaults to shared key)</span></span>
+          <div class="secret-input">
+            <input id="dx-coa-key" type="password" placeholder="(reuse shared key)" autocomplete="new-password" />
+            <button type="button" class="secret-toggle" data-target="dx-coa-key" aria-label="Show CoA key">👁</button>
+          </div>
+        </label>
+      </div>
+      <div class="checks" style="margin-top:0.75rem">
+        <label class="checkbox"><input id="dx-coa" type="checkbox" checked /><span>Allow change of authorisation (CoA) from the RADIUS servers</span></label>
+      </div>
+      <p class="muted small" style="margin-top:0.5rem">The keys are written into the generated files in clear text, exactly as typed.</p>
+
+      <h3 class="sub">Ports</h3>
+      <div class="grid3">
+        <label class="field"><span>Host mode</span>
+          <select id="dx-host-mode">
+            <option value="multi-auth" selected>multi-auth</option>
+            <option value="multi-domain">multi-domain</option>
+            <option value="multi-host">multi-host</option>
+            <option value="single-host">single-host</option>
+          </select>
+        </label>
+        <label class="field"><span>802.1X tx-period (seconds)</span><input id="dx-tx" type="number" min="1" max="65535" value="10" /></label>
+        <label class="field"><span>Critical VLAN <span class="muted small">(optional)</span></span><input id="dx-critical" type="number" min="1" max="4094" placeholder="e.g. 100" /></label>
+      </div>
+      <div class="checks" style="margin-top:0.75rem">
+        <label class="checkbox"><input id="dx-reauth" type="checkbox" checked /><span>Re-authenticate periodically (timer set by the RADIUS server)</span></label>
+        <label class="checkbox"><input id="dx-critical-voice" type="checkbox" checked /><span>Keep voice working when RADIUS is unreachable <span class="muted small">(needs a critical VLAN)</span></span></label>
+      </div>
+      <label class="field" style="margin-top:0.75rem; max-width:560px"><span>Skip ports whose description contains <span class="muted small">(comma-separated)</span></span>
+        <input id="dx-skip" type="text" placeholder="AP, UPLINK, PRINTER" autocomplete="off" />
+      </label>
+      <p class="muted small" style="margin-top:0.5rem">802.1X goes on access ports only — trunks, routed ports and port-channel members are always left alone.</p>
+
+      <h3 class="sub">Backups</h3>
+      <div class="actions">
+        <button id="btn-dx-folder" class="btn" type="button">Browse backups folder…</button>
+        <input id="dx-folder-input" type="file" webkitdirectory directory multiple hidden />
+        <span id="dx-folder-name" class="folder-name muted">No backups folder chosen</span>
+      </div>
+      <div id="dx-files"></div>
+      <div class="actions">
+        <button id="btn-dx-check" class="btn btn-primary" type="button" disabled>Check</button>
+        <label class="checkbox"><input id="dx-out-changes" type="checkbox" checked /><span>Changes file</span></label>
+        <label class="checkbox"><input id="dx-out-full" type="checkbox" /><span>Full config</span></label>
+        <button id="btn-dx-download" class="btn" type="button" disabled>Download .zip</button>
+        <span id="dx-status" class="muted small"></span>
+      </div>
+      <div id="dx-summary" class="verify-summary"></div>
+      <div id="dx-results" class="verify-results"></div>
     </section>
   </div>
 
